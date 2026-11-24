@@ -1,0 +1,49 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: urn:hostry:events:identity.member.changed:v1
+title: identity.member.changed v1
+description: 'A member, their roles or their PIN changed. Services drop cached grants through go-auth.
+  Ids only: no name, phone or permission list.'
+x-publisher: identity
+x-subscribers: []
+allOf:
+- $ref: urn:hostry:events:envelope:v1
+- type: object
+  properties:
+    type:
+      const: identity.member.changed
+    v:
+      const: 1
+    source:
+      const: identity
+    data:
+      type: object
+      required:
+      - member_id
+      - change
+      properties:
+        member_id:
+          type: string
+          description: The member.
+        change:
+          type: string
+          description: What changed.
+          enum:
+          - created
+          - updated
+          - status_changed
+          - roles_changed
+          - pin_changed
+          - removed
+examples:
+- id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a83
+  type: identity.member.changed
+  v: 1
+  source: identity
+  tenant_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+  key: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
+  key_seq: 3
+  occurred_at: '2026-11-24T13:05:11.120Z'
+  actor: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
+  data:
+    member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
+    change: roles_changed

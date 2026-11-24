@@ -6,15 +6,20 @@ Change the contract first, then regenerate, then implement (`api-contract-standa
 ## Layout
 ```
 openapi/<service>/v1/openapi.yaml   one OpenAPI 3.1 document per service and major version
-common/components.yaml              shared Problem, Money, Id, cursor + Idempotency-Key + header params, error responses
+common/components.yaml              shared Problem, Money, Id, phone/GSTIN/ticket formats, cursor + Idempotency-Key + header params, error responses
+common/permissions.yaml             permission catalogue (flags), vendor roles, link scopes
 events/_envelope.v1.yaml            ADR-0011 envelope (JSON Schema)
 events/<service>/<entity>.<verb>.v<N>.yaml   one schema per event; declares x-publisher / x-subscribers
 contracttest/                       Go harness: runs a spec's examples against any base URL
 contract-tests/<service>/           per-service suite (real service or its double/)
 examples/ping/                      tiny spec + double proving the harness
 ```
-Status of each document is `info.x-status` (`draft`, `stable`, `deprecated`). Identity and tenancy are
-draft skeletons.
+Status of each document is `info.x-status` (`draft`, `stable`, `deprecated`). Identity, tenancy and admin are `stable` v1.
+Tenant-facing paths are under `/v1`; operations for other services and for the admin service are under `/internal/v1`
+(ADR-0005 section 9) and declare `x-service-callers`. Wire details fixed with go-auth: user, vendor and support tokens in
+`Authorization: Bearer`, service token in `Hostry-Service-Token`, approval token in `Hostry-Approval`, any refused token is
+401 `auth.invalid_token`. Extensions: `x-permission`, `x-step-up`, `x-outlet-scoped`, `x-service-callers`, `x-vendor-class`,
+`x-vendor-audit` (`none` only on directory-class reads), `x-feature-flag: LINKS_ENABLED`.
 
 ## Conventions the lint enforces (`.spectral.yaml`)
 `/v1` kebab-case plural paths; `operationId` lowerCamelCase; `x-permission` on every operation (`public`
@@ -30,7 +35,7 @@ Tools install locally (`make tools` puts Go tools in `.tools/bin`; Node tools ru
 
 | Target | Does |
 |---|---|
-| `make lint` | Spectral on all specs + validates event schemas and their examples |
+| `make lint` | Spectral on all specs + event schemas and examples + `validate-specs` (catalogue flags, realms, callers, vendor-audit marker) |
 | `make breaking` | oasdiff against `BASE` (default `origin/main`); breaking changes fail |
 | `make generate` | bundle, then Go (`gen/go/<service>/`, oapi-codegen: types, net/http server, client) and TypeScript (`gen/ts/<service>.d.ts`, openapi-typescript) |
 | `make test` | `go vet` and tests, including the harness self-test |

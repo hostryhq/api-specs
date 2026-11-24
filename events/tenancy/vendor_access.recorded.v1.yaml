@@ -1,0 +1,90 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: urn:hostry:events:tenancy.vendor_access.recorded:v1
+title: tenancy.vendor_access.recorded v1
+description: 'A vendor or support request served by tenancy was recorded in its vendor_access_log in the
+  action''s own transaction (ADR-0013 V5). Identity folds it into the vendor audit log and the tenant''s
+  own audit log. Ids, action key and a ticket reference of fixed pattern only: no free text, no personal
+  data, no GSTIN.'
+x-publisher: tenancy
+x-subscribers:
+- identity
+allOf:
+- $ref: urn:hostry:events:envelope:v1
+- type: object
+  properties:
+    type:
+      const: tenancy.vendor_access.recorded
+    v:
+      const: 1
+    source:
+      const: tenancy
+    data:
+      type: object
+      required:
+      - entry_id
+      - vendor_user_id
+      - token_type
+      - action_key
+      - outcome
+      - request_id
+      properties:
+        entry_id:
+          type: string
+          description: Row id in the serving service's vendor_access_log.
+        vendor_user_id:
+          type: string
+          description: The vendor user.
+        token_type:
+          type: string
+          description: Credential used.
+          enum:
+          - vendor
+          - support
+        support_session_id:
+          type: string
+          description: Set when token_type is support.
+        action_key:
+          type: string
+          description: Stable action key, for example vendor.organisation.created.
+          pattern: ^[a-z]+(\.[a-z_]+)+$
+        target_id:
+          type: string
+          description: Target record id, when any.
+        ticket_reference:
+          type: string
+          description: Support ticket reference (fixed pattern).
+          pattern: ^[A-Za-z0-9][A-Za-z0-9._-]{1,63}$
+        outcome:
+          type: string
+          description: Result.
+          enum:
+          - succeeded
+          - refused
+          - failed
+        result_count:
+          type: integer
+          description: Number of records a read returned.
+          minimum: 0
+        request_id:
+          type: string
+          description: Request id for correlation.
+examples:
+- id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a81
+  type: tenancy.vendor_access.recorded
+  v: 1
+  source: tenancy
+  tenant_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+  key: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a90
+  key_seq: 1
+  occurred_at: '2026-11-24T13:05:11.120Z'
+  actor: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+  data:
+    entry_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a90
+    vendor_user_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+    token_type: support
+    support_session_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a68
+    action_key: support.read.outlets
+    ticket_reference: SUP-2041
+    outcome: succeeded
+    result_count: 1
+    request_id: req_0190a1b2c3d4

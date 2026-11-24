@@ -1,0 +1,61 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: urn:hostry:events:tenancy.organisation.updated:v1
+title: tenancy.organisation.updated v1
+description: An organisation changed (name, status or settings). The payload carries current status only;
+  names stay in tenancy.
+x-publisher: tenancy
+x-subscribers:
+- identity
+allOf:
+- $ref: urn:hostry:events:envelope:v1
+- type: object
+  properties:
+    type:
+      const: tenancy.organisation.updated
+    v:
+      const: 1
+    source:
+      const: tenancy
+    data:
+      type: object
+      required:
+      - organisation_id
+      - status
+      - changed
+      properties:
+        organisation_id:
+          type: string
+          description: The organisation (equals tenant_id).
+        status:
+          type: string
+          description: Organisation state.
+          enum:
+          - trial
+          - active
+          - suspended
+          - closed
+        changed:
+          type: array
+          description: Which parts changed.
+          items:
+            type: string
+            description: Part.
+            enum:
+            - name
+            - status
+            - settings
+examples:
+- id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a82
+  type: tenancy.organisation.updated
+  v: 1
+  source: tenancy
+  tenant_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+  key: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+  key_seq: 2
+  occurred_at: '2026-11-24T13:05:11.120Z'
+  actor: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
+  data:
+    organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+    status: trial
+    changed:
+    - settings

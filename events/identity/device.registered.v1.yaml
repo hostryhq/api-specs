@@ -1,0 +1,65 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: urn:hostry:events:identity.device.registered:v1
+title: identity.device.registered v1
+description: A device was registered or activated. Ids and enums only; no key material.
+x-publisher: identity
+x-subscribers: []
+allOf:
+- $ref: urn:hostry:events:envelope:v1
+- type: object
+  properties:
+    type:
+      const: identity.device.registered
+    v:
+      const: 1
+    source:
+      const: identity
+    data:
+      type: object
+      required:
+      - device_id
+      - kind
+      - key_protection
+      - billing_capability
+      properties:
+        device_id:
+          type: string
+          description: The device.
+        kind:
+          type: string
+          description: Device kind.
+          enum:
+          - personal
+          - pos
+          - waiter
+          - kds
+          - hub
+        key_protection:
+          type: string
+          description: Reported protection tier of the device key.
+          enum:
+          - hardware
+          - os-software
+        billing_capability:
+          type: string
+          description: Billing capability at registration.
+          enum:
+          - none
+          - dormant
+          - active
+examples:
+- id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a81
+  type: identity.device.registered
+  v: 1
+  source: identity
+  tenant_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+  outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+  key: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+  key_seq: 1
+  occurred_at: '2026-11-24T13:05:11.120Z'
+  actor: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
+  data:
+    device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+    kind: pos
+    key_protection: hardware
+    billing_capability: active
