@@ -1,0 +1,207 @@
+# Shared components for every Hostry OpenAPI document. Referenced as
+# ../../../common/components.yaml#/components/... and inlined by `make bundle`.
+openapi: 3.1.0
+info:
+  title: Hostry common components
+  version: 1.0.0
+  description: Shared schemas, parameters, headers and responses. Not a service API.
+paths: {}
+components:
+  schemas:
+    Id:
+      type: string
+      description: Client-generated, time-sortable identifier (UUIDv7 or ULID).
+      pattern: '^([0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|[0-9A-HJKMNP-TV-Z]{26})$'
+      example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b
+    Timestamp:
+      type: string
+      format: date-time
+      description: RFC 3339 instant in UTC.
+      example: '2026-11-24T13:05:11.120Z'
+    Money:
+      type: object
+      description: Amount in integer paise. Never a float.
+      required: [amount_paise, currency]
+      properties:
+        amount_paise:
+          type: integer
+          format: int64
+          description: Amount in paise (1 INR = 100 paise).
+          example: 12500
+        currency:
+          type: string
+          description: ISO 4217 currency code.
+          enum: [INR]
+          example: INR
+    PageCursor:
+      type: object
+      description: Cursor pagination field shared by every list response (compose with allOf).
+      properties:
+        next_cursor:
+          type: string
+          description: Opaque cursor for the next page; absent when there are no more results.
+          example: eyJhZnRlciI6IjAxOTBhMWIyIn0
+    Problem:
+      type: object
+      description: RFC 9457 problem details. `type` is a stable URI per error kind.
+      required: [type, title, status, code]
+      properties:
+        type:
+          type: string
+          format: uri
+          description: Stable URI identifying the error kind, urn:hostry:problem:<code>.
+          example: urn:hostry:problem:not_found
+        title:
+          type: string
+          description: Short human-readable summary; not for programmatic use.
+          example: Resource not found
+        status:
+          type: integer
+          description: HTTP status code.
+          example: 404
+        detail:
+          type: string
+          description: Explanation specific to this occurrence. Never contains internals or SQL.
+          example: No such resource.
+        instance:
+          type: string
+          description: URI reference identifying this occurrence.
+          example: /v1/resources/0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b
+        request_id:
+          type: string
+          description: Request ID for log correlation.
+          example: req_0190a1b2c3d4
+        code:
+          type: string
+          description: Stable machine-readable error code (also the suffix of `type`); doubles as the i18n key base.
+          example: not_found
+        errors:
+          type: array
+          description: Field-level validation errors.
+          items:
+            type: object
+            description: One field-level error.
+            required: [field, code]
+            properties:
+              field:
+                type: string
+                description: Name or path of the offending field.
+                example: name
+              code:
+                type: string
+                description: Stable machine-readable code for this field error.
+                example: required
+              message:
+                type: string
+                description: Optional human-readable explanation.
+                example: must not be empty
+  parameters:
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      description: Opaque cursor from a previous response's next_cursor.
+      schema:
+        type: string
+      example: eyJhZnRlciI6IjAxOTBhMWIyIn0
+    Limit:
+      name: limit
+      in: query
+      required: false
+      description: Page size (default 50, maximum 200).
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 50
+      example: 50
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: >-
+        Client-generated unique key, 1-128 visible ASCII characters (a UUIDv7 or ULID is
+        recommended). A replay with the same key and request returns the original status and
+        body without repeating the effect. The same key with a different request returns 422
+        (code idempotency.mismatch); the same key while the first request is still in progress
+        returns 409 (code idempotency.in_progress); an invalid key returns 422
+        (code idempotency.key_invalid).
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+        pattern: '^[\x21-\x7E]{1,128}$'
+      example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b
+    RequestId:
+      name: X-Request-Id
+      in: header
+      required: false
+      description: Caller-supplied request ID, echoed in responses and logs. Generated if absent.
+      schema:
+        type: string
+        maxLength: 64
+      example: req_0190a1b2c3d4
+    OutletScope:
+      name: X-Outlet-Id
+      in: header
+      required: false
+      description: >-
+        Selects the outlet/property scope within the token's organisation. The tenant itself
+        is always taken from the token, never from a header, query or body field.
+      schema:
+        $ref: '#/components/schemas/Id'
+      example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5c
+  responses:
+    BadRequest:
+      description: Malformed request.
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+          example: {type: 'urn:hostry:problem:bad_request', title: Bad request, status: 400, code: bad_request}
+    Unauthorized:
+      description: Missing or invalid token.
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+          example: {type: 'urn:hostry:problem:unauthenticated', title: Authentication required, status: 401, code: unauthenticated}
+    Forbidden:
+      description: Token lacks the required permission.
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+          example: {type: 'urn:hostry:problem:forbidden', title: Permission denied, status: 403, code: forbidden}
+    NotFound:
+      description: No such resource in the caller's tenant (also returned for another tenant's resource).
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+          example: {type: 'urn:hostry:problem:not_found', title: Not found, status: 404, code: not_found}
+    Conflict:
+      description: State conflict, or an Idempotency-Key request still in progress.
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+          example: {type: 'urn:hostry:problem:idempotency.in_progress', title: Conflict, status: 409, code: idempotency.in_progress}
+    ValidationFailed:
+      description: Request is well-formed but invalid, or an Idempotency-Key was reused with a different request.
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+          example:
+            type: 'urn:hostry:problem:validation'
+            title: Validation failed
+            status: 422
+            code: validation
+            errors: [{field: name, code: required, message: must not be empty}]
+    TooManyRequests:
+      description: Rate limit exceeded; honour Retry-After.
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+          example: {type: 'urn:hostry:problem:rate_limited', title: Too many requests, status: 429, code: rate_limited}
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: ES256 access token issued by identity (ADR-0005). One tenant per token.

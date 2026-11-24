@@ -1,0 +1,355 @@
+openapi: 3.1.0
+info:
+  title: Hostry identity API
+  version: 1.0.0-draft
+  description: >-
+    Sessions, OTP login, devices, members and revocations (ADR-0005). SKELETON: paths and
+    resource names only; the full contract is filled in the next wave.
+  x-status: draft
+servers:
+  - url: /
+tags:
+  - name: identity
+    description: Identity service.
+security:
+  - bearerAuth: []
+paths:
+  /v1/otp-challenges:
+    post:
+      operationId: createOtpChallenge
+      summary: Start an owner/manager OTP sign-in
+      tags: [identity]
+      x-permission: public
+      security: []
+      parameters:
+        - $ref: '../../../common/components.yaml#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateOtpChallenge'}
+            example: {mobile_e164: '+910000000000'}
+      responses:
+        '202':
+          description: Challenge created; the OTP is sent out of band.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/OtpChallenge'}
+              example: {id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b, expires_at: '2026-11-24T13:10:11.120Z'}
+        '422': {$ref: '../../../common/components.yaml#/components/responses/ValidationFailed'}
+        '429': {$ref: '../../../common/components.yaml#/components/responses/TooManyRequests'}
+  /v1/sessions:
+    post:
+      operationId: createSession
+      summary: Exchange a verified OTP (or device assertion) for tokens
+      tags: [identity]
+      x-permission: public
+      security: []
+      parameters:
+        - $ref: '../../../common/components.yaml#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateSession'}
+            example: {challenge_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b, otp: '000000'}
+      responses:
+        '201':
+          description: Session created. Next wave adds token pair, offline pack, claims.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Session'}
+              example: {id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5d, expires_at: '2026-11-24T13:20:11.120Z'}
+        '401': {$ref: '../../../common/components.yaml#/components/responses/Unauthorized'}
+        '422': {$ref: '../../../common/components.yaml#/components/responses/ValidationFailed'}
+  /v1/jwks:
+    get:
+      operationId: getJwks
+      summary: Public signing keys (JWKS)
+      tags: [identity]
+      x-permission: public
+      security: []
+      responses:
+        '200':
+          description: JWKS document. Next wave adds realm-specific endpoints.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Jwks'}
+              example: {keys: []}
+  /v1/devices:
+    get:
+      operationId: listDevices
+      summary: List registered devices
+      tags: [identity]
+      x-permission: device.read
+      parameters:
+        - $ref: '../../../common/components.yaml#/components/parameters/Cursor'
+        - $ref: '../../../common/components.yaml#/components/parameters/Limit'
+      responses:
+        '200':
+          description: A page of devices.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DevicePage'}
+              example: {items: []}
+        '401': {$ref: '../../../common/components.yaml#/components/responses/Unauthorized'}
+        '403': {$ref: '../../../common/components.yaml#/components/responses/Forbidden'}
+    post:
+      operationId: registerDevice
+      summary: Register a device
+      tags: [identity]
+      x-permission: device.register
+      parameters:
+        - $ref: '../../../common/components.yaml#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RegisterDevice'}
+            example: {id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e, kind: waiter_tablet, name: Tablet 1}
+      responses:
+        '201':
+          description: Device registered. A replay returns the same device.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Device'}
+              example: {id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e, kind: waiter_tablet, name: Tablet 1, status: active}
+        '401': {$ref: '../../../common/components.yaml#/components/responses/Unauthorized'}
+        '403': {$ref: '../../../common/components.yaml#/components/responses/Forbidden'}
+        '422': {$ref: '../../../common/components.yaml#/components/responses/ValidationFailed'}
+  /v1/devices/{device_id}/revocation:
+    put:
+      operationId: revokeDevice
+      summary: Revoke a device (it keeps only the quarantine-upload path)
+      tags: [identity]
+      x-permission: device.revoke
+      parameters:
+        - name: device_id
+          in: path
+          required: true
+          description: Device ID.
+          schema: {$ref: '../../../common/components.yaml#/components/schemas/Id'}
+          example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+        - $ref: '../../../common/components.yaml#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RevokeDevice'}
+            example: {reason: lost}
+      responses:
+        '200':
+          description: Device revoked (idempotent; a repeat returns the same body).
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Device'}
+              example: {id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e, kind: waiter_tablet, name: Tablet 1, status: revoked}
+        '401': {$ref: '../../../common/components.yaml#/components/responses/Unauthorized'}
+        '403': {$ref: '../../../common/components.yaml#/components/responses/Forbidden'}
+        '404': {$ref: '../../../common/components.yaml#/components/responses/NotFound'}
+  /v1/members:
+    get:
+      operationId: listMembers
+      summary: List members (staff) of the organisation
+      tags: [identity]
+      x-permission: member.read
+      parameters:
+        - $ref: '../../../common/components.yaml#/components/parameters/Cursor'
+        - $ref: '../../../common/components.yaml#/components/parameters/Limit'
+      responses:
+        '200':
+          description: A page of members.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MemberPage'}
+              example: {items: []}
+        '401': {$ref: '../../../common/components.yaml#/components/responses/Unauthorized'}
+        '403': {$ref: '../../../common/components.yaml#/components/responses/Forbidden'}
+  /v1/revocations:
+    get:
+      operationId: listRevocations
+      summary: Revocations since a cursor (used by the sync gateway reconciliation)
+      tags: [identity]
+      x-permission: revocation.read
+      parameters:
+        - $ref: '../../../common/components.yaml#/components/parameters/Cursor'
+        - $ref: '../../../common/components.yaml#/components/parameters/Limit'
+      responses:
+        '200':
+          description: A page of revocations.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RevocationPage'}
+              example: {items: []}
+        '401': {$ref: '../../../common/components.yaml#/components/responses/Unauthorized'}
+        '403': {$ref: '../../../common/components.yaml#/components/responses/Forbidden'}
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: ES256 access token issued by identity (ADR-0005). One tenant per token.
+  schemas:
+    CreateOtpChallenge:
+      type: object
+      description: Request to start an OTP sign-in. STUB.
+      required: [mobile_e164]
+      properties:
+        mobile_e164:
+          type: string
+          description: Mobile number in E.164 format.
+          example: '+910000000000'
+    OtpChallenge:
+      type: object
+      description: A pending OTP challenge. STUB.
+      required: [id, expires_at]
+      properties:
+        id:
+          $ref: '../../../common/components.yaml#/components/schemas/Id'
+        expires_at:
+          $ref: '../../../common/components.yaml#/components/schemas/Timestamp'
+    CreateSession:
+      type: object
+      description: Request to create a session from a verified OTP. STUB.
+      required: [challenge_id, otp]
+      properties:
+        challenge_id:
+          $ref: '../../../common/components.yaml#/components/schemas/Id'
+        otp:
+          type: string
+          description: The one-time code entered by the user.
+          example: '000000'
+    Session:
+      type: object
+      description: A signed-in session. STUB; tokens and offline pack are added in the next wave.
+      required: [id, expires_at]
+      properties:
+        id:
+          $ref: '../../../common/components.yaml#/components/schemas/Id'
+        expires_at:
+          $ref: '../../../common/components.yaml#/components/schemas/Timestamp'
+    Jwks:
+      type: object
+      description: JSON Web Key Set. STUB.
+      required: [keys]
+      properties:
+        keys:
+          type: array
+          description: Public signing keys.
+          items:
+            type: object
+            description: One JWK (RFC 7517).
+            additionalProperties: true
+    DeviceKind:
+      type: string
+      description: Device kind. STUB; the device-role catalogue is added in the next wave.
+      enum: [waiter_tablet, counter, kds, hub, mobile]
+      example: waiter_tablet
+    DeviceStatus:
+      type: string
+      description: Device lifecycle state.
+      enum: [active, revoked]
+      example: active
+    RegisterDevice:
+      type: object
+      description: Request to register a device. The device ID is client-generated.
+      required: [id, kind, name]
+      properties:
+        id:
+          $ref: '../../../common/components.yaml#/components/schemas/Id'
+        kind:
+          $ref: '#/components/schemas/DeviceKind'
+        name:
+          type: string
+          description: Display name.
+          example: Tablet 1
+    RevokeDevice:
+      type: object
+      description: Request to revoke a device.
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          description: Why the device is revoked.
+          enum: [lost, stolen, retired, other]
+          example: lost
+    Device:
+      type: object
+      description: A registered device. STUB.
+      required: [id, kind, name, status]
+      properties:
+        id:
+          $ref: '../../../common/components.yaml#/components/schemas/Id'
+        kind:
+          $ref: '#/components/schemas/DeviceKind'
+        name:
+          type: string
+          description: Display name.
+          example: Tablet 1
+        status:
+          $ref: '#/components/schemas/DeviceStatus'
+    DevicePage:
+      type: object
+      description: A page of devices.
+      required: [items]
+      properties:
+        items:
+          type: array
+          description: Devices on this page.
+          items: {$ref: '#/components/schemas/Device'}
+        next_cursor:
+          type: string
+          description: Opaque cursor for the next page; absent when there are no more results.
+    Member:
+      type: object
+      description: A staff member. STUB; roles and outlet bindings are added in the next wave. Personal data fields are deliberately absent here.
+      required: [id, status]
+      properties:
+        id:
+          $ref: '../../../common/components.yaml#/components/schemas/Id'
+        status:
+          type: string
+          description: Member state.
+          enum: [active, suspended]
+          example: active
+    MemberPage:
+      type: object
+      description: A page of members.
+      required: [items]
+      properties:
+        items:
+          type: array
+          description: Members on this page.
+          items: {$ref: '#/components/schemas/Member'}
+        next_cursor:
+          type: string
+          description: Opaque cursor for the next page; absent when there are no more results.
+    Revocation:
+      type: object
+      description: A device or session revocation. STUB.
+      required: [id, subject_type, subject_id, revoked_at]
+      properties:
+        id:
+          $ref: '../../../common/components.yaml#/components/schemas/Id'
+        subject_type:
+          type: string
+          description: What was revoked.
+          enum: [device, session]
+          example: device
+        subject_id:
+          $ref: '../../../common/components.yaml#/components/schemas/Id'
+        revoked_at:
+          $ref: '../../../common/components.yaml#/components/schemas/Timestamp'
+    RevocationPage:
+      type: object
+      description: A page of revocations.
+      required: [items]
+      properties:
+        items:
+          type: array
+          description: Revocations on this page.
+          items: {$ref: '#/components/schemas/Revocation'}
+        next_cursor:
+          type: string
+          description: Opaque cursor for the next page; absent when there are no more results.

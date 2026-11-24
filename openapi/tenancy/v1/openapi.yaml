@@ -1,0 +1,256 @@
+openapi: 3.1.0
+info:
+  title: Hostry tenancy API
+  version: 1.0.0-draft
+  description: >-
+    Organisations, outlets/properties and linked tenants (ADR-0003). SKELETON: paths and
+    resource names only; the full contract is filled in the next wave. The tenant is always
+    the caller's organisation from the token; no tenant ID appears in paths or bodies.
+  x-status: draft
+servers:
+  - url: /
+tags:
+  - name: tenancy
+    description: Tenancy service.
+security:
+  - bearerAuth: []
+paths:
+  /v1/organisations/current:
+    get:
+      operationId: getCurrentOrganisation
+      summary: Get the caller's organisation
+      tags: [tenancy]
+      x-permission: organisation.read
+      responses:
+        '200':
+          description: The organisation named by the token.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Organisation'}
+              example: {id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60, name: Example Hospitality, status: active}
+        '401': {$ref: '../../../common/components.yaml#/components/responses/Unauthorized'}
+        '403': {$ref: '../../../common/components.yaml#/components/responses/Forbidden'}
+  /v1/outlets:
+    get:
+      operationId: listOutlets
+      summary: List outlets and properties
+      tags: [tenancy]
+      x-permission: outlet.read
+      parameters:
+        - $ref: '../../../common/components.yaml#/components/parameters/Cursor'
+        - $ref: '../../../common/components.yaml#/components/parameters/Limit'
+      responses:
+        '200':
+          description: A page of outlets.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/OutletPage'}
+              example: {items: []}
+        '401': {$ref: '../../../common/components.yaml#/components/responses/Unauthorized'}
+        '403': {$ref: '../../../common/components.yaml#/components/responses/Forbidden'}
+    post:
+      operationId: createOutlet
+      summary: Create an outlet or property
+      tags: [tenancy]
+      x-permission: outlet.create
+      parameters:
+        - $ref: '../../../common/components.yaml#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateOutlet'}
+            example: {id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61, name: Main Restaurant, kind: outlet}
+      responses:
+        '201':
+          description: Outlet created. A replay returns the same outlet.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Outlet'}
+              example: {id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61, name: Main Restaurant, kind: outlet, status: active}
+        '401': {$ref: '../../../common/components.yaml#/components/responses/Unauthorized'}
+        '403': {$ref: '../../../common/components.yaml#/components/responses/Forbidden'}
+        '422': {$ref: '../../../common/components.yaml#/components/responses/ValidationFailed'}
+  /v1/outlets/{outlet_id}:
+    get:
+      operationId: getOutlet
+      summary: Get an outlet or property
+      tags: [tenancy]
+      x-permission: outlet.read
+      parameters:
+        - name: outlet_id
+          in: path
+          required: true
+          description: Outlet or property ID (one ID space).
+          schema: {$ref: '../../../common/components.yaml#/components/schemas/Id'}
+          example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+      responses:
+        '200':
+          description: The outlet.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Outlet'}
+              example: {id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61, name: Main Restaurant, kind: outlet, status: active}
+        '401': {$ref: '../../../common/components.yaml#/components/responses/Unauthorized'}
+        '404': {$ref: '../../../common/components.yaml#/components/responses/NotFound'}
+  /v1/links:
+    get:
+      operationId: listLinks
+      summary: List links to other tenants
+      tags: [tenancy]
+      x-permission: link.read
+      parameters:
+        - $ref: '../../../common/components.yaml#/components/parameters/Cursor'
+        - $ref: '../../../common/components.yaml#/components/parameters/Limit'
+      responses:
+        '200':
+          description: A page of links.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LinkPage'}
+              example: {items: []}
+        '401': {$ref: '../../../common/components.yaml#/components/responses/Unauthorized'}
+        '403': {$ref: '../../../common/components.yaml#/components/responses/Forbidden'}
+  /v1/links/{link_id}/revocation:
+    put:
+      operationId: revokeLink
+      summary: Revoke a link (either side may revoke)
+      tags: [tenancy]
+      x-permission: link.revoke
+      parameters:
+        - name: link_id
+          in: path
+          required: true
+          description: Link ID.
+          schema: {$ref: '../../../common/components.yaml#/components/schemas/Id'}
+          example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a62
+        - $ref: '../../../common/components.yaml#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RevokeLink'}
+            example: {reason: contract ended}
+      responses:
+        '200':
+          description: Link revoked (idempotent; a repeat returns the same body).
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Link'}
+              example: {id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a62, status: revoked, scopes: []}
+        '401': {$ref: '../../../common/components.yaml#/components/responses/Unauthorized'}
+        '403': {$ref: '../../../common/components.yaml#/components/responses/Forbidden'}
+        '404': {$ref: '../../../common/components.yaml#/components/responses/NotFound'}
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: ES256 access token issued by identity (ADR-0005). One tenant per token.
+  schemas:
+    Organisation:
+      type: object
+      description: The tenant. STUB; brands, legal details and entitlements are added in the next wave.
+      required: [id, name, status]
+      properties:
+        id:
+          $ref: '../../../common/components.yaml#/components/schemas/Id'
+        name:
+          type: string
+          description: Display name.
+          example: Example Hospitality
+        status:
+          type: string
+          description: Organisation lifecycle state.
+          enum: [active, suspended, closed]
+          example: active
+    CreateOutlet:
+      type: object
+      description: Request to create an outlet or property. The ID is client-generated.
+      required: [id, name, kind]
+      properties:
+        id:
+          $ref: '../../../common/components.yaml#/components/schemas/Id'
+        name:
+          type: string
+          description: Display name.
+          example: Main Restaurant
+        kind:
+          type: string
+          description: Outlet (restaurant, stall, bakery shop) or property (hotel).
+          enum: [outlet, property]
+          example: outlet
+    Outlet:
+      type: object
+      description: An outlet or property. STUB; brand, address, tax registration are added in the next wave.
+      required: [id, name, kind, status]
+      properties:
+        id:
+          $ref: '../../../common/components.yaml#/components/schemas/Id'
+        name:
+          type: string
+          description: Display name.
+          example: Main Restaurant
+        kind:
+          type: string
+          description: Outlet or property.
+          enum: [outlet, property]
+          example: outlet
+        status:
+          type: string
+          description: Outlet lifecycle state.
+          enum: [active, suspended, closed]
+          example: active
+    OutletPage:
+      type: object
+      description: A page of outlets.
+      required: [items]
+      properties:
+        items:
+          type: array
+          description: Outlets on this page.
+          items: {$ref: '#/components/schemas/Outlet'}
+        next_cursor:
+          type: string
+          description: Opaque cursor for the next page; absent when there are no more results.
+    Link:
+      type: object
+      description: An explicit, revocable relationship with another tenant, with scoped permissions. STUB.
+      required: [id, status, scopes]
+      properties:
+        id:
+          $ref: '../../../common/components.yaml#/components/schemas/Id'
+        status:
+          type: string
+          description: Link state.
+          enum: [pending, active, revoked]
+          example: active
+        scopes:
+          type: array
+          description: Permissions the link grants (for example folio.post_charge).
+          items:
+            type: string
+            description: One link scope.
+            example: folio.post_charge
+    LinkPage:
+      type: object
+      description: A page of links.
+      required: [items]
+      properties:
+        items:
+          type: array
+          description: Links on this page.
+          items: {$ref: '#/components/schemas/Link'}
+        next_cursor:
+          type: string
+          description: Opaque cursor for the next page; absent when there are no more results.
+    RevokeLink:
+      type: object
+      description: Request to revoke a link.
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          description: Why the link is revoked (free text, kept for audit).
+          example: contract ended

@@ -1,0 +1,34 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: urn:hostry:events:identity.device.revoked:v1
+title: identity.device.revoked v1
+description: A device was revoked; services stop accepting it and the sync gateway drops its connection.
+x-publisher: identity
+x-subscribers: [sync]
+allOf:
+  - $ref: urn:hostry:events:envelope:v1
+  - type: object
+    properties:
+      type: {const: identity.device.revoked}
+      v: {const: 1}
+      source: {const: identity}
+      data:
+        type: object
+        required: [device_id, reason]
+        properties:
+          device_id:
+            type: string
+            description: The revoked device.
+          reason:
+            type: string
+            enum: [lost, stolen, retired, other]
+            description: Why the device was revoked.
+examples:
+  - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a70
+    type: identity.device.revoked
+    v: 1
+    source: identity
+    tenant_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+    key: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+    key_seq: 2
+    occurred_at: '2026-11-24T13:05:11.120Z'
+    data: {device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e, reason: lost}

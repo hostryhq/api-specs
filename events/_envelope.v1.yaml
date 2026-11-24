@@ -1,0 +1,60 @@
+# Event envelope (ADR-0011 B6). Every event schema composes this with allOf and
+# narrows `type`, `v`, `source` and `data`. Consumers ignore unknown fields.
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: urn:hostry:events:envelope:v1
+title: Hostry event envelope v1
+type: object
+required: [id, type, v, source, tenant_id, key, occurred_at, data]
+properties:
+  id:
+    type: string
+    description: UUIDv7; equals the outbox row id. Consumers de-duplicate on it.
+    pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+  type:
+    type: string
+    description: Event type, <service>.<entity>.<verb>; the bus subject is evt.<type>.v<major>.
+    pattern: '^[a-z]+(\.[a-z_]+){2}$'
+  v:
+    type: integer
+    description: Major version of the event schema.
+    minimum: 1
+  source:
+    type: string
+    description: Publishing service.
+  tenant_id:
+    type: string
+    description: Owning organisation. Mandatory (platform-level allow-listed types excepted).
+    minLength: 1
+  outlet_id:
+    type: string
+    description: Outlet or property, when relevant.
+  key:
+    type: string
+    description: Aggregate id; ordering is per key.
+    minLength: 1
+  key_seq:
+    type: integer
+    description: Per-key sequence number.
+    minimum: 0
+  occurred_at:
+    type: string
+    format: date-time
+    description: RFC 3339 UTC.
+  actor:
+    type: string
+    description: Member, device or service id, as data for audit.
+  epoch:
+    type: string
+    description: Restore epoch of the publisher (ADR-0006 H6).
+  trace:
+    type: string
+    description: Trace context (W3C traceparent).
+  counterparty_tenant_id:
+    type: string
+    description: Link-addressed events only (ADR-0011 B7).
+  link_id:
+    type: string
+    description: Link-addressed events only (ADR-0011 B7).
+  data:
+    type: object
+    description: Event payload, defined per event type.
