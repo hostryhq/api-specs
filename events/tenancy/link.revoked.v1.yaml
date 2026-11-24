@@ -1,0 +1,33 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: urn:hostry:events:tenancy.link.revoked:v1
+title: tenancy.link.revoked v1
+description: A link between two tenants was revoked (ADR-0003 section 3). Link-addressed event.
+x-publisher: tenancy
+x-subscribers: [identity]
+allOf:
+  - $ref: urn:hostry:events:envelope:v1
+  - type: object
+    required: [counterparty_tenant_id, link_id]
+    properties:
+      type: {const: tenancy.link.revoked}
+      v: {const: 1}
+      source: {const: tenancy}
+      data:
+        type: object
+        required: [link_id]
+        properties:
+          link_id:
+            type: string
+            description: The revoked link.
+examples:
+  - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a71
+    type: tenancy.link.revoked
+    v: 1
+    source: tenancy
+    tenant_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+    counterparty_tenant_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a63
+    link_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a62
+    key: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a62
+    key_seq: 3
+    occurred_at: '2026-11-24T13:05:11.120Z'
+    data: {link_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a62}

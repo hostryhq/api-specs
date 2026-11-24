@@ -1,0 +1,108 @@
+# Hostry lint rules (api-contract-standard). Run with `make lint`.
+extends: ['spectral:oas']
+rules:
+  # --- Hostry rules ---
+  hostry-path-v1-kebab-plural:
+    description: Paths are under /v1, kebab-case segments, `{snake_case}` path params.
+    severity: error
+    given: $.paths[*]~
+    then:
+      function: pattern
+      functionOptions:
+        match: '^/v1(/([a-z0-9]+(-[a-z0-9]+)*|\{[a-z][a-z0-9_]*\}))+$'
+  hostry-operation-id-camel-case:
+    description: operationId is <verb><Resource> in lowerCamelCase.
+    severity: error
+    given: $.paths[*][get,post,put,patch,delete].operationId
+    then:
+      function: pattern
+      functionOptions:
+        match: '^[a-z]+([A-Z][a-z0-9]*)+$'
+  hostry-x-permission:
+    description: Every operation declares its required permission (or `public`).
+    severity: error
+    given: $.paths[*][get,post,put,patch,delete]
+    then:
+      field: x-permission
+      function: pattern
+      functionOptions:
+        match: '^(public|authenticated|[a-z]+(\.[a-z_]+)+)$'
+  hostry-info-x-status:
+    description: info.x-status is draft, stable or deprecated.
+    severity: error
+    given: $.info
+    then:
+      field: x-status
+      function: enumeration
+      functionOptions:
+        values: [draft, stable, deprecated]
+  hostry-mutation-idempotency-key:
+    description: Mutating operations accept the Idempotency-Key header.
+    severity: error
+    given: $.paths[*][post,put,patch,delete]
+    then:
+      field: parameters
+      function: schema
+      functionOptions:
+        schema:
+          type: array
+          contains:
+            type: object
+            properties:
+              name: {const: Idempotency-Key}
+              in: {const: header}
+            required: [name, in]
+  hostry-schema-property-description:
+    description: Every schema property has a description.
+    severity: error
+    given: $..properties[?(@object() && @.type !== undefined || @.$ref !== undefined)]
+    then:
+      field: description
+      function: truthy
+  hostry-no-tenant-in-request-body:
+    description: Tenant comes from the token, never from a request body field.
+    severity: error
+    given: $.paths[*][*].requestBody.content[*].schema..properties
+    then:
+      field: tenant_id
+      function: undefined
+  hostry-examples-on-media-types:
+    description: Every request and response body has an example (used by doubles and docs).
+    severity: error
+    given:
+      - $.paths[*][*].requestBody.content[*]
+      - $.paths[*][*].responses[*].content[*]
+    then:
+      function: schema
+      functionOptions:
+        schema:
+          anyOf:
+            - required: [example]
+            - required: [examples]
+  hostry-errors-are-problem-json:
+    description: 4xx/5xx responses use application/problem+json only.
+    severity: error
+    given: $.paths[*][*].responses[?(@property.match(/^[45]/))].content
+    then:
+      function: schema
+      functionOptions:
+        schema:
+          type: object
+          required: [application/problem+json]
+          maxProperties: 1
+  hostry-money-not-float:
+    description: Money fields are integer paise, never number/float.
+    severity: error
+    given: $..properties[?(@property.match(/_paise$/))]
+    then:
+      field: type
+      function: enumeration
+      functionOptions:
+        values: [integer]
+  # --- tuning of the built-in set ---
+  operation-description: off
+  info-contact: off
+  info-description: error
+  operation-tags: error
+  operation-operationId: error
+  oas3-api-servers: off

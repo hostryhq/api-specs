@@ -1,3 +1,50 @@
 # api-specs
 
 OpenAPI contracts and event schemas, the source of truth for every Hostry service API.
+Change the contract first, then regenerate, then implement (`api-contract-standard`).
+
+## Layout
+```
+openapi/<service>/v1/openapi.yaml   one OpenAPI 3.1 document per service and major version
+common/components.yaml              shared Problem, Money, Id, cursor + Idempotency-Key + header params, error responses
+events/_envelope.v1.yaml            ADR-0011 envelope (JSON Schema)
+events/<service>/<entity>.<verb>.v<N>.yaml   one schema per event; declares x-publisher / x-subscribers
+contracttest/                       Go harness: runs a spec's examples against any base URL
+contract-tests/<service>/           per-service suite (real service or its double/)
+examples/ping/                      tiny spec + double proving the harness
+```
+Status of each document is `info.x-status` (`draft`, `stable`, `deprecated`). Identity and tenancy are
+draft skeletons.
+
+## Conventions the lint enforces (`.spectral.yaml`)
+`/v1` kebab-case plural paths; `operationId` lowerCamelCase; `x-permission` on every operation (`public`
+for unauthenticated); `Idempotency-Key` on mutations; every schema property described; examples on every
+request/response body; errors are `application/problem+json` only; no `tenant_id` in request bodies;
+`*_paise` fields are integers. Errors follow go-common: `type` = `urn:hostry:problem:<code>`, plus `code`,
+`request_id`, `errors[{field,code,message}]`. Idempotency-Key is 1-128 visible ASCII; reuse with a
+different request is 422 `idempotency.mismatch`, while in progress 409 `idempotency.in_progress`.
+Lists use `cursor`/`limit` and return `items` plus `next_cursor` (absent on the last page).
+
+## Make targets
+Tools install locally (`make tools` puts Go tools in `.tools/bin`; Node tools run via pinned `npx`).
+
+| Target | Does |
+|---|---|
+| `make lint` | Spectral on all specs + validates event schemas and their examples |
+| `make breaking` | oasdiff against `BASE` (default `origin/main`); breaking changes fail |
+| `make generate` | bundle, then Go (`gen/go/<service>/`, oapi-codegen: types, net/http server, client) and TypeScript (`gen/ts/<service>.d.ts`, openapi-typescript) |
+| `make test` | `go vet` and tests, including the harness self-test |
+
+`gen/` and `build/` are not committed; CI regenerates from tagged spec versions.
+
+## Contract tests
+```go
+srv := httptest.NewServer(double.New()) // or the real service's URL
+contracttest.Run(t, contracttest.Options{
+    SpecPath: "path/to/openapi.yaml", BaseURL: srv.URL,
+    Header: http.Header{"Authorization": {"Bearer " + token}}, // test-issuer token only
+    ExpectExamples: true, // doubles must serve the spec's examples
+})
+```
+It checks status, media type, schema validity, idempotent replay and the unknown-route problem response.
+Requests are built from spec examples, so the target must be seeded to match them.

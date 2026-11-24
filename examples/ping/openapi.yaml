@@ -1,0 +1,128 @@
+openapi: 3.1.0
+info:
+  title: Ping example service
+  version: 1.0.0
+  description: Tiny example contract proving the shared contract-test harness. Not a real service.
+  x-status: draft
+servers:
+  - url: /
+tags:
+  - name: ping
+    description: Example operations.
+security:
+  - bearerAuth: []
+paths:
+  /v1/pings:
+    post:
+      operationId: createPing
+      summary: Create a ping
+      tags: [ping]
+      x-permission: ping.create
+      parameters:
+        - $ref: '../../common/components.yaml#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreatePing'}
+            example: {message: hello}
+      responses:
+        '201':
+          description: Created. A replay with the same Idempotency-Key returns this same response.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Ping'}
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b
+                message: hello
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401': {$ref: '../../common/components.yaml#/components/responses/Unauthorized'}
+        '422': {$ref: '../../common/components.yaml#/components/responses/ValidationFailed'}
+    get:
+      operationId: listPings
+      summary: List pings
+      tags: [ping]
+      x-permission: ping.read
+      parameters:
+        - $ref: '../../common/components.yaml#/components/parameters/Cursor'
+        - $ref: '../../common/components.yaml#/components/parameters/Limit'
+      responses:
+        '200':
+          description: A page of pings.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PingPage'}
+              example:
+                items:
+                  - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b
+                    message: hello
+                    created_at: '2026-11-24T13:05:11.120Z'
+        '401': {$ref: '../../common/components.yaml#/components/responses/Unauthorized'}
+  /v1/pings/{ping_id}:
+    get:
+      operationId: getPing
+      summary: Get a ping
+      tags: [ping]
+      x-permission: ping.read
+      parameters:
+        - name: ping_id
+          in: path
+          required: true
+          description: Ping ID.
+          schema: {$ref: '../../common/components.yaml#/components/schemas/Id'}
+          example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b
+      responses:
+        '200':
+          description: The ping.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Ping'}
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b
+                message: hello
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401': {$ref: '../../common/components.yaml#/components/responses/Unauthorized'}
+        '404': {$ref: '../../common/components.yaml#/components/responses/NotFound'}
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: ES256 access token.
+  schemas:
+    CreatePing:
+      type: object
+      description: Request to create a ping.
+      required: [message]
+      properties:
+        message:
+          type: string
+          description: Free text echoed back.
+          minLength: 1
+          example: hello
+    Ping:
+      type: object
+      description: A stored ping.
+      required: [id, message, created_at]
+      properties:
+        id:
+          $ref: '../../common/components.yaml#/components/schemas/Id'
+        message:
+          type: string
+          description: Free text echoed back.
+          example: hello
+        created_at:
+          $ref: '../../common/components.yaml#/components/schemas/Timestamp'
+    PingPage:
+      type: object
+      description: A page of pings.
+      required: [items]
+      properties:
+        items:
+          type: array
+          description: The pings on this page.
+          items: {$ref: '#/components/schemas/Ping'}
+        next_cursor:
+          type: string
+          description: Opaque cursor for the next page; absent when there are no more results.
