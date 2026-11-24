@@ -1,256 +1,3192 @@
 openapi: 3.1.0
 info:
   title: Hostry tenancy API
-  version: 1.0.0-draft
-  description: >-
-    Organisations, outlets/properties and linked tenants (ADR-0003). SKELETON: paths and
-    resource names only; the full contract is filled in the next wave. The tenant is always
-    the caller's organisation from the token; no tenant ID appears in paths or bodies.
-  x-status: draft
+  version: 1.0.0
+  description: Organisations, brands, outlets and properties, tax registrations, the document-series registry,
+    organisation settings, link control plane and the vendor directory (ADR-0003 with Amendment A1; ADR-0013
+    V3, V4). The tenant is always the caller's organisation from the token; no tenant id appears in tenant-realm
+    paths or bodies. Operations under /internal/v1 are for other services and the admin service and declare
+    x-service-callers; vendor operations there take the organisation from the path and need the admin
+    service token plus the vendor user's access token. Link routes exist only when LINKS_ENABLED is true
+    (default false) and carry no data crossing in Phase 1. Reads marked support_viewable in the permission
+    catalogue also serve a support token (view mode), which is accepted only together with the admin service
+    token.
+  x-status: stable
 servers:
-  - url: /
+- url: /
 tags:
-  - name: tenancy
-    description: Tenancy service.
+- name: tenancy
+  description: Tenancy service.
+- name: links
+  description: Link control plane (propose, accept, confirm, suspend, revoke). Registered only when LINKS_ENABLED
+    is true.
+- name: vendor
+  description: Vendor directory and onboarding operations (admin service only).
+- name: internal
+  description: Operations for other Hostry services.
 security:
-  - bearerAuth: []
+- bearerAuth: []
 paths:
   /v1/organisations/current:
     get:
       operationId: getCurrentOrganisation
       summary: Get the caller's organisation
-      tags: [tenancy]
+      tags:
+      - tenancy
       x-permission: organisation.read
       responses:
         '200':
-          description: The organisation named by the token.
+          description: The organisation named by the token (also served to a support token for its one
+            organisation).
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/Organisation'}
-              example: {id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60, name: Example Hospitality, status: active}
-        '401': {$ref: '../../../common/components.yaml#/components/responses/Unauthorized'}
-        '403': {$ref: '../../../common/components.yaml#/components/responses/Forbidden'}
-  /v1/outlets:
-    get:
-      operationId: listOutlets
-      summary: List outlets and properties
-      tags: [tenancy]
-      x-permission: outlet.read
+              schema:
+                $ref: '#/components/schemas/Organisation'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                name: Example Hospitality
+                status: trial
+                created_at: '2026-11-24T13:05:11.120Z'
+                updated_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+    patch:
+      operationId: updateCurrentOrganisation
+      summary: Rename the organisation
+      tags:
+      - tenancy
+      x-permission: organisation.manage
       parameters:
-        - $ref: '../../../common/components.yaml#/components/parameters/Cursor'
-        - $ref: '../../../common/components.yaml#/components/parameters/Limit'
-      responses:
-        '200':
-          description: A page of outlets.
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/OutletPage'}
-              example: {items: []}
-        '401': {$ref: '../../../common/components.yaml#/components/responses/Unauthorized'}
-        '403': {$ref: '../../../common/components.yaml#/components/responses/Forbidden'}
-    post:
-      operationId: createOutlet
-      summary: Create an outlet or property
-      tags: [tenancy]
-      x-permission: outlet.create
-      parameters:
-        - $ref: '../../../common/components.yaml#/components/parameters/IdempotencyKey'
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
       requestBody:
         required: true
         content:
           application/json:
-            schema: {$ref: '#/components/schemas/CreateOutlet'}
-            example: {id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61, name: Main Restaurant, kind: outlet}
+            schema:
+              $ref: '#/components/schemas/UpdateOrganisation'
+            example:
+              name: Example Hospitality
+      responses:
+        '200':
+          description: The updated organisation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organisation'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                name: Example Hospitality
+                status: trial
+                created_at: '2026-11-24T13:05:11.120Z'
+                updated_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/brands:
+    get:
+      operationId: listBrands
+      summary: List brands
+      tags:
+      - tenancy
+      x-permission: brand.read
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: A page of brands.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BrandPage'
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6a
+                  name: Example Hospitality
+                  is_default: true
+                  created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+    post:
+      operationId: createBrand
+      summary: Create a brand
+      tags:
+      - tenancy
+      x-permission: brand.manage
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBrand'
+            example:
+              id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6a
+              name: Example Bakery
+      responses:
+        '201':
+          description: Brand created. A replay returns the same brand.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Brand'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6a
+                name: Example Bakery
+                is_default: false
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/brands/{brand_id}:
+    get:
+      operationId: getBrand
+      summary: Get a brand
+      tags:
+      - tenancy
+      x-permission: brand.read
+      parameters:
+      - name: brand_id
+        in: path
+        required: true
+        description: Brand ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6a
+      responses:
+        '200':
+          description: The brand.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Brand'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6a
+                name: Example Hospitality
+                is_default: true
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+  /v1/outlets:
+    get:
+      operationId: listOutlets
+      summary: List outlets and properties
+      tags:
+      - tenancy
+      x-permission: outlet.read
+      x-outlet-scoped: true
+      parameters:
+      - name: kind
+        in: query
+        required: false
+        description: Filter by kind.
+        schema:
+          $ref: '#/components/schemas/OutletKind'
+        example: restaurant
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: A page of outlets; a scoped member lists only granted outlets.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OutletPage'
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  brand_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6a
+                  name: Main Restaurant
+                  kind: restaurant
+                  status: active
+                  state_code: '33'
+                  tax_registration_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+                  timezone: Asia/Kolkata
+                  created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+    post:
+      operationId: createOutlet
+      summary: Create an outlet or property
+      tags:
+      - tenancy
+      x-permission: outlet.create
+      x-outlet-scoped: true
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOutlet'
+            example:
+              id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+              name: Main Restaurant
+              kind: restaurant
+              state_code: '33'
+              tax_registration_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
       responses:
         '201':
           description: Outlet created. A replay returns the same outlet.
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/Outlet'}
-              example: {id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61, name: Main Restaurant, kind: outlet, status: active}
-        '401': {$ref: '../../../common/components.yaml#/components/responses/Unauthorized'}
-        '403': {$ref: '../../../common/components.yaml#/components/responses/Forbidden'}
-        '422': {$ref: '../../../common/components.yaml#/components/responses/ValidationFailed'}
+              schema:
+                $ref: '#/components/schemas/Outlet'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                brand_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6a
+                name: Main Restaurant
+                kind: restaurant
+                status: active
+                state_code: '33'
+                tax_registration_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+                timezone: Asia/Kolkata
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
   /v1/outlets/{outlet_id}:
     get:
       operationId: getOutlet
       summary: Get an outlet or property
-      tags: [tenancy]
+      tags:
+      - tenancy
       x-permission: outlet.read
+      x-outlet-scoped: true
       parameters:
-        - name: outlet_id
-          in: path
-          required: true
-          description: Outlet or property ID (one ID space).
-          schema: {$ref: '../../../common/components.yaml#/components/schemas/Id'}
-          example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+      - name: outlet_id
+        in: path
+        required: true
+        description: Outlet or property ID (one ID space).
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
       responses:
         '200':
-          description: The outlet.
+          description: The outlet. Another tenant's or an out-of-scope outlet is 404.
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/Outlet'}
-              example: {id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61, name: Main Restaurant, kind: outlet, status: active}
-        '401': {$ref: '../../../common/components.yaml#/components/responses/Unauthorized'}
-        '404': {$ref: '../../../common/components.yaml#/components/responses/NotFound'}
+              schema:
+                $ref: '#/components/schemas/Outlet'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                brand_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6a
+                name: Main Restaurant
+                kind: restaurant
+                status: active
+                state_code: '33'
+                tax_registration_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+                timezone: Asia/Kolkata
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+    patch:
+      operationId: updateOutlet
+      summary: Change an outlet
+      tags:
+      - tenancy
+      x-permission: outlet.manage
+      x-outlet-scoped: true
+      parameters:
+      - name: outlet_id
+        in: path
+        required: true
+        description: Outlet or property ID (one ID space).
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOutlet'
+            example:
+              name: Main Restaurant
+      responses:
+        '200':
+          description: The updated outlet.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Outlet'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                brand_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6a
+                name: Main Restaurant
+                kind: restaurant
+                status: active
+                state_code: '33'
+                tax_registration_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+                timezone: Asia/Kolkata
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/tax-registrations:
+    get:
+      operationId: listTaxRegistrations
+      summary: List tax registrations
+      tags:
+      - tenancy
+      x-permission: tax_registration.read
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: A page of registrations with their verification state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaxRegistrationPage'
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+                  legal_name: Example Hospitality Pvt Ltd
+                  regime: regular
+                  gstin: 33ABCDE1234F1Z5
+                  state_code: '33'
+                  verification:
+                    state: unverified
+                  status: open
+                  created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+    post:
+      operationId: createTaxRegistration
+      summary: Create a tax registration
+      tags:
+      - tenancy
+      x-permission: tax_registration.manage
+      x-step-up: true
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTaxRegistration'
+            example:
+              id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+              legal_name: Example Hospitality Pvt Ltd
+              regime: regular
+              gstin: 33ABCDE1234F1Z5
+              state_code: '33'
+      responses:
+        '201':
+          description: Registration created unverified. Identical response whether or not another organisation
+            claims the GSTIN. GSTIN format and check character validated; unregistered takes no GSTIN.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaxRegistration'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+                legal_name: Example Hospitality Pvt Ltd
+                regime: regular
+                gstin: 33ABCDE1234F1Z5
+                state_code: '33'
+                verification:
+                  state: unverified
+                status: open
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/StepUpRequired'
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/tax-registrations/{registration_id}:
+    get:
+      operationId: getTaxRegistration
+      summary: Get a tax registration
+      tags:
+      - tenancy
+      x-permission: tax_registration.read
+      parameters:
+      - name: registration_id
+        in: path
+        required: true
+        description: Tax registration ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+      responses:
+        '200':
+          description: The registration.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaxRegistration'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+                legal_name: Example Hospitality Pvt Ltd
+                regime: regular
+                gstin: 33ABCDE1234F1Z5
+                state_code: '33'
+                verification:
+                  state: unverified
+                status: open
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+    patch:
+      operationId: updateTaxRegistration
+      summary: Correct an unverified registration
+      description: '409 once the registration is verified: a different GSTIN is a new registration and
+        the old one is closed with its series.'
+      tags:
+      - tenancy
+      x-permission: tax_registration.manage
+      x-step-up: true
+      parameters:
+      - name: registration_id
+        in: path
+        required: true
+        description: Tax registration ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTaxRegistration'
+            example:
+              legal_name: Example Hospitality Pvt Ltd
+      responses:
+        '200':
+          description: The corrected registration.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaxRegistration'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+                legal_name: Example Hospitality Pvt Ltd
+                regime: regular
+                gstin: 33ABCDE1234F1Z5
+                state_code: '33'
+                verification:
+                  state: unverified
+                status: open
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/StepUpRequired'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/states:
+    get:
+      operationId: listStates
+      summary: GST state reference table
+      tags:
+      - tenancy
+      x-permission: authenticated
+      responses:
+        '200':
+          description: Platform reference data.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StateList'
+              example:
+                items:
+                - code: '33'
+                  name: Tamil Nadu
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+  /v1/organisation-settings:
+    get:
+      operationId: getOrganisationSettings
+      summary: Get organisation settings
+      tags:
+      - tenancy
+      x-permission: settings.read
+      responses:
+        '200':
+          description: Offline window and idle lock.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganisationSettings'
+              example:
+                offline_window_days: 7
+                idle_lock_minutes: 5
+                updated_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+    put:
+      operationId: updateOrganisationSettings
+      summary: Replace organisation settings
+      tags:
+      - tenancy
+      x-permission: settings.manage
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOrganisationSettings'
+            example:
+              offline_window_days: 7
+              idle_lock_minutes: 5
+      responses:
+        '200':
+          description: The settings; devices pick them up in their next pack.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganisationSettings'
+              example:
+                offline_window_days: 7
+                idle_lock_minutes: 5
+                updated_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ApprovalRequired'
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/document-series:
+    get:
+      operationId: listDocumentSeries
+      summary: List document series (the series register)
+      tags:
+      - tenancy
+      x-permission: series.read
+      x-outlet-scoped: true
+      parameters:
+      - name: outlet_id
+        in: query
+        required: false
+        description: Filter by outlet (intersected with the caller's scope).
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+      - name: status
+        in: query
+        required: false
+        description: Filter by status.
+        schema:
+          type: string
+          enum:
+          - dormant
+          - active
+          - closed
+          - closed_unreconciled
+        example: active
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: A page of series in the caller's outlet scope.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentSeriesPage'
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6c
+                  tax_registration_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+                  code: A7
+                  doc_type: tax_invoice
+                  outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                  status: active
+                  issued_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+  /v1/document-series/{series_id}/closure:
+    put:
+      operationId: closeDocumentSeriesUnreconciled
+      summary: Close a series with an unreconciled tail
+      tags:
+      - tenancy
+      x-permission: series.close_unreconciled
+      x-outlet-scoped: true
+      parameters:
+      - name: series_id
+        in: path
+        required: true
+        description: Document series ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6c
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CloseSeries'
+            example:
+              reason: Device stolen and never reconnected.
+      responses:
+        '200':
+          description: Series closed_unreconciled; if the device reconnects later its numbers appear as
+            recovered after closure.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentSeries'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6c
+                tax_registration_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+                code: A7
+                doc_type: tax_invoice
+                outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                status: closed_unreconciled
+                issued_at: '2026-11-24T13:05:11.120Z'
+                closed_at: '2026-11-24T13:10:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ApprovalRequired'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
   /v1/links:
     get:
       operationId: listLinks
       summary: List links to other tenants
-      tags: [tenancy]
+      tags:
+      - links
       x-permission: link.read
+      x-feature-flag: LINKS_ENABLED
       parameters:
-        - $ref: '../../../common/components.yaml#/components/parameters/Cursor'
-        - $ref: '../../../common/components.yaml#/components/parameters/Limit'
+      - name: status
+        in: query
+        required: false
+        description: Filter by status.
+        schema:
+          $ref: '#/components/schemas/LinkStatus'
+        example: active
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/Limit
       responses:
         '200':
           description: A page of links.
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/LinkPage'}
-              example: {items: []}
-        '401': {$ref: '../../../common/components.yaml#/components/responses/Unauthorized'}
-        '403': {$ref: '../../../common/components.yaml#/components/responses/Forbidden'}
-  /v1/links/{link_id}/revocation:
-    put:
-      operationId: revokeLink
-      summary: Revoke a link (either side may revoke)
-      tags: [tenancy]
-      x-permission: link.revoke
+              schema:
+                $ref: '#/components/schemas/LinkPage'
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a62
+                  template: on_premises_outlet
+                  status: active
+                  role: proposer
+                  counterparty_organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a63
+                  counterparty:
+                    display_name: Example Restaurants
+                    registrations:
+                    - legal_name: Example Restaurants LLP
+                      gstin: 33AAAAA0000A1Z5
+                      state_code: '33'
+                      gstin_verified: true
+                  grants:
+                  - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a72
+                    scope: test.echo.read
+                    direction: outbound
+                    outlet_ids:
+                    - 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                    status: active
+                  proposed_at: '2026-11-24T13:05:11.120Z'
+                  expires_at: '2026-12-08T13:05:11.120Z'
+                  accepted_at: '2026-11-24T13:10:11.120Z'
+                  confirmed_at: '2026-11-24T13:20:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+    post:
+      operationId: proposeLink
+      summary: Propose a link
+      tags:
+      - links
+      x-permission: link.manage
+      x-feature-flag: LINKS_ENABLED
+      x-step-up: true
       parameters:
-        - name: link_id
-          in: path
-          required: true
-          description: Link ID.
-          schema: {$ref: '../../../common/components.yaml#/components/schemas/Id'}
-          example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a62
-        - $ref: '../../../common/components.yaml#/components/parameters/IdempotencyKey'
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
       requestBody:
         required: true
         content:
           application/json:
-            schema: {$ref: '#/components/schemas/RevokeLink'}
-            example: {reason: contract ended}
+            schema:
+              $ref: '#/components/schemas/ProposeLink'
+            example:
+              id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a62
+              template: on_premises_outlet
+              grants:
+              - scope: test.echo.read
+                direction: outbound
+                outlet_ids:
+                - 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+              outlet_ids:
+              - 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
       responses:
-        '200':
-          description: Link revoked (idempotent; a repeat returns the same body).
+        '201':
+          description: Link proposed; the invitation code is shown once. Expires in 14 days. A replay
+            returns the same proposal.
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/Link'}
-              example: {id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a62, status: revoked, scopes: []}
-        '401': {$ref: '../../../common/components.yaml#/components/responses/Unauthorized'}
-        '403': {$ref: '../../../common/components.yaml#/components/responses/Forbidden'}
-        '404': {$ref: '../../../common/components.yaml#/components/responses/NotFound'}
+              schema:
+                $ref: '#/components/schemas/LinkProposal'
+              example:
+                link:
+                  id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a62
+                  template: on_premises_outlet
+                  status: proposed
+                  role: proposer
+                  grants:
+                  - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a72
+                    scope: test.echo.read
+                    direction: outbound
+                    outlet_ids:
+                    - 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                    status: pending
+                  proposed_at: '2026-11-24T13:05:11.120Z'
+                  expires_at: '2026-12-08T13:05:11.120Z'
+                invitation_code: 7QK3M9XD7QK3M9XD
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/StepUpRequired'
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+        '429':
+          $ref: ../../../common/components.yaml#/components/responses/TooManyRequests
+  /v1/links/{link_id}:
+    get:
+      operationId: getLink
+      summary: Get a link
+      tags:
+      - links
+      x-permission: link.read
+      x-feature-flag: LINKS_ENABLED
+      parameters:
+      - name: link_id
+        in: path
+        required: true
+        description: Link ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a62
+      responses:
+        '200':
+          description: The link as seen by the caller. A link of two other organisations is 404.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Link'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a62
+                template: on_premises_outlet
+                status: active
+                role: proposer
+                counterparty_organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a63
+                counterparty:
+                  display_name: Example Restaurants
+                  registrations:
+                  - legal_name: Example Restaurants LLP
+                    gstin: 33AAAAA0000A1Z5
+                    state_code: '33'
+                    gstin_verified: true
+                grants:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a72
+                  scope: test.echo.read
+                  direction: outbound
+                  outlet_ids:
+                  - 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  status: active
+                proposed_at: '2026-11-24T13:05:11.120Z'
+                expires_at: '2026-12-08T13:05:11.120Z'
+                accepted_at: '2026-11-24T13:10:11.120Z'
+                confirmed_at: '2026-11-24T13:20:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+  /v1/link-acceptances:
+    post:
+      operationId: acceptLink
+      summary: Accept a link with its invitation code
+      tags:
+      - links
+      x-permission: link.manage
+      x-feature-flag: LINKS_ENABLED
+      x-step-up: true
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AcceptLink'
+            example:
+              invitation_code: 7QK3M9XD7QK3M9XD
+              outlet_ids:
+              - 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+      responses:
+        '201':
+          description: Link becomes accepted (no grant is live yet). The response shows the proposer's
+            details so the acceptor knows whom it accepted. Redemption is rate limited per tenant and
+            IP.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Link'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a62
+                template: on_premises_outlet
+                status: accepted
+                role: acceptor
+                counterparty_organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a63
+                counterparty:
+                  display_name: Example Restaurants
+                  registrations:
+                  - legal_name: Example Restaurants LLP
+                    gstin: 33AAAAA0000A1Z5
+                    state_code: '33'
+                    gstin_verified: true
+                grants:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a72
+                  scope: test.echo.read
+                  direction: outbound
+                  outlet_ids:
+                  - 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  status: active
+                proposed_at: '2026-11-24T13:05:11.120Z'
+                expires_at: '2026-12-08T13:05:11.120Z'
+                accepted_at: '2026-11-24T13:10:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/StepUpRequired'
+        '409':
+          $ref: '#/components/responses/LinkConflict'
+        '429':
+          $ref: ../../../common/components.yaml#/components/responses/TooManyRequests
+  /v1/links/{link_id}/confirmation:
+    put:
+      operationId: confirmLink
+      summary: Proposer confirms the accepting organisation
+      tags:
+      - links
+      x-permission: link.manage
+      x-feature-flag: LINKS_ENABLED
+      x-step-up: true
+      parameters:
+      - name: link_id
+        in: path
+        required: true
+        description: Link ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a62
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfirmLink'
+            example:
+              counterparty_organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a63
+      responses:
+        '200':
+          description: Link active. The proposer first saw the acceptor's display name, legal name, GSTIN,
+            state and verification (read with getLink).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Link'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a62
+                template: on_premises_outlet
+                status: active
+                role: proposer
+                counterparty_organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a63
+                counterparty:
+                  display_name: Example Restaurants
+                  registrations:
+                  - legal_name: Example Restaurants LLP
+                    gstin: 33AAAAA0000A1Z5
+                    state_code: '33'
+                    gstin_verified: true
+                grants:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a72
+                  scope: test.echo.read
+                  direction: outbound
+                  outlet_ids:
+                  - 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  status: active
+                proposed_at: '2026-11-24T13:05:11.120Z'
+                expires_at: '2026-12-08T13:05:11.120Z'
+                accepted_at: '2026-11-24T13:10:11.120Z'
+                confirmed_at: '2026-11-24T13:20:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/StepUpRequired'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: '#/components/responses/LinkConflict'
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/links/{link_id}/declination:
+    put:
+      operationId: declineLink
+      summary: Decline a proposed link, or reject an accepted one
+      tags:
+      - links
+      x-permission: link.manage
+      x-feature-flag: LINKS_ENABLED
+      x-step-up: true
+      parameters:
+      - name: link_id
+        in: path
+        required: true
+        description: Link ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a62
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LinkReason'
+            example:
+              reason: not our partner
+      responses:
+        '200':
+          description: Link declined (terminal).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Link'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a62
+                template: on_premises_outlet
+                status: declined
+                role: proposer
+                counterparty_organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a63
+                counterparty:
+                  display_name: Example Restaurants
+                  registrations:
+                  - legal_name: Example Restaurants LLP
+                    gstin: 33AAAAA0000A1Z5
+                    state_code: '33'
+                    gstin_verified: true
+                grants:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a72
+                  scope: test.echo.read
+                  direction: outbound
+                  outlet_ids:
+                  - 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  status: active
+                proposed_at: '2026-11-24T13:05:11.120Z'
+                expires_at: '2026-12-08T13:05:11.120Z'
+                accepted_at: '2026-11-24T13:10:11.120Z'
+                confirmed_at: '2026-11-24T13:20:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/StepUpRequired'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: '#/components/responses/LinkConflict'
+  /v1/links/{link_id}/suspension:
+    put:
+      operationId: suspendLink
+      summary: Suspend a link (either party, immediate)
+      tags:
+      - links
+      x-permission: link.manage
+      x-feature-flag: LINKS_ENABLED
+      x-step-up: true
+      parameters:
+      - name: link_id
+        in: path
+        required: true
+        description: Link ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a62
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LinkReason'
+            example:
+              reason: under review
+      responses:
+        '200':
+          description: Link suspended; no call or event crosses.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Link'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a62
+                template: on_premises_outlet
+                status: suspended
+                role: proposer
+                counterparty_organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a63
+                counterparty:
+                  display_name: Example Restaurants
+                  registrations:
+                  - legal_name: Example Restaurants LLP
+                    gstin: 33AAAAA0000A1Z5
+                    state_code: '33'
+                    gstin_verified: true
+                grants:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a72
+                  scope: test.echo.read
+                  direction: outbound
+                  outlet_ids:
+                  - 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  status: active
+                proposed_at: '2026-11-24T13:05:11.120Z'
+                expires_at: '2026-12-08T13:05:11.120Z'
+                accepted_at: '2026-11-24T13:10:11.120Z'
+                confirmed_at: '2026-11-24T13:20:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/StepUpRequired'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: '#/components/responses/LinkConflict'
+    delete:
+      operationId: resumeLink
+      summary: Resume a link (only the suspending party)
+      tags:
+      - links
+      x-permission: link.manage
+      x-feature-flag: LINKS_ENABLED
+      x-step-up: true
+      parameters:
+      - name: link_id
+        in: path
+        required: true
+        description: Link ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a62
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      responses:
+        '200':
+          description: Link active again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Link'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a62
+                template: on_premises_outlet
+                status: active
+                role: proposer
+                counterparty_organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a63
+                counterparty:
+                  display_name: Example Restaurants
+                  registrations:
+                  - legal_name: Example Restaurants LLP
+                    gstin: 33AAAAA0000A1Z5
+                    state_code: '33'
+                    gstin_verified: true
+                grants:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a72
+                  scope: test.echo.read
+                  direction: outbound
+                  outlet_ids:
+                  - 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  status: active
+                proposed_at: '2026-11-24T13:05:11.120Z'
+                expires_at: '2026-12-08T13:05:11.120Z'
+                accepted_at: '2026-11-24T13:10:11.120Z'
+                confirmed_at: '2026-11-24T13:20:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/StepUpRequired'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: '#/components/responses/LinkConflict'
+  /v1/links/{link_id}/revocation:
+    put:
+      operationId: revokeLink
+      summary: Revoke a link (either party)
+      tags:
+      - links
+      x-permission: link.revoke
+      x-feature-flag: LINKS_ENABLED
+      x-step-up: true
+      parameters:
+      - name: link_id
+        in: path
+        required: true
+        description: Link ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a62
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LinkReason'
+            example:
+              reason: contract ended
+      responses:
+        '200':
+          description: Link revoked (terminal, idempotent). Each side keeps what it owns; cached snapshots
+            are deleted at next sync. Publishes tenancy.link.revoked.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Link'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a62
+                template: on_premises_outlet
+                status: revoked
+                role: proposer
+                counterparty_organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a63
+                counterparty:
+                  display_name: Example Restaurants
+                  registrations:
+                  - legal_name: Example Restaurants LLP
+                    gstin: 33AAAAA0000A1Z5
+                    state_code: '33'
+                    gstin_verified: true
+                grants:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a72
+                  scope: test.echo.read
+                  direction: outbound
+                  outlet_ids:
+                  - 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  status: active
+                proposed_at: '2026-11-24T13:05:11.120Z'
+                expires_at: '2026-12-08T13:05:11.120Z'
+                accepted_at: '2026-11-24T13:10:11.120Z'
+                confirmed_at: '2026-11-24T13:20:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/StepUpRequired'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+  /v1/links/{link_id}/amendments:
+    post:
+      operationId: proposeLinkAmendment
+      summary: Propose adding a scope or raising a limit
+      tags:
+      - links
+      x-permission: link.manage
+      x-feature-flag: LINKS_ENABLED
+      x-step-up: true
+      parameters:
+      - name: link_id
+        in: path
+        required: true
+        description: Link ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a62
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LinkAmendmentInput'
+            example:
+              id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a73
+              add_grants:
+              - scope: test.echo.post
+                direction: inbound
+      responses:
+        '201':
+          description: Amendment pending the other party. Only the grantor of a grant can add or widen
+            it, and only with the grantee's acceptance.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LinkAmendment'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a73
+                link_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a62
+                add_grants:
+                - scope: test.echo.post
+                  direction: inbound
+                status: pending
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/StepUpRequired'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: '#/components/responses/LinkConflict'
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/links/{link_id}/amendments/{amendment_id}/decision:
+    put:
+      operationId: decideLinkAmendment
+      summary: Accept or decline an amendment
+      tags:
+      - links
+      x-permission: link.manage
+      x-feature-flag: LINKS_ENABLED
+      x-step-up: true
+      parameters:
+      - name: link_id
+        in: path
+        required: true
+        description: Link ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a62
+      - name: amendment_id
+        in: path
+        required: true
+        description: Amendment ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a73
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DecideAmendment'
+            example:
+              decision: accept
+      responses:
+        '200':
+          description: Decision recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LinkAmendment'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a73
+                link_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a62
+                add_grants:
+                - scope: test.echo.post
+                  direction: inbound
+                status: accepted
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/StepUpRequired'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: '#/components/responses/LinkConflict'
+  /v1/links/{link_id}/grants/{grant_id}:
+    delete:
+      operationId: removeLinkGrant
+      summary: Remove a grant (unilateral, immediate)
+      tags:
+      - links
+      x-permission: link.manage
+      x-feature-flag: LINKS_ENABLED
+      x-step-up: true
+      parameters:
+      - name: link_id
+        in: path
+        required: true
+        description: Link ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a62
+      - name: grant_id
+        in: path
+        required: true
+        description: Grant ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a72
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      responses:
+        '204':
+          description: Grant removed; effective at once in tenancy and within the 30-second go-auth bound.
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/StepUpRequired'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+  /v1/links/{link_id}/activity:
+    get:
+      operationId: listLinkActivity
+      summary: Link activity log (both parties)
+      tags:
+      - links
+      x-permission: link.read
+      x-feature-flag: LINKS_ENABLED
+      parameters:
+      - name: link_id
+        in: path
+        required: true
+        description: Link ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a62
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: Every state change and cross-link call; no payload; append-only for the application
+            role.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LinkActivityPage'
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a79
+                  link_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a62
+                  occurred_at: '2026-11-24T13:20:11.120Z'
+                  side: proposer
+                  action: link.confirmed
+                  outcome: succeeded
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+  /internal/v1/document-series-issuances:
+    post:
+      operationId: issueDocumentSeries
+      summary: Issue series codes for a device
+      description: The service token names the tenant it acts for; it must equal the outlet's tenant.
+        Identity is the only caller, at device activation or when billing is granted.
+      tags:
+      - internal
+      x-permission: series.issue
+      x-service-callers:
+      - identity
+      security:
+      - serviceAuth: []
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IssueSeries'
+            example:
+              outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+              device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+              doc_types:
+              - tax_invoice
+              - credit_note
+              state: active
+      responses:
+        '201':
+          description: Codes under the outlet's verified registration (kind unregistered needs no verification);
+            unique per (registration, code) and per (GSTIN, code). A replay returns the same codes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SeriesIssuance'
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6c
+                  tax_registration_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+                  code: A7
+                  doc_type: tax_invoice
+                  outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                  status: active
+                  issued_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: '#/components/responses/RegistrationUnverified'
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+        '429':
+          $ref: '#/components/responses/SeriesCapReached'
+  /internal/v1/devices/{device_id}/series-closure:
+    put:
+      operationId: closeDeviceSeries
+      summary: Close a device's series
+      tags:
+      - internal
+      x-permission: series.issue
+      x-service-callers:
+      - identity
+      security:
+      - serviceAuth: []
+      parameters:
+      - name: device_id
+        in: path
+        required: true
+        description: Device ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CloseDeviceSeries'
+            example:
+              reason: reinstalled
+      responses:
+        '200':
+          description: Series closed; the device gets new codes on re-activation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SeriesClosure'
+              example:
+                closed: 2
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+  /internal/v1/link-decisions:
+    get:
+      operationId: getLinkDecision
+      summary: Link decision for go-auth
+      tags:
+      - internal
+      x-permission: link.decide
+      x-service-callers:
+      - '*'
+      x-feature-flag: LINKS_ENABLED
+      security:
+      - serviceAuth: []
+      parameters:
+      - name: link_id
+        in: query
+        required: true
+        description: Link ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a62
+      - name: scope
+        in: query
+        required: true
+        description: Scope being exercised.
+        schema:
+          $ref: '#/components/schemas/LinkScope'
+        example: test.echo.read
+      responses:
+        '200':
+          description: Allowed or refused for the acting tenant named by the service token. Cached for
+            at most 30 seconds and dropped on tenancy.link.* events.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LinkDecision'
+              example:
+                allowed: true
+                data_owner_organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a63
+                outlet_ids:
+                - 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                cache_seconds: 30
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+  /internal/v1/vendor/organisations:
+    get:
+      operationId: listOrganisationDirectory
+      summary: List and search the organisation directory
+      tags:
+      - vendor
+      x-permission: admin.org.read
+      x-service-callers:
+      - admin
+      x-vendor-class: directory
+      x-vendor-audit: none
+      security:
+      - vendorBearerAuth: []
+        serviceAuth: []
+      parameters:
+      - name: q
+        in: query
+        required: false
+        description: Name contains (case-insensitive), or an organisation id, or an exact GSTIN. A partial
+          GSTIN never matches.
+        schema:
+          type: string
+        example: Example
+      - name: status
+        in: query
+        required: false
+        description: Filter by status.
+        schema:
+          $ref: '#/components/schemas/OrganisationStatus'
+        example: trial
+      - name: organisation_ids
+        in: query
+        required: false
+        description: Comma-separated organisation ids (used by the admin service after an owner-mobile
+          lookup), at most 100.
+        schema:
+          type: string
+          maxLength: 3700
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorLimit
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
+      responses:
+        '200':
+          description: 'Newest first, 25 per page (maximum 100). Read from the vendor directory table
+            by a role that can read nothing else; stable under concurrent inserts. Closed schema: no member,
+            device, phone or email data.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DirectoryPage'
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                  name: Example Hospitality
+                  status: trial
+                  outlet_count: 1
+                  created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+    post:
+      operationId: createOrganisation
+      summary: Create an organisation, default brand, first outlet and registration
+      description: '422 with a field for: unknown outlet kind, state not in the reference table, bad GSTIN
+        format or check character, state-code mismatch, unregistered with a GSTIN, empty names. 409 gstin_in_use
+        when a verified holder exists. No document series and no entitlements are created.'
+      tags:
+      - vendor
+      x-permission: admin.org.create
+      x-service-callers:
+      - admin
+      x-vendor-class: operational
+      x-vendor-audit: recorded
+      security:
+      - vendorBearerAuth: []
+        serviceAuth: []
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrganisation'
+            example:
+              name: Example Hospitality
+              outlet:
+                name: Main Restaurant
+                kind: restaurant
+                state_code: '33'
+              tax_registration:
+                legal_name: Example Hospitality Pvt Ltd
+                regime: regular
+                gstin: 33ABCDE1234F1Z5
+      responses:
+        '201':
+          description: One transaction creates organisation (status trial), hidden default brand, outlet
+            and registration, and the directory rows. A replay of the same Idempotency-Key returns the
+            same result and creates nothing more; a different body with the same key is 422.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganisationCreated'
+              example:
+                organisation:
+                  id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                  name: Example Hospitality
+                  status: trial
+                  created_at: '2026-11-24T13:05:11.120Z'
+                  updated_at: '2026-11-24T13:05:11.120Z'
+                brand:
+                  id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6a
+                  name: Example Hospitality
+                  is_default: true
+                  created_at: '2026-11-24T13:05:11.120Z'
+                outlet:
+                  id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  brand_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6a
+                  name: Main Restaurant
+                  kind: restaurant
+                  status: active
+                  state_code: '33'
+                  tax_registration_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+                  timezone: Asia/Kolkata
+                  created_at: '2026-11-24T13:05:11.120Z'
+                tax_registration:
+                  id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+                  legal_name: Example Hospitality Pvt Ltd
+                  regime: regular
+                  gstin: 33ABCDE1234F1Z5
+                  state_code: '33'
+                  verification:
+                    state: unverified
+                  status: open
+                  created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '409':
+          $ref: '#/components/responses/GstinInUse'
+        '422':
+          $ref: '#/components/responses/RegistrationValidation'
+  /internal/v1/vendor/organisations/{organisation_id}:
+    get:
+      operationId: getOrganisationDirectoryEntry
+      summary: 'Organisation detail: structure only'
+      tags:
+      - vendor
+      x-permission: admin.org.read
+      x-service-callers:
+      - admin
+      x-vendor-class: directory
+      x-vendor-audit: none
+      security:
+      - vendorBearerAuth: []
+        serviceAuth: []
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation ID (vendor routes take the organisation from the path).
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
+      responses:
+        '200':
+          description: Brands, outlets (name, kind, state) and registrations. No members, devices or settings.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganisationDetail'
+              example:
+                organisation:
+                  id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                  name: Example Hospitality
+                  status: trial
+                  outlet_count: 1
+                  created_at: '2026-11-24T13:05:11.120Z'
+                brands:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6a
+                  name: Example Hospitality
+                  is_default: true
+                outlets:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  name: Main Restaurant
+                  kind: restaurant
+                  state_code: '33'
+                  status: active
+                registrations:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+                  legal_name: Example Hospitality Pvt Ltd
+                  regime: regular
+                  gstin: 33ABCDE1234F1Z5
+                  state_code: '33'
+                  verification_state: unverified
+                  status: open
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+  /internal/v1/vendor/organisations/{organisation_id}/tax-registrations/{registration_id}/verification:
+    put:
+      operationId: verifyTaxRegistration
+      summary: Mark a registration verified
+      tags:
+      - vendor
+      x-permission: admin.registration.verify
+      x-service-callers:
+      - admin
+      x-vendor-class: verification
+      x-vendor-audit: recorded
+      security:
+      - vendorBearerAuth: []
+        serviceAuth: []
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation ID (vendor routes take the organisation from the path).
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - name: registration_id
+        in: path
+        required: true
+        description: Tax registration ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyRegistration'
+            example:
+              method: certificate_seen
+              note: Certificate seen on the onboarding call.
+      responses:
+        '200':
+          description: Registration verified (idempotent). Written to the vendor log and the tenant's
+            log. If an earlier holder of this GSTIN existed, the allocator starts beyond every code already
+            issued under it.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaxRegistration'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+                legal_name: Example Hospitality Pvt Ltd
+                regime: regular
+                gstin: 33ABCDE1234F1Z5
+                state_code: '33'
+                verification:
+                  state: verified
+                  method: certificate_seen
+                  verified_at: '2026-11-24T13:10:11.120Z'
+                status: open
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: '#/components/responses/GstinInUse'
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: ES256 access token issued by identity (ADR-0005). One tenant per token.
+      description: ES256 tenant-realm access token issued by identity (ADR-0005). One tenant per token.
+        Support tokens are accepted only together with the admin service token.
+    vendorBearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: ES256 vendor-realm access token. Refused by every tenant-facing operation.
+    serviceAuth:
+      type: apiKey
+      in: header
+      name: Hostry-Service-Token
+      description: 60-second ES256 service token (ADR-0005 section 9). Operations under /internal/v1 accept
+        it only from the callers in x-service-callers.
   schemas:
+    OrganisationStatus:
+      type: string
+      description: Organisation lifecycle state. Phase 1 only reads and shows it; no operation changes
+        it.
+      enum:
+      - trial
+      - active
+      - suspended
+      - closed
+      example: trial
     Organisation:
       type: object
-      description: The tenant. STUB; brands, legal details and entitlements are added in the next wave.
-      required: [id, name, status]
+      description: 'The organisation: the tenant, the isolation boundary and the owner of everything its
+        staff create.'
+      required:
+      - id
+      - name
+      - status
+      - created_at
+      - updated_at
       properties:
         id:
-          $ref: '../../../common/components.yaml#/components/schemas/Id'
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        name:
+          type: string
+          description: Display name.
+          minLength: 1
+          maxLength: 120
+          example: Example Hospitality
+        status:
+          $ref: '#/components/schemas/OrganisationStatus'
+        created_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+        updated_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+      additionalProperties: false
+    UpdateOrganisation:
+      type: object
+      description: Rename the organisation.
+      required:
+      - name
+      properties:
+        name:
+          type: string
+          description: Display name.
+          minLength: 1
+          maxLength: 120
+          example: Example Hospitality
+    Brand:
+      type: object
+      description: A trading name inside an organisation, the scope for shared masters. The default brand
+        is created automatically.
+      required:
+      - id
+      - name
+      - is_default
+      - created_at
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        name:
+          type: string
+          description: Brand name.
+          minLength: 1
+          maxLength: 120
+          example: Example Hospitality
+        is_default:
+          type: boolean
+          description: True for the automatically created default brand.
+          example: true
+        created_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+      additionalProperties: false
+    BrandPage:
+      type: object
+      description: A page of brands.
+      required:
+      - items
+      properties:
+        items:
+          type: array
+          description: Brands on this page.
+          items:
+            $ref: '#/components/schemas/Brand'
+        next_cursor:
+          type: string
+          description: Opaque cursor for the next page; absent when there are no more results.
+    CreateBrand:
+      type: object
+      description: Create a brand.
+      required:
+      - id
+      - name
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        name:
+          type: string
+          description: Brand name.
+          minLength: 1
+          maxLength: 120
+          example: Example Bakery
+    OutletKind:
+      type: string
+      description: Outlet or property kind (one entity, one ID space; extensible).
+      enum:
+      - restaurant
+      - bakery_outlet
+      - production_unit
+      - stall
+      - property
+      - service_point
+      example: restaurant
+    OutletStatus:
+      type: string
+      description: Outlet state.
+      enum:
+      - active
+      - inactive
+      example: active
+    Outlet:
+      type: object
+      description: 'An outlet or property: one physical place with its own business date, devices, staff
+        assignments and tax registration.'
+      required:
+      - id
+      - brand_id
+      - name
+      - kind
+      - status
+      - state_code
+      - tax_registration_id
+      - timezone
+      - created_at
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        brand_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        name:
+          type: string
+          description: Outlet name.
+          minLength: 1
+          maxLength: 120
+          example: Main Restaurant
+        kind:
+          $ref: '#/components/schemas/OutletKind'
+        status:
+          $ref: '#/components/schemas/OutletStatus'
+        state_code:
+          $ref: ../../../common/components.yaml#/components/schemas/StateCode
+        tax_registration_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        located_in_outlet_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        timezone:
+          type: string
+          description: Always Asia/Kolkata in Phase 1.
+          enum:
+          - Asia/Kolkata
+          example: Asia/Kolkata
+        created_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+      additionalProperties: false
+    OutletPage:
+      type: object
+      description: A page of outlets in the caller's scope.
+      required:
+      - items
+      properties:
+        items:
+          type: array
+          description: Outlets on this page.
+          items:
+            $ref: '#/components/schemas/Outlet'
+        next_cursor:
+          type: string
+          description: Opaque cursor for the next page; absent when there are no more results.
+    CreateOutlet:
+      type: object
+      description: Create an outlet. The brand defaults to the default brand; the registration must belong
+        to the organisation.
+      required:
+      - id
+      - name
+      - kind
+      - state_code
+      - tax_registration_id
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        brand_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        name:
+          type: string
+          description: Outlet name.
+          minLength: 1
+          maxLength: 120
+          example: Main Restaurant
+        kind:
+          $ref: '#/components/schemas/OutletKind'
+        state_code:
+          $ref: ../../../common/components.yaml#/components/schemas/StateCode
+        tax_registration_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        located_in_outlet_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+    UpdateOutlet:
+      type: object
+      description: Change an outlet.
+      properties:
+        name:
+          type: string
+          description: Outlet name.
+          minLength: 1
+          maxLength: 120
+          example: Main Restaurant
+        status:
+          $ref: '#/components/schemas/OutletStatus'
+    TaxRegime:
+      type: string
+      description: GST regime.
+      enum:
+      - regular
+      - composition
+      - unregistered
+      example: regular
+    VerificationMethod:
+      type: string
+      description: How the GSTIN was verified by Hostry staff.
+      enum:
+      - certificate_seen
+      - gst_portal_lookup
+      - other
+      example: certificate_seen
+    Verification:
+      type: object
+      description: GSTIN verification state (ADR-0003 A1.1).
+      required:
+      - state
+      properties:
+        state:
+          type: string
+          description: unverified until vendor staff verify; verified registrations are the only ones
+            that can get series.
+          enum:
+          - unverified
+          - verified
+          - rejected
+          example: unverified
+        method:
+          $ref: '#/components/schemas/VerificationMethod'
+        verified_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+      additionalProperties: false
+    TaxRegistration:
+      type: object
+      description: A tax registration owned by the organisation; each outlet references exactly one. Kind
+        unregistered has no GSTIN.
+      required:
+      - id
+      - legal_name
+      - regime
+      - state_code
+      - verification
+      - status
+      - created_at
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        legal_name:
+          type: string
+          description: Legal name.
+          minLength: 1
+          maxLength: 200
+          example: Example Hospitality Pvt Ltd
+        regime:
+          $ref: '#/components/schemas/TaxRegime'
+        gstin:
+          $ref: ../../../common/components.yaml#/components/schemas/Gstin
+        state_code:
+          $ref: ../../../common/components.yaml#/components/schemas/StateCode
+        verification:
+          $ref: '#/components/schemas/Verification'
+        status:
+          type: string
+          description: Registration state.
+          enum:
+          - open
+          - closed
+          example: open
+        created_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+      additionalProperties: false
+    TaxRegistrationPage:
+      type: object
+      description: A page of tax registrations.
+      required:
+      - items
+      properties:
+        items:
+          type: array
+          description: Registrations on this page.
+          items:
+            $ref: '#/components/schemas/TaxRegistration'
+        next_cursor:
+          type: string
+          description: Opaque cursor for the next page; absent when there are no more results.
+    CreateTaxRegistration:
+      type: object
+      description: Create a registration. A GSTIN already claimed by another organisation is accepted
+        as unverified with the same response as any new registration; the tenant never learns who else
+        holds it (ADR-0003 A1.1).
+      required:
+      - id
+      - legal_name
+      - regime
+      - state_code
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        legal_name:
+          type: string
+          description: Legal name.
+          minLength: 1
+          maxLength: 200
+          example: Example Hospitality Pvt Ltd
+        regime:
+          $ref: '#/components/schemas/TaxRegime'
+        gstin:
+          $ref: ../../../common/components.yaml#/components/schemas/Gstin
+        state_code:
+          $ref: ../../../common/components.yaml#/components/schemas/StateCode
+    UpdateTaxRegistration:
+      type: object
+      description: Correct a registration while it is unverified. After verification a different GSTIN
+        is a new registration.
+      properties:
+        legal_name:
+          type: string
+          description: Legal name.
+          minLength: 1
+          maxLength: 200
+          example: Example Hospitality Pvt Ltd
+        gstin:
+          $ref: ../../../common/components.yaml#/components/schemas/Gstin
+    StateEntry:
+      type: object
+      description: One row of the GST state reference table.
+      required:
+      - code
+      - name
+      properties:
+        code:
+          $ref: ../../../common/components.yaml#/components/schemas/StateCode
+        name:
+          type: string
+          description: State or union territory name.
+          example: Tamil Nadu
+    StateList:
+      type: object
+      description: The state reference table (platform reference data).
+      required:
+      - items
+      properties:
+        items:
+          type: array
+          description: States.
+          items:
+            $ref: '#/components/schemas/StateEntry'
+    OrganisationSettings:
+      type: object
+      description: Organisation-wide settings read by support sessions and used to build offline packs.
+      required:
+      - offline_window_days
+      - idle_lock_minutes
+      - updated_at
+      properties:
+        offline_window_days:
+          type: integer
+          description: Offline window for PIN login and approvals (1 to 30, default 7).
+          minimum: 1
+          maximum: 30
+          example: 7
+        idle_lock_minutes:
+          type: integer
+          description: Idle lock for shared devices.
+          minimum: 1
+          maximum: 120
+          example: 5
+        updated_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+      additionalProperties: false
+    UpdateOrganisationSettings:
+      type: object
+      description: Replace the settings.
+      required:
+      - offline_window_days
+      - idle_lock_minutes
+      properties:
+        offline_window_days:
+          type: integer
+          description: Offline window (1 to 30).
+          minimum: 1
+          maximum: 30
+          example: 7
+        idle_lock_minutes:
+          type: integer
+          description: Idle lock minutes.
+          minimum: 1
+          maximum: 120
+          example: 5
+    DocType:
+      type: string
+      description: Document type.
+      enum:
+      - tax_invoice
+      - bill_of_supply
+      - plain_bill
+      - credit_note
+      example: tax_invoice
+    DocumentSeries:
+      type: object
+      description: A series code under a tax registration (unique per registration and per GSTIN; never
+        issued twice).
+      required:
+      - id
+      - tax_registration_id
+      - code
+      - doc_type
+      - outlet_id
+      - device_id
+      - status
+      - issued_at
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        tax_registration_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        code:
+          type: string
+          description: Series code.
+          example: A7
+        doc_type:
+          $ref: '#/components/schemas/DocType'
+        outlet_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        device_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        status:
+          type: string
+          description: Series state.
+          enum:
+          - dormant
+          - active
+          - closed
+          - closed_unreconciled
+          example: active
+        issued_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+        closed_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+      additionalProperties: false
+    DocumentSeriesPage:
+      type: object
+      description: A page of series in the caller's outlet scope.
+      required:
+      - items
+      properties:
+        items:
+          type: array
+          description: Series on this page.
+          items:
+            $ref: '#/components/schemas/DocumentSeries'
+        next_cursor:
+          type: string
+          description: Opaque cursor for the next page; absent when there are no more results.
+    CloseSeries:
+      type: object
+      description: Close a series whose device never reconciled. The reason is the record for the auditor.
+      required:
+      - reason
+      properties:
+        reason:
+          $ref: ../../../common/components.yaml#/components/schemas/Reason
+    IssueSeries:
+      type: object
+      description: Issue series codes for a device under the outlet's registration (identity is the only
+        caller). The registration is read from the stored outlet, never from the request.
+      required:
+      - outlet_id
+      - device_id
+      - doc_types
+      - state
+      properties:
+        outlet_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        device_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        doc_types:
+          type: array
+          description: Document types to issue.
+          items:
+            $ref: '#/components/schemas/DocType'
+          minItems: 1
+          maxItems: 4
+        state:
+          type: string
+          description: active for pos, dormant for waiter.
+          enum:
+          - active
+          - dormant
+          example: active
+    SeriesIssuance:
+      type: object
+      description: Issued codes. A repeat for the same device and outlet returns the same codes.
+      required:
+      - items
+      properties:
+        items:
+          type: array
+          description: Issued series.
+          items:
+            $ref: '#/components/schemas/DocumentSeries'
+    CloseDeviceSeries:
+      type: object
+      description: Close a device's series when it is re-bound, reinstalled, restored or revoked.
+      required:
+      - reason
+      properties:
+        reason:
+          type: string
+          description: Why.
+          enum:
+          - rebound
+          - reinstalled
+          - restored
+          - revoked
+          example: reinstalled
+    SeriesClosure:
+      type: object
+      description: Result of closing a device's series.
+      required:
+      - closed
+      properties:
+        closed:
+          type: integer
+          description: Number of series closed.
+          minimum: 0
+          example: 2
+    LinkTemplate:
+      type: string
+      description: Named default scope set for the consent screen; authorisation looks at grants, never
+        the template.
+      enum:
+      - on_premises_outlet
+      - service_provider
+      - supplier_buyer
+      example: on_premises_outlet
+    LinkStatus:
+      type: string
+      description: Link state. Only active authorises anything; accepted waits for the proposer to confirm
+        the accepting organisation.
+      enum:
+      - proposed
+      - accepted
+      - active
+      - suspended
+      - declined
+      - expired
+      - revoked
+      example: active
+    LinkScope:
+      type: string
+      description: 'Link scope from the platform catalogue (Phase 1: test-only scopes). Tenants cannot
+        invent scopes.'
+      pattern: ^[a-z][a-z_]*(\.[a-z_]+)+$
+      example: test.echo.read
+    GrantInput:
+      type: object
+      description: A scope the proposer offers or asks for.
+      required:
+      - scope
+      - direction
+      properties:
+        scope:
+          $ref: '#/components/schemas/LinkScope'
+        direction:
+          type: string
+          description: 'outbound: the caller is the grantor; inbound: the counterparty grants.'
+          enum:
+          - outbound
+          - inbound
+          example: outbound
+        outlet_ids:
+          type: array
+          description: Outlets the grant is limited to; a grant whose data is synced to devices must name
+            at least one.
+          items:
+            $ref: ../../../common/components.yaml#/components/schemas/Id
+    LinkGrant:
+      type: object
+      description: A directional grant; the grantor owns the data or account the scope touches.
+      required:
+      - id
+      - scope
+      - direction
+      - status
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        scope:
+          $ref: '#/components/schemas/LinkScope'
+        direction:
+          type: string
+          description: 'outbound: the caller grants.'
+          enum:
+          - outbound
+          - inbound
+          example: outbound
+        outlet_ids:
+          type: array
+          description: Outlet constraint.
+          items:
+            $ref: ../../../common/components.yaml#/components/schemas/Id
+        status:
+          type: string
+          description: Grant state.
+          enum:
+          - pending
+          - active
+          - removed
+          example: active
+    CounterpartyRegistration:
+      type: object
+      description: What the proposer sees before confirming (ADR-0003 A1.3).
+      required:
+      - legal_name
+      - state_code
+      - gstin_verified
+      properties:
+        legal_name:
+          type: string
+          description: Legal name.
+          example: Example Restaurants LLP
+        gstin:
+          $ref: ../../../common/components.yaml#/components/schemas/Gstin
+        state_code:
+          $ref: ../../../common/components.yaml#/components/schemas/StateCode
+        gstin_verified:
+          type: boolean
+          description: Whether Hostry verified the GSTIN.
+          example: true
+    LinkCounterparty:
+      type: object
+      description: The other organisation, shown only once it has accepted (or, to the acceptor, about
+        the proposer). Contains no member, device or contact data.
+      required:
+      - display_name
+      - registrations
+      properties:
+        display_name:
+          type: string
+          description: Organisation display name.
+          example: Example Restaurants
+        registrations:
+          type: array
+          description: Registrations of the outlets placed in the link (all open registrations if none
+            were named).
+          items:
+            $ref: '#/components/schemas/CounterpartyRegistration'
+    Link:
+      type: object
+      description: A consented, revocable relationship between two organisations. It never gives access
+        to tables.
+      required:
+      - id
+      - template
+      - status
+      - role
+      - grants
+      - proposed_at
+      - expires_at
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        template:
+          $ref: '#/components/schemas/LinkTemplate'
+        status:
+          $ref: '#/components/schemas/LinkStatus'
+        role:
+          type: string
+          description: Which side the caller is.
+          enum:
+          - proposer
+          - acceptor
+          example: proposer
+        counterparty_organisation_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        counterparty:
+          $ref: '#/components/schemas/LinkCounterparty'
+        grants:
+          type: array
+          description: Grants of this link.
+          items:
+            $ref: '#/components/schemas/LinkGrant'
+        proposed_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+        expires_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+        accepted_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+        confirmed_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+    LinkPage:
+      type: object
+      description: A page of links.
+      required:
+      - items
+      properties:
+        items:
+          type: array
+          description: Links on this page.
+          items:
+            $ref: '#/components/schemas/Link'
+        next_cursor:
+          type: string
+          description: Opaque cursor for the next page; absent when there are no more results.
+    ProposeLink:
+      type: object
+      description: Propose a link. The inviter learns nothing about the counterparty until it accepts
+        (no tenant enumeration).
+      required:
+      - id
+      - template
+      - grants
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        template:
+          $ref: '#/components/schemas/LinkTemplate'
+        grants:
+          type: array
+          description: Scopes offered and asked for.
+          items:
+            $ref: '#/components/schemas/GrantInput'
+          minItems: 1
+          maxItems: 20
+        outlet_ids:
+          type: array
+          description: The caller's outlets placed in the link.
+          items:
+            $ref: ../../../common/components.yaml#/components/schemas/Id
+    LinkProposal:
+      type: object
+      description: The proposed link and its one-time invitation code.
+      required:
+      - link
+      - invitation_code
+      properties:
+        link:
+          $ref: '#/components/schemas/Link'
+        invitation_code:
+          type: string
+          description: At least 80 bits from a CSPRNG (16 characters of a 32-symbol alphabet), single
+            use, 14 days. Shown once; also the QR payload.
+          pattern: ^[0-9A-HJKMNP-TV-Z]{16}$
+          example: 7QK3M9XD7QK3M9XD
+    AcceptLink:
+      type: object
+      description: Accept a link with its invitation code. The code is used up at acceptance; the acceptor
+        is told its own details will be shown to the proposer.
+      required:
+      - invitation_code
+      properties:
+        invitation_code:
+          type: string
+          description: The invitation code.
+          pattern: ^[0-9A-HJKMNP-TV-Z]{16}$
+          example: 7QK3M9XD7QK3M9XD
+        outlet_ids:
+          type: array
+          description: The caller's outlets placed in the link.
+          items:
+            $ref: ../../../common/components.yaml#/components/schemas/Id
+    ConfirmLink:
+      type: object
+      description: Confirm who accepted. The id must be the one shown to the proposer, so a swap between
+        viewing and confirming is refused.
+      required:
+      - counterparty_organisation_id
+      properties:
+        counterparty_organisation_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+    LinkReason:
+      type: object
+      description: Reason for a decline, suspension or revocation (kept in link activity without payload
+        data).
+      required:
+      - reason
+      properties:
+        reason:
+          type: string
+          description: Short reason.
+          minLength: 3
+          maxLength: 200
+          example: contract ended
+    LinkAmendmentInput:
+      type: object
+      description: Add a scope or raise a limit; both parties must accept.
+      required:
+      - id
+      - add_grants
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        add_grants:
+          type: array
+          description: Grants to add.
+          items:
+            $ref: '#/components/schemas/GrantInput'
+          minItems: 1
+          maxItems: 20
+    LinkAmendment:
+      type: object
+      description: An amendment awaiting the other party.
+      required:
+      - id
+      - link_id
+      - add_grants
+      - status
+      - created_at
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        link_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        add_grants:
+          type: array
+          description: Grants to add.
+          items:
+            $ref: '#/components/schemas/GrantInput'
+        status:
+          type: string
+          description: Amendment state.
+          enum:
+          - pending
+          - accepted
+          - declined
+          example: pending
+        created_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+    DecideAmendment:
+      type: object
+      description: Accept or decline an amendment.
+      required:
+      - decision
+      properties:
+        decision:
+          type: string
+          description: Decision.
+          enum:
+          - accept
+          - decline
+          example: accept
+    LinkActivity:
+      type: object
+      description: One state change or cross-link call. No payload.
+      required:
+      - id
+      - link_id
+      - occurred_at
+      - side
+      - action
+      - outcome
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        link_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        occurred_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+        side:
+          type: string
+          description: Which party acted.
+          enum:
+          - proposer
+          - acceptor
+          - system
+          example: proposer
+        action:
+          type: string
+          description: Stable action key.
+          example: link.confirmed
+        scope:
+          $ref: '#/components/schemas/LinkScope'
+        object_ref:
+          type: string
+          description: Opaque object reference.
+          example: posting_01
+        outcome:
+          type: string
+          description: Result.
+          enum:
+          - succeeded
+          - refused
+          example: succeeded
+    LinkActivityPage:
+      type: object
+      description: A page of link activity, readable by both parties, append-only.
+      required:
+      - items
+      properties:
+        items:
+          type: array
+          description: Entries on this page.
+          items:
+            $ref: '#/components/schemas/LinkActivity'
+        next_cursor:
+          type: string
+          description: Opaque cursor for the next page; absent when there are no more results.
+    LinkDecision:
+      type: object
+      description: Decision for go-auth, cacheable for at most 30 seconds and dropped on tenancy.link.*
+        events.
+      required:
+      - allowed
+      - cache_seconds
+      properties:
+        allowed:
+          type: boolean
+          description: Whether the link is active and the grantee holds the scope.
+          example: true
+        reason:
+          type: string
+          description: Why not, when refused.
+          enum:
+          - link_not_active
+          - scope_not_granted
+          - outlet_not_granted
+          - limit_exceeded
+          example: link_not_active
+        data_owner_organisation_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        outlet_ids:
+          type: array
+          description: Outlets the grant allows.
+          items:
+            $ref: ../../../common/components.yaml#/components/schemas/Id
+        cache_seconds:
+          type: integer
+          description: Maximum cache time.
+          minimum: 0
+          maximum: 30
+          example: 30
+    DirectoryOrganisation:
+      type: object
+      description: Directory view of an organisation (closed). Holds no member, device, phone or email
+        data.
+      required:
+      - id
+      - name
+      - status
+      - outlet_count
+      - created_at
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
         name:
           type: string
           description: Display name.
           example: Example Hospitality
         status:
-          type: string
-          description: Organisation lifecycle state.
-          enum: [active, suspended, closed]
-          example: active
-    CreateOutlet:
+          $ref: '#/components/schemas/OrganisationStatus'
+        outlet_count:
+          type: integer
+          description: Number of outlets.
+          minimum: 0
+          example: 1
+        created_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+      additionalProperties: false
+    DirectoryPage:
       type: object
-      description: Request to create an outlet or property. The ID is client-generated.
-      required: [id, name, kind]
-      properties:
-        id:
-          $ref: '../../../common/components.yaml#/components/schemas/Id'
-        name:
-          type: string
-          description: Display name.
-          example: Main Restaurant
-        kind:
-          type: string
-          description: Outlet (restaurant, stall, bakery shop) or property (hotel).
-          enum: [outlet, property]
-          example: outlet
-    Outlet:
-      type: object
-      description: An outlet or property. STUB; brand, address, tax registration are added in the next wave.
-      required: [id, name, kind, status]
-      properties:
-        id:
-          $ref: '../../../common/components.yaml#/components/schemas/Id'
-        name:
-          type: string
-          description: Display name.
-          example: Main Restaurant
-        kind:
-          type: string
-          description: Outlet or property.
-          enum: [outlet, property]
-          example: outlet
-        status:
-          type: string
-          description: Outlet lifecycle state.
-          enum: [active, suspended, closed]
-          example: active
-    OutletPage:
-      type: object
-      description: A page of outlets.
-      required: [items]
+      description: A page of the directory, newest first.
+      required:
+      - items
       properties:
         items:
           type: array
-          description: Outlets on this page.
-          items: {$ref: '#/components/schemas/Outlet'}
-        next_cursor:
-          type: string
-          description: Opaque cursor for the next page; absent when there are no more results.
-    Link:
-      type: object
-      description: An explicit, revocable relationship with another tenant, with scoped permissions. STUB.
-      required: [id, status, scopes]
-      properties:
-        id:
-          $ref: '../../../common/components.yaml#/components/schemas/Id'
-        status:
-          type: string
-          description: Link state.
-          enum: [pending, active, revoked]
-          example: active
-        scopes:
-          type: array
-          description: Permissions the link grants (for example folio.post_charge).
+          description: Organisations on this page.
           items:
-            type: string
-            description: One link scope.
-            example: folio.post_charge
-    LinkPage:
-      type: object
-      description: A page of links.
-      required: [items]
-      properties:
-        items:
-          type: array
-          description: Links on this page.
-          items: {$ref: '#/components/schemas/Link'}
+            $ref: '#/components/schemas/DirectoryOrganisation'
         next_cursor:
           type: string
           description: Opaque cursor for the next page; absent when there are no more results.
-    RevokeLink:
+      additionalProperties: false
+    DirectoryBrand:
       type: object
-      description: Request to revoke a link.
-      required: [reason]
+      description: Brand in the directory.
+      required:
+      - id
+      - name
+      - is_default
       properties:
-        reason:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        name:
           type: string
-          description: Why the link is revoked (free text, kept for audit).
-          example: contract ended
+          description: Brand name.
+          example: Example Hospitality
+        is_default:
+          type: boolean
+          description: Default brand marker.
+          example: true
+      additionalProperties: false
+    DirectoryOutlet:
+      type: object
+      description: 'Outlet in the directory: name, kind, state only.'
+      required:
+      - id
+      - name
+      - kind
+      - state_code
+      - status
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        name:
+          type: string
+          description: Outlet name.
+          example: Main Restaurant
+        kind:
+          $ref: '#/components/schemas/OutletKind'
+        state_code:
+          $ref: ../../../common/components.yaml#/components/schemas/StateCode
+        status:
+          $ref: '#/components/schemas/OutletStatus'
+      additionalProperties: false
+    DirectoryRegistration:
+      type: object
+      description: 'Registration in the directory: legal name, GSTIN, regime, verification.'
+      required:
+      - id
+      - legal_name
+      - regime
+      - state_code
+      - verification_state
+      - status
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        legal_name:
+          type: string
+          description: Legal name.
+          example: Example Hospitality Pvt Ltd
+        regime:
+          $ref: '#/components/schemas/TaxRegime'
+        gstin:
+          $ref: ../../../common/components.yaml#/components/schemas/Gstin
+        state_code:
+          $ref: ../../../common/components.yaml#/components/schemas/StateCode
+        verification_state:
+          type: string
+          description: Verification state.
+          enum:
+          - unverified
+          - verified
+          - rejected
+          example: unverified
+        status:
+          type: string
+          description: Registration state.
+          enum:
+          - open
+          - closed
+          example: open
+      additionalProperties: false
+    OrganisationDetail:
+      type: object
+      description: 'Directory detail: structure only. No members, devices or settings.'
+      required:
+      - organisation
+      - brands
+      - outlets
+      - registrations
+      properties:
+        organisation:
+          $ref: '#/components/schemas/DirectoryOrganisation'
+        brands:
+          type: array
+          description: Brands.
+          items:
+            $ref: '#/components/schemas/DirectoryBrand'
+        outlets:
+          type: array
+          description: Outlets.
+          items:
+            $ref: '#/components/schemas/DirectoryOutlet'
+        registrations:
+          type: array
+          description: Registrations.
+          items:
+            $ref: '#/components/schemas/DirectoryRegistration'
+      additionalProperties: false
+    NewOutlet:
+      type: object
+      description: The first outlet.
+      required:
+      - name
+      - kind
+      - state_code
+      properties:
+        name:
+          type: string
+          description: Outlet name.
+          minLength: 1
+          maxLength: 120
+          example: Main Restaurant
+        kind:
+          $ref: '#/components/schemas/OutletKind'
+        state_code:
+          $ref: ../../../common/components.yaml#/components/schemas/StateCode
+    NewRegistration:
+      type: object
+      description: The tax registration the outlet bills under. GSTIN required unless regime is unregistered,
+        forbidden when it is.
+      required:
+      - legal_name
+      - regime
+      properties:
+        legal_name:
+          type: string
+          description: Legal name.
+          minLength: 1
+          maxLength: 200
+          example: Example Hospitality Pvt Ltd
+        regime:
+          $ref: '#/components/schemas/TaxRegime'
+        gstin:
+          $ref: ../../../common/components.yaml#/components/schemas/Gstin
+    VerificationInput:
+      type: object
+      description: Verification recorded in the same submit; needs admin.registration.verify, otherwise
+        the registration starts unverified.
+      required:
+      - method
+      properties:
+        method:
+          $ref: '#/components/schemas/VerificationMethod'
+        note:
+          type: string
+          description: Required when the method is other.
+          maxLength: 500
+          example: Certificate seen on the onboarding call.
+    CreateOrganisation:
+      type: object
+      description: One request that creates the tenant, its default brand, the first outlet and one tax
+        registration the outlet references. No plan, entitlement, subscription, series code or owner invitation.
+      required:
+      - name
+      - outlet
+      - tax_registration
+      properties:
+        name:
+          type: string
+          description: Organisation display name.
+          minLength: 1
+          maxLength: 120
+          example: Example Hospitality
+        outlet:
+          $ref: '#/components/schemas/NewOutlet'
+        tax_registration:
+          $ref: '#/components/schemas/NewRegistration'
+        verification:
+          $ref: '#/components/schemas/VerificationInput'
+    OrganisationCreated:
+      type: object
+      description: The created records. Ids are server-issued UUIDv7; a tenant_id is never reused.
+      required:
+      - organisation
+      - brand
+      - outlet
+      - tax_registration
+      properties:
+        organisation:
+          $ref: '#/components/schemas/Organisation'
+        brand:
+          $ref: '#/components/schemas/Brand'
+        outlet:
+          $ref: '#/components/schemas/Outlet'
+        tax_registration:
+          $ref: '#/components/schemas/TaxRegistration'
+    VerifyRegistration:
+      type: object
+      description: Mark a registration verified. A GSTIN has at most one verified holder.
+      required:
+      - method
+      properties:
+        method:
+          $ref: '#/components/schemas/VerificationMethod'
+        note:
+          type: string
+          description: Required when the method is other.
+          maxLength: 500
+          example: Certificate seen on the onboarding call.
+  responses:
+    GstinInUse:
+      description: A verified holder of this GSTIN already exists. Only vendor operations may say so;
+        a tenant-realm request gets the same response as any new registration.
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../../../common/components.yaml#/components/schemas/Problem
+          examples:
+            gstin:
+              value:
+                type: urn:hostry:problem:gstin_in_use
+                title: GSTIN already registered to another organisation
+                status: 409
+                code: gstin_in_use
+    RegistrationValidation:
+      description: Invalid input; nothing is created.
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../../../common/components.yaml#/components/schemas/Problem
+          examples:
+            gstin:
+              value:
+                type: urn:hostry:problem:validation
+                title: Validation failed
+                status: 422
+                code: validation
+                errors:
+                - field: tax_registration.gstin
+                  code: gstin_state_mismatch
+                  message: state code does not match the outlet state
+    RegistrationUnverified:
+      description: The registration is not verified, so no series is issued. The device may still register
+        without billing.
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../../../common/components.yaml#/components/schemas/Problem
+          examples:
+            unver:
+              value:
+                type: urn:hostry:problem:registration_unverified
+                title: Tax registration not verified
+                status: 409
+                code: registration_unverified
+    SeriesCapReached:
+      description: At most 200 codes per registration per IST day (and an alert at 75 percent of the code
+        space).
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../../../common/components.yaml#/components/schemas/Problem
+          examples:
+            cap:
+              value:
+                type: urn:hostry:problem:series_cap_reached
+                title: Daily series cap reached
+                status: 429
+                code: series_cap_reached
+    LinkConflict:
+      description: The link is not in a state that allows this, or the invitation code is used, expired
+        or unknown (one answer for all of these).
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../../../common/components.yaml#/components/schemas/Problem
+          examples:
+            state:
+              value:
+                type: urn:hostry:problem:link_state_conflict
+                title: The link is not in a state that allows this
+                status: 409
+                code: link_state_conflict
+            code:
+              value:
+                type: urn:hostry:problem:invitation_code_invalid
+                title: Invitation code invalid
+                status: 409
+                code: invitation_code_invalid
+    StepUpRequired:
+      description: The operation needs a strong session with a fresh OTP (auth_time within 10 minutes);
+        a pin session never qualifies.
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../../../common/components.yaml#/components/schemas/Problem
+          examples:
+            step:
+              value:
+                type: urn:hostry:problem:step_up_required
+                title: A fresh sign-in is required
+                status: 403
+                code: step_up_required
+    ApprovalRequired:
+      description: Blocked while the binding is under caution or needs an approval token (ADR-0005 A2.2).
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../../../common/components.yaml#/components/schemas/Problem
+          examples:
+            approval:
+              value:
+                type: urn:hostry:problem:approval_required
+                title: Approval required
+                status: 403
+                code: approval_required

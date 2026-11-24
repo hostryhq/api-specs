@@ -1,0 +1,2132 @@
+openapi: 3.1.0
+info:
+  title: Hostry admin API
+  version: 1.0.0
+  description: 'Browser-facing API of the vendor-side admin service (ADR-0013). Served on the admin origin
+    under /v1 and consumed only by admin-web. It accepts the session cookie only (HttpOnly, Secure, SameSite=Strict,
+    __Host- prefix); a bearer token of any realm is refused. State-changing requests also need the per-session
+    CSRF token in X-CSRF-Token and a matching Origin; CORS is off. No token of any kind ever appears in
+    a response body, a header to the browser or browser storage: the admin service keeps the vendor access
+    token and any support token in memory against the session. Every operation is one named panel need
+    built on the generated identity and tenancy clients (no pass-through), re-validates the upstream answer
+    against its closed schema and the deny list (full phone number, email of customers, key material),
+    and passes the browser''s Idempotency-Key down to each service. The service has no database and writes
+    no audit record: the serving service records each vendor action in its own transaction and identity
+    assembles the vendor audit log. The panel is online only; writes are never queued.'
+  x-status: stable
+servers:
+- url: /
+tags:
+- name: admin
+  description: Admin service (vendor side).
+- name: support
+  description: Support session (view mode) and the read-only configuration tabs of one organisation.
+security:
+- sessionCookie: []
+paths:
+  /v1/sessions:
+    post:
+      operationId: signIn
+      summary: Sign in with email, password and TOTP
+      description: Five failures in 15 minutes lock the account for 15 minutes; per-address limits also
+        apply; a TOTP code is accepted once. Lockout looks like any other failure.
+      tags:
+      - admin
+      x-permission: public
+      security: []
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../../identity/v1/openapi.yaml#/components/schemas/VendorSignIn
+            example:
+              email: staff@example.invalid
+              password: correct-horse-battery-staple
+              totp_code: '123456'
+      responses:
+        '201':
+          description: Signed in. The session cookie is set (HttpOnly, Secure, SameSite). A replay of
+            the same Idempotency-Key within the idle window returns the same body and sets no second cookie.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminSession'
+              example:
+                user:
+                  id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+                  display_name: Priya
+                  role: support
+                  permissions:
+                  - admin.org.read
+                  - admin.device.read
+                  - admin.device.revoke
+                  - admin.support.session.start
+                  - admin.audit.read_own
+                csrf_token: csrf_example_token
+                idle_timeout_seconds: 1800
+                idle_expires_at: '2026-11-24T13:10:11.120Z'
+                absolute_expires_at: '2026-11-25T01:05:11.120Z'
+          headers:
+            Set-Cookie:
+              description: __Host-hostry-admin=<opaque>; HttpOnly; Secure; SameSite=Strict; Path=/ . Set
+                on the first success only.
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/SignInFailed'
+        '429':
+          $ref: ../../../common/components.yaml#/components/responses/TooManyRequests
+  /v1/sessions/current:
+    get:
+      operationId: getSession
+      summary: The current session (page reload)
+      tags:
+      - admin
+      x-permission: authenticated
+      responses:
+        '200':
+          description: The signed-in user, clocks and CSRF token; includes the active support session,
+            if any.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminSession'
+              example:
+                user:
+                  id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+                  display_name: Priya
+                  role: support
+                  permissions:
+                  - admin.org.read
+                  - admin.device.read
+                  - admin.device.revoke
+                  - admin.support.session.start
+                  - admin.audit.read_own
+                csrf_token: csrf_example_token
+                idle_timeout_seconds: 1800
+                idle_expires_at: '2026-11-24T13:10:11.120Z'
+                absolute_expires_at: '2026-11-25T01:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+    delete:
+      operationId: signOut
+      summary: Sign out
+      tags:
+      - admin
+      x-permission: authenticated
+      parameters:
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        description: Per-session CSRF token from signIn or getSession. Required on every state-changing
+          request together with a matching Origin.
+        schema:
+          type: string
+        example: csrf_example_token
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      responses:
+        '204':
+          description: Cookie cleared and session dropped server-side; replaying the old cookie is refused.
+            Any support session of the user ends.
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+  /v1/account-setups:
+    post:
+      operationId: beginAccountSetup
+      summary: Begin account setup from a one-time link
+      tags:
+      - admin
+      x-permission: public
+      security: []
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../../identity/v1/openapi.yaml#/components/schemas/BeginVendorSetup
+            example:
+              setup_token: setup_example
+      responses:
+        '201':
+          description: TOTP enrolment material (shown once). Until password and TOTP are set, nothing
+            else is reachable.
+          content:
+            application/json:
+              schema:
+                $ref: ../../identity/v1/openapi.yaml#/components/schemas/VendorSetupChallenge
+              example:
+                email: staff@example.invalid
+                totp_provisioning_uri: otpauth://totp/Hostry:staff@example.invalid?secret=EXAMPLEEXAMPLE234&issuer=Hostry
+                expires_at: '2026-11-24T13:10:11.120Z'
+        '422':
+          $ref: '#/components/responses/SetupLinkInvalid'
+        '429':
+          $ref: ../../../common/components.yaml#/components/responses/TooManyRequests
+  /v1/account-setup-completions:
+    post:
+      operationId: completeAccountSetup
+      summary: Finish account setup
+      tags:
+      - admin
+      x-permission: public
+      security: []
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../../identity/v1/openapi.yaml#/components/schemas/CompleteVendorSetup
+            example:
+              setup_token: setup_example
+              password: example-passphrase-twelve
+              totp_code: '123456'
+      responses:
+        '200':
+          description: Account active. Reusing the link, or using it after 24 hours, is refused.
+          content:
+            application/json:
+              schema:
+                $ref: ../../identity/v1/openapi.yaml#/components/schemas/VendorUser
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+                email: staff@example.invalid
+                display_name: Priya
+                role: support
+                status: active
+                totp_enrolled: true
+                created_at: '2026-11-24T13:05:11.120Z'
+        '422':
+          $ref: '#/components/responses/SetupLinkInvalid'
+        '429':
+          $ref: ../../../common/components.yaml#/components/responses/TooManyRequests
+  /v1/vendor-users:
+    get:
+      operationId: listVendorUsers
+      summary: List vendor staff
+      tags:
+      - admin
+      x-permission: admin.user.manage
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorLimit
+      responses:
+        '200':
+          description: A page of vendor users.
+          content:
+            application/json:
+              schema:
+                $ref: ../../identity/v1/openapi.yaml#/components/schemas/VendorUserPage
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+                  email: staff@example.invalid
+                  display_name: Priya
+                  role: support
+                  status: active
+                  totp_enrolled: true
+                  created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+    post:
+      operationId: createVendorUser
+      summary: Create a vendor user
+      tags:
+      - admin
+      x-permission: admin.user.manage
+      parameters:
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        description: Per-session CSRF token from signIn or getSession. Required on every state-changing
+          request together with a matching Origin.
+        schema:
+          type: string
+        example: csrf_example_token
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../../identity/v1/openapi.yaml#/components/schemas/CreateVendorUser
+            example:
+              id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+              email: staff@example.invalid
+              display_name: Priya
+              role: support
+      responses:
+        '201':
+          description: User in setup_pending; the setup link goes out by email and is never returned.
+            Until setup is finished every admin API refuses the user.
+          content:
+            application/json:
+              schema:
+                $ref: ../../identity/v1/openapi.yaml#/components/schemas/VendorUser
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+                email: staff@example.invalid
+                display_name: Priya
+                role: support
+                status: setup_pending
+                totp_enrolled: false
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+  /v1/vendor-users/{vendor_user_id}:
+    patch:
+      operationId: updateVendorUser
+      summary: Change role or deactivate a vendor user
+      tags:
+      - admin
+      x-permission: admin.user.manage
+      parameters:
+      - name: vendor_user_id
+        in: path
+        required: true
+        description: Vendor user ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        description: Per-session CSRF token from signIn or getSession. Required on every state-changing
+          request together with a matching Origin.
+        schema:
+          type: string
+        example: csrf_example_token
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../../identity/v1/openapi.yaml#/components/schemas/UpdateVendorUser
+            example:
+              status: deactivated
+      responses:
+        '200':
+          description: Updated. Deactivation drops that user's admin sessions in this same operation and
+            ends any support session; their next request is refused.
+          content:
+            application/json:
+              schema:
+                $ref: ../../identity/v1/openapi.yaml#/components/schemas/VendorUser
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+                email: staff@example.invalid
+                display_name: Priya
+                role: support
+                status: deactivated
+                totp_enrolled: true
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: '#/components/responses/VendorUserConflict'
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+  /v1/vendor-users/{vendor_user_id}/totp-resets:
+    post:
+      operationId: resetVendorUserTotp
+      summary: Reset a vendor user's TOTP
+      tags:
+      - admin
+      x-permission: admin.user.manage
+      parameters:
+      - name: vendor_user_id
+        in: path
+        required: true
+        description: Vendor user ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        description: Per-session CSRF token from signIn or getSession. Required on every state-changing
+          request together with a matching Origin.
+        schema:
+          type: string
+        example: csrf_example_token
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      responses:
+        '201':
+          description: User returns to setup_pending and must enrol again at next sign-in; their admin
+            sessions are dropped.
+          content:
+            application/json:
+              schema:
+                $ref: ../../identity/v1/openapi.yaml#/components/schemas/VendorUser
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+                email: staff@example.invalid
+                display_name: Priya
+                role: support
+                status: setup_pending
+                totp_enrolled: false
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+  /v1/organisations:
+    get:
+      operationId: listOrganisations
+      summary: List and search organisations
+      tags:
+      - admin
+      x-permission: admin.org.read
+      parameters:
+      - name: q
+        in: query
+        required: false
+        description: Name contains (any case), an organisation id, an exact GSTIN, or an exact owner mobile
+          (10 digits or +91 form). Partial GSTIN or phone never matches.
+        schema:
+          type: string
+        example: Example
+      - name: status
+        in: query
+        required: false
+        description: Filter by status.
+        schema:
+          $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/OrganisationStatus
+        example: trial
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorLimit
+      responses:
+        '200':
+          description: Newest first. Loads from tenancy even when identity is down (owner_status unknown).
+            Directory reads are not audited per read. Full mobile numbers never appear.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganisationList'
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                  name: Example Hospitality
+                  status: trial
+                  outlet_count: 1
+                  created_at: '2026-11-24T13:05:11.120Z'
+                  owner_status: pending
+                owner_status_available: true
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+    post:
+      operationId: createOrganisation
+      summary: Create an organisation, first outlet and owner invitation
+      description: Forbidden for support and billing staff. Creates no document series and no entitlements.
+        The mobile number is held in memory only and asked for again after a page reload.
+      tags:
+      - admin
+      x-permission: admin.org.create
+      parameters:
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        description: Per-session CSRF token from signIn or getSession. Required on every state-changing
+          request together with a matching Origin.
+        schema:
+          type: string
+        example: csrf_example_token
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrganisationForm'
+            example:
+              name: Example Hospitality
+              outlet:
+                name: Main Restaurant
+                kind: restaurant
+                state_code: '33'
+              tax_registration:
+                legal_name: Example Hospitality Pvt Ltd
+                regime: regular
+                gstin: 33ABCDE1234F1Z5
+              owner:
+                name: Asha
+                mobile_e164: '+919876543210'
+      responses:
+        '201':
+          description: 'Step 1 (tenancy) then step 2 (identity), each idempotent under the same key. state
+            complete: both exist. state incomplete: the organisation exists, identity failed; replay the
+            same request or call createOwnerInvitation. No undo, no second organisation. Same key twice
+            returns the same organisation id.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingResult'
+              example:
+                state: complete
+                created:
+                  organisation:
+                    id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                    name: Example Hospitality
+                    status: trial
+                    created_at: '2026-11-24T13:05:11.120Z'
+                    updated_at: '2026-11-24T13:05:11.120Z'
+                  brand:
+                    id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6a
+                    name: Example Hospitality
+                    is_default: true
+                    created_at: '2026-11-24T13:05:11.120Z'
+                  outlet:
+                    id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                    brand_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6a
+                    name: Main Restaurant
+                    kind: restaurant
+                    status: active
+                    state_code: '33'
+                    tax_registration_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+                    timezone: Asia/Kolkata
+                    created_at: '2026-11-24T13:05:11.120Z'
+                  tax_registration:
+                    id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+                    legal_name: Example Hospitality Pvt Ltd
+                    regime: regular
+                    gstin: 33ABCDE1234F1Z5
+                    state_code: '33'
+                    verification:
+                      state: unverified
+                    status: open
+                    created_at: '2026-11-24T13:05:11.120Z'
+                owner_invitation:
+                  id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a67
+                  organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                  status: pending
+                  mobile_masked: +91*******210
+                  owner_name: Asha
+                  expires_at: '2026-12-08T13:05:11.120Z'
+                  created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '409':
+          $ref: '#/components/responses/GstinInUse'
+        '422':
+          $ref: '#/components/responses/FormValidation'
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+  /v1/organisations/{organisation_id}:
+    get:
+      operationId: getOrganisation
+      summary: Organisation detail
+      tags:
+      - admin
+      x-permission: admin.org.read
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      responses:
+        '200':
+          description: Brands, outlets, registrations and owner-invitation status; no members, devices
+            or settings.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrganisationDetailView'
+              example:
+                organisation:
+                  id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                  name: Example Hospitality
+                  status: trial
+                  outlet_count: 1
+                  created_at: '2026-11-24T13:05:11.120Z'
+                brands:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6a
+                  name: Example Hospitality
+                  is_default: true
+                outlets:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  name: Main Restaurant
+                  kind: restaurant
+                  state_code: '33'
+                  status: active
+                registrations:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+                  legal_name: Example Hospitality Pvt Ltd
+                  regime: regular
+                  gstin: 33ABCDE1234F1Z5
+                  state_code: '33'
+                  verification_state: unverified
+                  status: open
+                owner_status: pending
+                onboarding_state: complete
+                owner_invitations:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a67
+                  organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                  status: pending
+                  mobile_masked: +91*******210
+                  owner_name: Asha
+                  expires_at: '2026-12-08T13:05:11.120Z'
+                  created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+  /v1/organisations/{organisation_id}/owner-invitations:
+    get:
+      operationId: listOwnerInvitations
+      summary: List owner invitations
+      tags:
+      - admin
+      x-permission: admin.org.read
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      responses:
+        '200':
+          description: Invitations, newest first, masked numbers.
+          content:
+            application/json:
+              schema:
+                $ref: ../../identity/v1/openapi.yaml#/components/schemas/OwnerInvitationList
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a67
+                  organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                  status: pending
+                  mobile_masked: +91*******210
+                  owner_name: Asha
+                  expires_at: '2026-12-08T13:05:11.120Z'
+                  created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+    post:
+      operationId: createOwnerInvitation
+      summary: Create or re-issue an owner invitation
+      tags:
+      - admin
+      x-permission: admin.owner_invite.manage
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        description: Per-session CSRF token from signIn or getSession. Required on every state-changing
+          request together with a matching Origin.
+        schema:
+          type: string
+        example: csrf_example_token
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewOwnerInvitation'
+            example:
+              name: Asha
+              mobile_e164: '+919876543210'
+      responses:
+        '201':
+          description: A pending invitation (14 days). The same organisation and number returns the existing
+            pending one. After expiry a new one is created and the old stays expired.
+          content:
+            application/json:
+              schema:
+                $ref: ../../identity/v1/openapi.yaml#/components/schemas/OwnerInvitation
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a67
+                organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                status: pending
+                mobile_masked: +91*******210
+                owner_name: Asha
+                expires_at: '2026-12-08T13:05:11.120Z'
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: '#/components/responses/InvitationConflict'
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+  /v1/organisations/{organisation_id}/owner-invitations/{invitation_id}/renewals:
+    post:
+      operationId: renewOwnerInvitation
+      summary: Resend or extend a pending invitation
+      tags:
+      - admin
+      x-permission: admin.owner_invite.manage
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - name: invitation_id
+        in: path
+        required: true
+        description: Owner invitation ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a67
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        description: Per-session CSRF token from signIn or getSession. Required on every state-changing
+          request together with a matching Origin.
+        schema:
+          type: string
+        example: csrf_example_token
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      responses:
+        '200':
+          description: Expiry moves to 14 days from now; the invitation id is unchanged.
+          content:
+            application/json:
+              schema:
+                $ref: ../../identity/v1/openapi.yaml#/components/schemas/OwnerInvitation
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a67
+                organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                status: pending
+                mobile_masked: +91*******210
+                owner_name: Asha
+                expires_at: '2026-12-08T13:05:11.120Z'
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: '#/components/responses/InvitationConflict'
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+  /v1/organisations/{organisation_id}/owner-invitations/{invitation_id}/cancellation:
+    put:
+      operationId: cancelOwnerInvitation
+      summary: Cancel a pending invitation
+      tags:
+      - admin
+      x-permission: admin.owner_invite.manage
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - name: invitation_id
+        in: path
+        required: true
+        description: Owner invitation ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a67
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        description: Per-session CSRF token from signIn or getSession. Required on every state-changing
+          request together with a matching Origin.
+        schema:
+          type: string
+        example: csrf_example_token
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      responses:
+        '200':
+          description: Cancelled; an OTP request for that number then sends nothing.
+          content:
+            application/json:
+              schema:
+                $ref: ../../identity/v1/openapi.yaml#/components/schemas/OwnerInvitation
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a67
+                organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                status: cancelled
+                mobile_masked: +91*******210
+                owner_name: Asha
+                expires_at: '2026-12-08T13:05:11.120Z'
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: '#/components/responses/InvitationConflict'
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+  /v1/organisations/{organisation_id}/tax-registrations/{registration_id}/verification:
+    put:
+      operationId: verifyTaxRegistration
+      summary: Record GSTIN verification
+      tags:
+      - admin
+      x-permission: admin.registration.verify
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - name: registration_id
+        in: path
+        required: true
+        description: Tax registration ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        description: Per-session CSRF token from signIn or getSession. Required on every state-changing
+          request together with a matching Origin.
+        schema:
+          type: string
+        example: csrf_example_token
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/VerifyRegistration
+            example:
+              method: certificate_seen
+              note: Certificate seen on the onboarding call.
+      responses:
+        '200':
+          description: Registration verified; until then no document series can be issued for the organisation.
+          content:
+            application/json:
+              schema:
+                $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/TaxRegistration
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+                legal_name: Example Hospitality Pvt Ltd
+                regime: regular
+                gstin: 33ABCDE1234F1Z5
+                state_code: '33'
+                verification:
+                  state: verified
+                  method: certificate_seen
+                  verified_at: '2026-11-24T13:10:11.120Z'
+                status: open
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: '#/components/responses/GstinInUse'
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+  /v1/organisations/{organisation_id}/devices:
+    get:
+      operationId: listOrganisationDevices
+      summary: List an organisation's devices
+      tags:
+      - admin
+      x-permission: admin.device.read
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorLimit
+      responses:
+        '200':
+          description: Kind, outlet, state, times and billing capability; never keys, PIN data or pack
+            contents. One audit entry records the read. Billing staff cannot read devices.
+          content:
+            application/json:
+              schema:
+                $ref: ../../identity/v1/openapi.yaml#/components/schemas/VendorDevicePage
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                  kind: pos
+                  outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  state: active
+                  registered_at: '2026-11-24T13:05:11.120Z'
+                  last_contact_at: '2026-11-24T13:10:11.120Z'
+                  billing_capable: true
+                  key_protection: hardware
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+  /v1/organisations/{organisation_id}/devices/{device_id}:
+    get:
+      operationId: getOrganisationDevice
+      summary: Get one device
+      tags:
+      - admin
+      x-permission: admin.device.read
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - name: device_id
+        in: path
+        required: true
+        description: Device ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+      responses:
+        '200':
+          description: The device. A device of another organisation is 404.
+          content:
+            application/json:
+              schema:
+                $ref: ../../identity/v1/openapi.yaml#/components/schemas/VendorDevice
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                kind: pos
+                outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                state: active
+                registered_at: '2026-11-24T13:05:11.120Z'
+                last_contact_at: '2026-11-24T13:10:11.120Z'
+                billing_capable: true
+                key_protection: hardware
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+  /v1/organisations/{organisation_id}/devices/{device_id}/revocation:
+    put:
+      operationId: revokeOrganisationDevice
+      summary: Revoke a device on a verified request
+      tags:
+      - admin
+      x-permission: admin.device.revoke
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - name: device_id
+        in: path
+        required: true
+        description: Device ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        description: Per-session CSRF token from signIn or getSession. Required on every state-changing
+          request together with a matching Origin.
+        schema:
+          type: string
+        example: csrf_example_token
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../../identity/v1/openapi.yaml#/components/schemas/VendorRevoke
+            example:
+              ticket_reference: SUP-2041
+              reason: Owner phoned to report a lost tablet.
+              verification_method: callback_to_registered_number
+              confirm: true
+      responses:
+        '200':
+          description: Revoked, or unchanged when already revoked (the body says so). There is no un-revoke,
+            no vendor wipe and no way to hasten the wipe order.
+          content:
+            application/json:
+              schema:
+                $ref: ../../identity/v1/openapi.yaml#/components/schemas/VendorRevokeResult
+              example:
+                device:
+                  id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                  kind: pos
+                  outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  state: revoked
+                  registered_at: '2026-11-24T13:05:11.120Z'
+                  last_contact_at: '2026-11-24T13:10:11.120Z'
+                  billing_capable: true
+                  key_protection: hardware
+                outcome: revoked
+                changed: true
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: '#/components/responses/RevokeRefused'
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+  /v1/audit-entries:
+    get:
+      operationId: listAuditEntries
+      summary: Read the vendor audit log
+      tags:
+      - admin
+      x-permission: admin.audit.read_own
+      x-permission-widened-by: admin.audit.read
+      parameters:
+      - name: from
+        in: query
+        required: false
+        description: Entries at or after this time.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+        example: '2026-11-24T13:05:11.120Z'
+      - name: to
+        in: query
+        required: false
+        description: Entries before this time.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+        example: '2026-11-24T13:10:11.120Z'
+      - name: actor_vendor_user_id
+        in: query
+        required: false
+        description: Filter by actor.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+      - name: organisation_id
+        in: query
+        required: false
+        description: Filter by organisation.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - name: action
+        in: query
+        required: false
+        description: Exact action key.
+        schema:
+          type: string
+        example: vendor.device.revoked
+      - name: support_session_id
+        in: query
+        required: false
+        description: The reads of one support session.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a68
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorLimit
+      responses:
+        '200':
+          description: 'platform_admin (admin.audit.read) sees all entries; everyone else only their own.
+            Append-only: there is no update or delete operation. Entries for actions served by tenancy
+            arrive within seconds.'
+          content:
+            application/json:
+              schema:
+                $ref: ../../identity/v1/openapi.yaml#/components/schemas/VendorAuditPage
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a69
+                  occurred_at: '2026-11-24T13:05:11.120Z'
+                  actor_vendor_user_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+                  action: vendor.device.revoked
+                  organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                  target_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                  ticket_reference: SUP-2041
+                  result: succeeded
+                  request_id: req_0190a1b2c3d4
+                  source_address: 203.0.113.7
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+  /v1/support-sessions:
+    post:
+      operationId: startSupportSession
+      summary: Start a read-only support session
+      description: Onboarding and billing staff are refused. A second start while one is active is refused;
+        the panel then asks to end the first.
+      tags:
+      - admin
+      x-permission: admin.support.session.start
+      parameters:
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        description: Per-session CSRF token from signIn or getSession. Required on every state-changing
+          request together with a matching Origin.
+        schema:
+          type: string
+        example: csrf_example_token
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartSupport'
+            example:
+              organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+              ticket_reference: SUP-2041
+              reason: Owner phoned to report a lost tablet.
+              duration_minutes: 30
+              mode: view
+      responses:
+        '201':
+          description: Session started (the support token is kept server-side). 422 for no ticket, a reason
+            under 10 characters or more than 60 minutes. Entries appear in the vendor log and the tenant's
+            own audit log.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportSessionView'
+              example:
+                session:
+                  id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a68
+                  organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                  vendor_user_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+                  mode: view
+                  status: active
+                  ticket_reference: SUP-2041
+                  started_at: '2026-11-24T13:05:11.120Z'
+                  ends_at: '2026-11-24T13:35:11.120Z'
+                seconds_remaining: 1800
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: '#/components/responses/SupportSessionConflict'
+        '422':
+          $ref: '#/components/responses/ModeNotSupported'
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+  /v1/support-sessions/current:
+    get:
+      operationId: getSupportSession
+      summary: The active support session (banner)
+      tags:
+      - admin
+      x-permission: admin.support.session.start
+      responses:
+        '200':
+          description: The active session with its countdown; 404 when none.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportSessionView'
+              example:
+                session:
+                  id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a68
+                  organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                  vendor_user_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+                  mode: view
+                  status: active
+                  ticket_reference: SUP-2041
+                  started_at: '2026-11-24T13:05:11.120Z'
+                  ends_at: '2026-11-24T13:35:11.120Z'
+                seconds_remaining: 1795
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+    delete:
+      operationId: endSupportSession
+      summary: End the support session
+      tags:
+      - admin
+      x-permission: admin.support.session.start
+      parameters:
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        description: Per-session CSRF token from signIn or getSession. Required on every state-changing
+          request together with a matching Origin.
+        schema:
+          type: string
+        example: csrf_example_token
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      responses:
+        '204':
+          description: Session ended and the token dropped; any further read is refused and an end entry
+            exists (idempotent).
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+  /v1/organisations/{organisation_id}/support-view/profile:
+    get:
+      operationId: getSupportOrganisation
+      summary: 'Support view: organisation profile and status'
+      description: Read in view mode through the service's ordinary read route with the support token
+        (and the admin service token). Each read is audited in the serving service in the same transaction;
+        if that record cannot be written the read is refused. Another organisation than the session's
+        is 404; writes with a support token are refused.
+      tags:
+      - admin
+      x-permission: admin.support.session.start
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      responses:
+        '200':
+          description: Profile and status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportOrganisation'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                name: Example Hospitality
+                status: trial
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: '#/components/responses/SupportSessionRequired'
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+  /v1/organisations/{organisation_id}/support-view/brands:
+    get:
+      operationId: listSupportBrands
+      summary: 'Support view: brands'
+      tags:
+      - admin
+      x-permission: admin.support.session.start
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorLimit
+      responses:
+        '200':
+          description: Brands.
+          content:
+            application/json:
+              schema:
+                $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/BrandPage
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6a
+                  name: Example Hospitality
+                  is_default: true
+                  created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: '#/components/responses/SupportSessionRequired'
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+  /v1/organisations/{organisation_id}/support-view/outlets:
+    get:
+      operationId: listSupportOutlets
+      summary: 'Support view: outlets'
+      tags:
+      - admin
+      x-permission: admin.support.session.start
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorLimit
+      responses:
+        '200':
+          description: Outlets.
+          content:
+            application/json:
+              schema:
+                $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/OutletPage
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  brand_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6a
+                  name: Main Restaurant
+                  kind: restaurant
+                  status: active
+                  state_code: '33'
+                  tax_registration_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+                  timezone: Asia/Kolkata
+                  created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: '#/components/responses/SupportSessionRequired'
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+  /v1/organisations/{organisation_id}/support-view/tax-registrations:
+    get:
+      operationId: listSupportTaxRegistrations
+      summary: 'Support view: tax registrations'
+      tags:
+      - admin
+      x-permission: admin.support.session.start
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorLimit
+      responses:
+        '200':
+          description: 'Registrations: legal name, GSTIN, regime.'
+          content:
+            application/json:
+              schema:
+                $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/TaxRegistrationPage
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+                  legal_name: Example Hospitality Pvt Ltd
+                  regime: regular
+                  gstin: 33ABCDE1234F1Z5
+                  state_code: '33'
+                  verification:
+                    state: unverified
+                  status: open
+                  created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: '#/components/responses/SupportSessionRequired'
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+  /v1/organisations/{organisation_id}/support-view/document-series:
+    get:
+      operationId: listSupportDocumentSeries
+      summary: 'Support view: document series'
+      tags:
+      - admin
+      x-permission: admin.support.session.start
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorLimit
+      responses:
+        '200':
+          description: 'Series: code, type, status, outlet, device.'
+          content:
+            application/json:
+              schema:
+                $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/DocumentSeriesPage
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6c
+                  tax_registration_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+                  code: A7
+                  doc_type: tax_invoice
+                  outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                  status: active
+                  issued_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: '#/components/responses/SupportSessionRequired'
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+  /v1/organisations/{organisation_id}/support-view/settings:
+    get:
+      operationId: getSupportSettings
+      summary: 'Support view: settings'
+      tags:
+      - admin
+      x-permission: admin.support.session.start
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      responses:
+        '200':
+          description: Offline window and idle lock.
+          content:
+            application/json:
+              schema:
+                $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/OrganisationSettings
+              example:
+                offline_window_days: 7
+                idle_lock_minutes: 5
+                updated_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: '#/components/responses/SupportSessionRequired'
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+  /v1/organisations/{organisation_id}/support-view/members:
+    get:
+      operationId: listSupportMembers
+      summary: 'Support view: members'
+      tags:
+      - admin
+      x-permission: admin.support.session.start
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorLimit
+      responses:
+        '200':
+          description: Display name, status, roles, mobile masked to the last 3 digits. No email and no
+            ID document field exists.
+          content:
+            application/json:
+              schema:
+                $ref: ../../identity/v1/openapi.yaml#/components/schemas/MemberPage
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
+                  display_name: Asha
+                  status: active
+                  mobile_masked: +91*******210
+                  has_pin: true
+                  role_assignments:
+                  - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6f
+                    role_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65
+                  created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: '#/components/responses/SupportSessionRequired'
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+  /v1/organisations/{organisation_id}/support-view/roles:
+    get:
+      operationId: listSupportRoles
+      summary: 'Support view: roles and their permission sets'
+      tags:
+      - admin
+      x-permission: admin.support.session.start
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorLimit
+      responses:
+        '200':
+          description: Roles.
+          content:
+            application/json:
+              schema:
+                $ref: ../../identity/v1/openapi.yaml#/components/schemas/RolePage
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65
+                  name: Cashier
+                  permissions:
+                  - order.create
+                  - bill.create
+                  built_in: false
+                  created_at: '2026-11-24T13:05:11.120Z'
+                  updated_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: '#/components/responses/SupportSessionRequired'
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+  /v1/organisations/{organisation_id}/support-view/devices:
+    get:
+      operationId: listSupportDevices
+      summary: 'Support view: devices'
+      tags:
+      - admin
+      x-permission: admin.support.session.start
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorLimit
+      responses:
+        '200':
+          description: Devices as the tenant sees them, without keys, PIN data or packs.
+          content:
+            application/json:
+              schema:
+                $ref: ../../identity/v1/openapi.yaml#/components/schemas/DevicePage
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                  kind: pos
+                  name: Counter 1
+                  outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  state: active
+                  key_protection: hardware
+                  registered_at: '2026-11-24T13:05:11.120Z'
+                  last_contact_at: '2026-11-24T13:10:11.120Z'
+                  billing_capability: active
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: '#/components/responses/SupportSessionRequired'
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: __Host-hostry-admin
+      description: Opaque 256-bit session id. Idle and absolute limits are configuration (default 30 minutes
+        idle, 12 hours absolute). A signed-out or expired cookie is refused.
+  schemas:
+    AdminSession:
+      type: object
+      description: The signed-in vendor user and the session clocks. The CSRF token is for the X-CSRF-Token
+        header; it is not a credential. No access token is ever included.
+      required:
+      - user
+      - csrf_token
+      - idle_timeout_seconds
+      - idle_expires_at
+      - absolute_expires_at
+      properties:
+        user:
+          $ref: ../../identity/v1/openapi.yaml#/components/schemas/VendorPrincipal
+        csrf_token:
+          type: string
+          description: Per-session CSRF token, returned on sign-in and on getSession.
+          example: csrf_example_token
+        idle_timeout_seconds:
+          type: integer
+          description: Idle timeout (configuration; default 1800).
+          minimum: 1
+          example: 1800
+        idle_expires_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+        absolute_expires_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+        support_session:
+          $ref: ../../identity/v1/openapi.yaml#/components/schemas/SupportSession
+    OwnerStatus:
+      type: string
+      description: 'Owner state: none, the latest invitation state, or unknown when identity is unavailable
+        (the list still loads from tenancy).'
+      enum:
+      - none
+      - pending
+      - accepted
+      - expired
+      - cancelled
+      - unknown
+      example: pending
+    OrganisationSummary:
+      type: object
+      description: One row of the organisation list. No phone number anywhere.
+      required:
+      - id
+      - name
+      - status
+      - outlet_count
+      - created_at
+      - owner_status
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        name:
+          type: string
+          description: Display name.
+          example: Example Hospitality
+        status:
+          $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/OrganisationStatus
+        outlet_count:
+          type: integer
+          description: Number of outlets.
+          minimum: 0
+          example: 1
+        created_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+        owner_status:
+          $ref: '#/components/schemas/OwnerStatus'
+      additionalProperties: false
+    OrganisationList:
+      type: object
+      description: A page of organisations, newest first, 25 per page (maximum 100).
+      required:
+      - items
+      - owner_status_available
+      properties:
+        items:
+          type: array
+          description: Organisations on this page.
+          items:
+            $ref: '#/components/schemas/OrganisationSummary'
+        next_cursor:
+          type: string
+          description: Opaque cursor for the next page; absent when there are no more results.
+        owner_status_available:
+          type: boolean
+          description: False when identity was unavailable; owner_status is then unknown on every row
+            and the panel shows a notice.
+          example: true
+      additionalProperties: false
+    OnboardingState:
+      type: string
+      description: 'complete: organisation and owner invitation both exist. incomplete: the organisation
+        exists with no owner and no pending invitation; derived, never a stored flag. unknown: identity
+        unavailable.'
+      enum:
+      - complete
+      - incomplete
+      - unknown
+      example: complete
+    OrganisationDetailView:
+      type: object
+      description: Structure, registrations and owner-invitation status. No members, devices or settings.
+      required:
+      - organisation
+      - brands
+      - outlets
+      - registrations
+      - owner_status
+      - onboarding_state
+      - owner_invitations
+      properties:
+        organisation:
+          $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/DirectoryOrganisation
+        brands:
+          type: array
+          description: Brands.
+          items:
+            $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/DirectoryBrand
+        outlets:
+          type: array
+          description: Outlets (name, kind, state).
+          items:
+            $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/DirectoryOutlet
+        registrations:
+          type: array
+          description: Tax registrations.
+          items:
+            $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/DirectoryRegistration
+        owner_status:
+          $ref: '#/components/schemas/OwnerStatus'
+        onboarding_state:
+          $ref: '#/components/schemas/OnboardingState'
+        owner_invitations:
+          type: array
+          description: Owner invitations, newest first.
+          items:
+            $ref: ../../identity/v1/openapi.yaml#/components/schemas/OwnerInvitation
+      additionalProperties: false
+    NewOwner:
+      type: object
+      description: The owner to invite. This is the one place a full number is typed; it passes through
+        the admin service in memory only and is never stored there.
+      required:
+      - name
+      - mobile_e164
+      properties:
+        name:
+          type: string
+          description: Owner display name.
+          minLength: 1
+          maxLength: 80
+          example: Asha
+        mobile_e164:
+          $ref: ../../../common/components.yaml#/components/schemas/MobileE164
+    CreateOrganisationForm:
+      type: object
+      description: 'The single form: organisation, first outlet, tax registration, optional GSTIN verification
+        and the owner. Timezone is IST; business-day settings are not asked.'
+      required:
+      - name
+      - outlet
+      - tax_registration
+      - owner
+      properties:
+        name:
+          type: string
+          description: Organisation display name.
+          minLength: 1
+          maxLength: 120
+          example: Example Hospitality
+        outlet:
+          $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/NewOutlet
+        tax_registration:
+          $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/NewRegistration
+        verification:
+          $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/VerificationInput
+        owner:
+          $ref: '#/components/schemas/NewOwner'
+    OnboardingResult:
+      type: object
+      description: Outcome of onboarding. Success is shown only when state is complete.
+      required:
+      - state
+      - created
+      properties:
+        state:
+          type: string
+          description: complete when the organisation and the owner invitation both exist; incomplete
+            when identity failed after the organisation was created.
+          enum:
+          - complete
+          - incomplete
+          example: complete
+        created:
+          $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/OrganisationCreated
+        owner_invitation:
+          $ref: ../../identity/v1/openapi.yaml#/components/schemas/OwnerInvitation
+        retry_hint:
+          type: string
+          description: 'When incomplete: replay the same request with the same Idempotency-Key, or call
+            createOwnerInvitation on the organisation.'
+          enum:
+          - replay_request
+          - create_owner_invitation
+          example: replay_request
+      additionalProperties: false
+    NewOwnerInvitation:
+      type: object
+      description: Create an owner invitation (the retry path of an incomplete onboarding, or a re-issue
+        after expiry).
+      required:
+      - name
+      - mobile_e164
+      properties:
+        name:
+          type: string
+          description: Owner display name.
+          minLength: 1
+          maxLength: 80
+          example: Asha
+        mobile_e164:
+          $ref: ../../../common/components.yaml#/components/schemas/MobileE164
+    StartSupport:
+      type: object
+      description: Start a read-only support session.
+      required:
+      - organisation_id
+      - ticket_reference
+      - reason
+      properties:
+        organisation_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        ticket_reference:
+          $ref: ../../../common/components.yaml#/components/schemas/TicketReference
+        reason:
+          $ref: ../../../common/components.yaml#/components/schemas/Reason
+        duration_minutes:
+          type: integer
+          description: Session length; default 30, maximum 60.
+          minimum: 1
+          maximum: 60
+          example: 30
+        mode:
+          type: string
+          description: view only; act is refused with mode_not_supported.
+          enum:
+          - view
+          - act
+          example: view
+    SupportSessionView:
+      type: object
+      description: 'The active support session for the banner: organisation, countdown, read-only. The
+        support token stays in the admin service.'
+      required:
+      - session
+      - seconds_remaining
+      properties:
+        session:
+          $ref: ../../identity/v1/openapi.yaml#/components/schemas/SupportSession
+        seconds_remaining:
+          type: integer
+          description: Countdown for the banner.
+          minimum: 0
+          example: 1800
+      additionalProperties: false
+    SupportOrganisation:
+      type: object
+      description: Organisation profile and status.
+      required:
+      - id
+      - name
+      - status
+      - created_at
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        name:
+          type: string
+          description: Display name.
+          example: Example Hospitality
+        status:
+          $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/OrganisationStatus
+        created_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+      additionalProperties: false
+  responses:
+    SignInFailed:
+      description: Sign-in refused. Wrong password, unknown email, wrong TOTP, replayed TOTP and lockout
+        all give this same answer and an audit entry vendor.sign_in.failed.
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../../../common/components.yaml#/components/schemas/Problem
+          examples:
+            failed:
+              value:
+                type: urn:hostry:problem:sign_in_failed
+                title: Sign-in failed
+                status: 401
+                code: sign_in_failed
+    UpstreamUnavailable:
+      description: A service the operation needs is unavailable. Nothing partial is shown; retry.
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../../../common/components.yaml#/components/schemas/Problem
+          examples:
+            up:
+              value:
+                type: urn:hostry:problem:upstream_unavailable
+                title: A required service is unavailable
+                status: 503
+                code: upstream_unavailable
+    SupportSessionRequired:
+      description: No active support session for this organisation (none started, ended, expired, or a
+        vendor token alone was used). No stale data is returned.
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../../../common/components.yaml#/components/schemas/Problem
+          examples:
+            none:
+              value:
+                type: urn:hostry:problem:support_session_required
+                title: An active support session is required
+                status: 403
+                code: support_session_required
+            ended:
+              value:
+                type: urn:hostry:problem:support_session_ended
+                title: The support session has ended
+                status: 409
+                code: support_session_ended
+    SupportSessionConflict:
+      description: A support session is already active for this vendor user; end it first.
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../../../common/components.yaml#/components/schemas/Problem
+          examples:
+            active:
+              value:
+                type: urn:hostry:problem:support_session_active
+                title: A support session is already active
+                status: 409
+                code: support_session_active
+    ModeNotSupported:
+      description: Act mode is not available in Phase 1.
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../../../common/components.yaml#/components/schemas/Problem
+          examples:
+            mode:
+              value:
+                type: urn:hostry:problem:mode_not_supported
+                title: Act mode is not supported
+                status: 422
+                code: mode_not_supported
+    GstinInUse:
+      description: A verified holder of the GSTIN exists; nothing was created.
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../../../common/components.yaml#/components/schemas/Problem
+          examples:
+            gstin:
+              value:
+                type: urn:hostry:problem:gstin_in_use
+                title: GSTIN already registered to another organisation
+                status: 409
+                code: gstin_in_use
+    InvitationConflict:
+      description: The invitation is not pending, or the organisation already has an owner member (resend,
+        cancel and invite another owner are refused).
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../../../common/components.yaml#/components/schemas/Problem
+          examples:
+            notpending:
+              value:
+                type: urn:hostry:problem:invitation_not_pending
+                title: Invitation is not pending
+                status: 409
+                code: invitation_not_pending
+            owner:
+              value:
+                type: urn:hostry:problem:owner_exists
+                title: The organisation already has an owner
+                status: 409
+                code: owner_exists
+    VendorUserConflict:
+      description: The change would leave no active platform_admin, or a user would deactivate or demote
+        themselves.
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../../../common/components.yaml#/components/schemas/Problem
+          examples:
+            last:
+              value:
+                type: urn:hostry:problem:last_platform_admin
+                title: The last active platform admin cannot be deactivated or demoted
+                status: 409
+                code: last_platform_admin
+            self:
+              value:
+                type: urn:hostry:problem:cannot_deactivate_self
+                title: You cannot deactivate yourself
+                status: 409
+                code: cannot_deactivate_self
+    SetupLinkInvalid:
+      description: The setup link was used already, expired (24 hours), or is unknown.
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../../../common/components.yaml#/components/schemas/Problem
+          examples:
+            invalid:
+              value:
+                type: urn:hostry:problem:setup_link_invalid
+                title: Setup link invalid
+                status: 422
+                code: setup_link_invalid
+    RevokeRefused:
+      description: The revoke needs a second approver (quota), or the device state does not allow it.
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../../../common/components.yaml#/components/schemas/Problem
+          examples:
+            quota:
+              value:
+                type: urn:hostry:problem:vendor_approval_required
+                title: A second vendor approver is required
+                status: 409
+                code: vendor_approval_required
+    FormValidation:
+      description: Invalid input; nothing is created.
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../../../common/components.yaml#/components/schemas/Problem
+          examples:
+            gstin:
+              value:
+                type: urn:hostry:problem:validation
+                title: Validation failed
+                status: 422
+                code: validation
+                errors:
+                - field: tax_registration.gstin
+                  code: gstin_state_mismatch
+                  message: state code does not match the outlet state
+    ForbiddenOrCsrf:
+      description: The role lacks the permission, or the CSRF token is missing or invalid, or the Origin
+        does not match. Nothing changed.
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../../../common/components.yaml#/components/schemas/Problem
+          examples:
+            forbidden:
+              value:
+                type: urn:hostry:problem:forbidden
+                title: Permission denied
+                status: 403
+                code: forbidden
+            csrf:
+              value:
+                type: urn:hostry:problem:csrf_failed
+                title: Request refused
+                status: 403
+                code: csrf_failed
