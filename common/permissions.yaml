@@ -1,0 +1,95 @@
+# Permission catalogue and link-scope catalogue (ADR-0005 section 7, A2.2, A2.4, A2.5; ADR-0003 section 3).
+# Source of truth for go-auth and client-core generation. Checked by `make lint-specs`
+# (cmd/validate-specs): every x-permission in every spec must appear here.
+#
+# Flags
+#   sensitive         reason and audit record required
+#   strong_only       never exercisable in a pin or device session; blocked for 24 h on a binding under caution
+#   owner_grant       roles containing it are created, edited and assigned by owners only (every strong_only
+#                     permission is owner_grant in v1; the lint enforces it)
+#   support_viewable  readable in a support session (view mode); read operations only
+#   support_actable   writable in a support session in act mode; no permission carries it in Phase 1; the lint
+#                     refuses it on strong_only, owner_grant and sensitive permissions
+# Realms
+#   tenant   tenant-realm token (user, pin, device, support)
+#   vendor   vendor-realm token (admin.*); never valid in a tenant token
+#   service  caller identified by the service token alone (x-service-callers)
+catalogue_version: 1
+permissions:
+  # ---- tenancy ----
+  - {key: organisation.read, realm: tenant, service: tenancy, description_key: perm.organisation.read, flags: [support_viewable]}
+  - {key: organisation.manage, realm: tenant, service: tenancy, description_key: perm.organisation.manage, flags: [strong_only, owner_grant]}
+  - {key: brand.read, realm: tenant, service: tenancy, description_key: perm.brand.read, flags: [support_viewable]}
+  - {key: brand.manage, realm: tenant, service: tenancy, description_key: perm.brand.manage, flags: [strong_only, owner_grant]}
+  - {key: outlet.read, realm: tenant, service: tenancy, description_key: perm.outlet.read, flags: [support_viewable]}
+  - {key: outlet.create, realm: tenant, service: tenancy, description_key: perm.outlet.create, flags: [strong_only, owner_grant]}
+  - {key: outlet.manage, realm: tenant, service: tenancy, description_key: perm.outlet.manage, flags: [strong_only, owner_grant]}
+  - {key: tax_registration.read, realm: tenant, service: tenancy, description_key: perm.tax_registration.read, flags: [support_viewable]}
+  - {key: tax_registration.manage, realm: tenant, service: tenancy, description_key: perm.tax_registration.manage, flags: [sensitive, strong_only, owner_grant]}
+  - {key: settings.read, realm: tenant, service: tenancy, description_key: perm.settings.read, flags: [support_viewable]}
+  - {key: settings.manage, realm: tenant, service: tenancy, description_key: perm.settings.manage, flags: [strong_only, owner_grant]}
+  - {key: series.read, realm: tenant, service: tenancy, description_key: perm.series.read, flags: [support_viewable]}
+  - {key: series.close_unreconciled, realm: tenant, service: tenancy, description_key: perm.series.close_unreconciled, flags: [sensitive, strong_only, owner_grant]}
+  - {key: link.read, realm: tenant, service: tenancy, description_key: perm.link.read, flags: []}
+  - {key: link.manage, realm: tenant, service: tenancy, description_key: perm.link.manage, flags: [sensitive, strong_only, owner_grant]}
+  - {key: link.revoke, realm: tenant, service: tenancy, description_key: perm.link.revoke, flags: [sensitive, strong_only, owner_grant]}
+  # ---- identity ----
+  - {key: device.read, realm: tenant, service: identity, description_key: perm.device.read, flags: [support_viewable]}
+  - {key: device.register, realm: tenant, service: identity, description_key: perm.device.register, flags: [strong_only, owner_grant]}
+  - {key: device.activation_code.create, realm: tenant, service: identity, description_key: perm.device.activation_code.create, flags: [strong_only, owner_grant]}
+  - {key: device.revoke, realm: tenant, service: identity, description_key: perm.device.revoke, flags: [sensitive, strong_only, owner_grant]}
+  - {key: member.read, realm: tenant, service: identity, description_key: perm.member.read, flags: [support_viewable]}
+  - {key: member.manage, realm: tenant, service: identity, description_key: perm.member.manage, flags: [sensitive, strong_only, owner_grant]}
+  - {key: member.pin.authorise, realm: tenant, service: identity, description_key: perm.member.pin.authorise, flags: [strong_only, owner_grant]}
+  - {key: member.role.assign, realm: tenant, service: identity, description_key: perm.member.role.assign, flags: [sensitive, strong_only, owner_grant]}
+  - {key: member.owner.assign, realm: tenant, service: identity, description_key: perm.member.owner.assign, flags: [sensitive, strong_only, owner_grant]}
+  - {key: role.read, realm: tenant, service: identity, description_key: perm.role.read, flags: [support_viewable]}
+  - {key: role.manage, realm: tenant, service: identity, description_key: perm.role.manage, flags: [strong_only, owner_grant]}
+  - {key: audit.read, realm: tenant, service: identity, description_key: perm.audit.read, flags: []}
+  # Declared for Phase 2 (owner app creates the one-time code for act mode); no operation in Phase 1.
+  - {key: support.code.create, realm: tenant, service: identity, description_key: perm.support.code.create, flags: [strong_only, owner_grant]}
+  # ---- service callers (x-service-callers) ----
+  - {key: revocation.read, realm: service, service: identity, description_key: perm.revocation.read, flags: []}
+  - {key: device.drain.record, realm: service, service: identity, description_key: perm.device.drain.record, flags: []}
+  - {key: proof.verify, realm: service, service: identity, description_key: perm.proof.verify, flags: []}
+  - {key: series.issue, realm: service, service: tenancy, description_key: perm.series.issue, flags: []}
+  - {key: link.decide, realm: service, service: tenancy, description_key: perm.link.decide, flags: []}
+  # ---- vendor realm (Admin A0 section 2; ADR-0003 A1.1; ADR-0005 A2.3) ----
+  - {key: admin.org.read, realm: vendor, service: admin, description_key: perm.admin.org.read, flags: []}
+  - {key: admin.org.create, realm: vendor, service: admin, description_key: perm.admin.org.create, flags: []}
+  - {key: admin.owner_invite.manage, realm: vendor, service: admin, description_key: perm.admin.owner_invite.manage, flags: []}
+  - {key: admin.registration.verify, realm: vendor, service: admin, description_key: perm.admin.registration.verify, flags: []}
+  - {key: admin.device.read, realm: vendor, service: admin, description_key: perm.admin.device.read, flags: []}
+  - {key: admin.device.revoke, realm: vendor, service: admin, description_key: perm.admin.device.revoke, flags: []}
+  - {key: admin.support.session.start, realm: vendor, service: admin, description_key: perm.admin.support.session.start, flags: []}
+  - {key: admin.audit.read, realm: vendor, service: admin, description_key: perm.admin.audit.read, flags: []}
+  - {key: admin.audit.read_own, realm: vendor, service: admin, description_key: perm.admin.audit.read_own, flags: []}
+  - {key: admin.user.manage, realm: vendor, service: admin, description_key: perm.admin.user.manage, flags: []}
+  # Two-person approvals. The three admin.approval.* strings are gate permissions (a static x-permission cannot express "by kind");
+  # the kind-specific permissions below are checked by identity per kind (x-permission-by-kind).
+  - {key: admin.approval.create, realm: vendor, service: admin, description_key: perm.admin.approval.create, flags: []}
+  - {key: admin.approval.read, realm: vendor, service: admin, description_key: perm.admin.approval.read, flags: []}
+  - {key: admin.approval.decide, realm: vendor, service: admin, description_key: perm.admin.approval.decide, flags: []}
+  - {key: admin.signin_code.create, realm: vendor, service: admin, description_key: perm.admin.signin_code.create, flags: []}
+  - {key: admin.signin_code.approve, realm: vendor, service: admin, description_key: perm.admin.signin_code.approve, flags: []}
+  - {key: admin.recovery.create, realm: vendor, service: admin, description_key: perm.admin.recovery.create, flags: []}
+  - {key: admin.recovery.approve, realm: vendor, service: admin, description_key: perm.admin.recovery.approve, flags: []}
+
+# Vendor roles are sets of permissions (checks are on permissions, never role names). A0 table of
+# docs/product/admin-a0-spec.md section 2, plus admin.registration.verify (ADR-0003 A1.1: platform admin and onboarding)
+# and the approval permissions (proposed: platform_admin for sign-in codes and recovery, which stay switched off;
+# support for device_revoke_over_quota via admin.device.revoke).
+vendor_roles:
+  platform_admin: [admin.org.read, admin.org.create, admin.owner_invite.manage, admin.registration.verify, admin.device.read, admin.device.revoke,
+                   admin.support.session.start, admin.audit.read, admin.audit.read_own, admin.user.manage, admin.approval.create, admin.approval.read,
+                   admin.approval.decide, admin.signin_code.create, admin.signin_code.approve, admin.recovery.create, admin.recovery.approve]
+  onboarding: [admin.org.read, admin.org.create, admin.owner_invite.manage, admin.registration.verify, admin.device.read, admin.audit.read_own]
+  support: [admin.org.read, admin.device.read, admin.device.revoke, admin.support.session.start, admin.audit.read_own,
+            admin.approval.create, admin.approval.read, admin.approval.decide]
+  billing: [admin.org.read, admin.audit.read_own]
+
+# Link scopes (ADR-0003 section 3). Phase 1 has the test-only pair used by the go-common/testkit fixture operation;
+# no service spec declares a link scope. Real scopes arrive with the Phase 5 templates.
+link_scopes:
+  - {key: test.echo.read, description_key: linkscope.test.echo.read, test_only: true}
+  - {key: test.echo.post, description_key: linkscope.test.echo.post, test_only: true}
