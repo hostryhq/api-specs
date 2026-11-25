@@ -16,7 +16,7 @@ info:
     thousandths; rates are basis points.'
   x-status: stable
   x-example-worlds:
-    base: Organisation 4a60 with outlet 4a61 and verified registration 4a6b (regular). Bill 7001 (A7K/2627/000123,
+    base: Organisation 4a60 with outlet 4a61 and verified registration 4a6b (regular). The trading day holds exactly one bill, bill 7001 (A7K/2627/000001,
       tax_invoice, paid by cash payment 7021, verified), credit note 7011, refund 7061, shift 7051 closed, business
       day bbac closed with no revisions (Z/2026-11-24/P1), internal consumption 7081, series A7K registered, published
       rule set c799 (unreviewed) in force, outlet billing config at defaults (number_at settle), orders reports
@@ -24,6 +24,10 @@ info:
       routes, the admin service with a vendor user holding the needed permission.
     payments-exceed: Base plus an open exception 7091 (payments_exceed_total on bill 7001) after a second payment
       was taken on another device.
+    gap-open: Base plus an open gap in the document register, series A7K, FY 2627, number 57 is missing (gap 70b1,
+      kind device, detected 13:05:11); every other fact as in base.
+    late-revision: Base plus Z revision 7071 of day bbac (revision 1, cause late_device, from device 4a5e, ops 813 to 830),
+      so the day shows revision_count 1 and a late document; every other fact as in base.
     rule-set-draft: Base plus draft rule set 3c47 (version 2, revision 1, effective 2026-12-15, unreviewed, one
       rule).
     rule-set-signed: Base plus rule set 3c47 signed (reviewed, sign-off recorded, effective 2026-12-15) and a valid
@@ -82,7 +86,7 @@ paths:
         description: Exact bill number.
         schema:
           type: string
-        example: A7K/2627/000123
+        example: A7K/2627/000001
       - name: source_kind
         in: query
         required: false
@@ -121,7 +125,7 @@ paths:
                 items:
                 - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001
                   outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
-                  number: A7K/2627/000123
+                  number: A7K/2627/000001
                   doc_type: tax_invoice
                   source_kind: check
                   check_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6001
@@ -188,7 +192,7 @@ paths:
               example:
                 id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001
                 outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
-                number: A7K/2627/000123
+                number: A7K/2627/000001
                 doc_type: tax_invoice
                 source_kind: check
                 check_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6001
@@ -350,22 +354,22 @@ paths:
                     cutoff: '{"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e":812}'
                     totals:
                       gross:
-                        amount_paise: 504000
+                        amount_paise: 48000
                         currency: INR
                       discounts:
                         amount_paise: 0
                         currency: INR
                       net:
-                        amount_paise: 504000
+                        amount_paise: 48000
                         currency: INR
                       service_charge:
                         amount_paise: 0
                         currency: INR
                       cgst:
-                        amount_paise: 12600
+                        amount_paise: 1200
                         currency: INR
                       sgst:
-                        amount_paise: 12600
+                        amount_paise: 1200
                         currency: INR
                       non_gst:
                         amount_paise: 0
@@ -374,9 +378,9 @@ paths:
                         amount_paise: 0
                         currency: INR
                       total:
-                        amount_paise: 529200
+                        amount_paise: 50400
                         currency: INR
-                      bill_count: 12
+                      bill_count: 1
                       credit_note_count: 0
                       credit_note_total:
                         amount_paise: 0
@@ -389,16 +393,16 @@ paths:
                         currency: INR
                       tenders:
                       - tender: cash
-                        count: 12
+                        count: 1
                         amount:
-                          amount_paise: 504000
+                          amount_paise: 48000
                           currency: INR
                     series_ranges:
                     - series_code: A7K
                       doc_type: tax_invoice
-                      first_number: A7K/2627/000112
-                      last_number: A7K/2627/000123
-                      count: 12
+                      first_number: A7K/2627/000001
+                      last_number: A7K/2627/000001
+                      count: 1
                   revision_count: 0
                   late_document_count: 0
         '401':
@@ -443,22 +447,22 @@ paths:
                   cutoff: '{"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e":812}'
                   totals:
                     gross:
-                      amount_paise: 504000
+                      amount_paise: 48000
                       currency: INR
                     discounts:
                       amount_paise: 0
                       currency: INR
                     net:
-                      amount_paise: 504000
+                      amount_paise: 48000
                       currency: INR
                     service_charge:
                       amount_paise: 0
                       currency: INR
                     cgst:
-                      amount_paise: 12600
+                      amount_paise: 1200
                       currency: INR
                     sgst:
-                      amount_paise: 12600
+                      amount_paise: 1200
                       currency: INR
                     non_gst:
                       amount_paise: 0
@@ -467,9 +471,9 @@ paths:
                       amount_paise: 0
                       currency: INR
                     total:
-                      amount_paise: 529200
+                      amount_paise: 50400
                       currency: INR
-                    bill_count: 12
+                    bill_count: 1
                     credit_note_count: 0
                     credit_note_total:
                       amount_paise: 0
@@ -482,16 +486,16 @@ paths:
                       currency: INR
                     tenders:
                     - tender: cash
-                      count: 12
+                      count: 1
                       amount:
-                        amount_paise: 504000
+                        amount_paise: 48000
                         currency: INR
                   series_ranges:
                   - series_code: A7K
                     doc_type: tax_invoice
-                    first_number: A7K/2627/000112
-                    last_number: A7K/2627/000123
-                    count: 12
+                    first_number: A7K/2627/000001
+                    last_number: A7K/2627/000001
+                    count: 1
                 revision_count: 0
                 late_document_count: 0
         '401':
@@ -509,6 +513,7 @@ paths:
       tags:
       - billing
       x-permission: report.view.outlet
+      x-example-world: late-revision
       parameters:
       - name: business_day_id
         in: path
@@ -538,22 +543,22 @@ paths:
                   op_to_seq: 830
                   added_totals:
                     gross:
-                      amount_paise: 504000
+                      amount_paise: 48000
                       currency: INR
                     discounts:
                       amount_paise: 0
                       currency: INR
                     net:
-                      amount_paise: 504000
+                      amount_paise: 48000
                       currency: INR
                     service_charge:
                       amount_paise: 0
                       currency: INR
                     cgst:
-                      amount_paise: 12600
+                      amount_paise: 1200
                       currency: INR
                     sgst:
-                      amount_paise: 12600
+                      amount_paise: 1200
                       currency: INR
                     non_gst:
                       amount_paise: 0
@@ -562,9 +567,9 @@ paths:
                       amount_paise: 0
                       currency: INR
                     total:
-                      amount_paise: 529200
+                      amount_paise: 50400
                       currency: INR
-                    bill_count: 12
+                    bill_count: 1
                     credit_note_count: 0
                     credit_note_total:
                       amount_paise: 0
@@ -577,16 +582,16 @@ paths:
                       currency: INR
                     tenders:
                     - tender: cash
-                      count: 12
+                      count: 1
                       amount:
-                        amount_paise: 504000
+                        amount_paise: 48000
                         currency: INR
                   added_series_ranges:
                   - series_code: A7K
                     doc_type: tax_invoice
-                    first_number: A7K/2627/000112
-                    last_number: A7K/2627/000123
-                    count: 12
+                    first_number: A7K/2627/000001
+                    last_number: A7K/2627/000001
+                    count: 1
                   created_at: '2026-11-24T13:09:40.000Z'
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
@@ -632,9 +637,9 @@ paths:
                 items:
                 - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7011
                   outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
-                  number: A7M/2627/000004
+                  number: A7M/2627/000001
                   bill_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001
-                  bill_number: A7K/2627/000123
+                  bill_number: A7K/2627/000001
                   bill_invoice_date: '2026-11-24'
                   business_date: '2026-11-24'
                   invoice_date: '2026-11-24'
@@ -733,9 +738,9 @@ paths:
               example:
                 id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7011
                 outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
-                number: A7M/2627/000004
+                number: A7M/2627/000001
                 bill_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001
-                bill_number: A7K/2627/000123
+                bill_number: A7K/2627/000001
                 bill_invoice_date: '2026-11-24'
                 business_date: '2026-11-24'
                 invoice_date: '2026-11-24'
@@ -854,8 +859,8 @@ paths:
                   financial_year: '2627'
                   device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
                   first_number: A7K/2627/000001
-                  last_number: A7K/2627/000123
-                  count: 123
+                  last_number: A7K/2627/000001
+                  count: 1
                   gap_count: 0
                   state: active
                   last_seen_at: '2026-11-24T13:05:11.120Z'
@@ -873,6 +878,7 @@ paths:
       tags:
       - billing
       x-permission: report.view.outlet
+      x-example-world: gap-open
       parameters:
       - name: status
         in: query
@@ -1402,7 +1408,7 @@ paths:
                 state_hash: 2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae
                 entities:
                 - entity: bill
-                  row_count: 12
+                  row_count: 1
                   hash: 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08
                 computed_at: '2026-11-24T13:05:11.120Z'
         '401':
@@ -1561,22 +1567,22 @@ paths:
                   status: closed
                   totals:
                     gross:
-                      amount_paise: 504000
+                      amount_paise: 48000
                       currency: INR
                     discounts:
                       amount_paise: 0
                       currency: INR
                     net:
-                      amount_paise: 504000
+                      amount_paise: 48000
                       currency: INR
                     service_charge:
                       amount_paise: 0
                       currency: INR
                     cgst:
-                      amount_paise: 12600
+                      amount_paise: 1200
                       currency: INR
                     sgst:
-                      amount_paise: 12600
+                      amount_paise: 1200
                       currency: INR
                     non_gst:
                       amount_paise: 0
@@ -1585,9 +1591,9 @@ paths:
                       amount_paise: 0
                       currency: INR
                     total:
-                      amount_paise: 529200
+                      amount_paise: 50400
                       currency: INR
-                    bill_count: 12
+                    bill_count: 1
                     credit_note_count: 0
                     credit_note_total:
                       amount_paise: 0
@@ -1600,9 +1606,9 @@ paths:
                       currency: INR
                     tenders:
                     - tender: cash
-                      count: 12
+                      count: 1
                       amount:
-                        amount_paise: 504000
+                        amount_paise: 48000
                         currency: INR
                   revision_count: 0
         '401':
@@ -1671,7 +1677,7 @@ paths:
                 items:
                 - kind: discount
                   subject_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001
-                  bill_number: A7K/2627/000123
+                  bill_number: A7K/2627/000001
                   reason_code_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5164
                   member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
                   within_allowance: false
@@ -1736,9 +1742,9 @@ paths:
                 - business_date: '2026-11-24'
                   hour: 13
                   order_type: dine_in
-                  bill_count: 4
+                  bill_count: 1
                   net:
-                    amount_paise: 168000
+                    amount_paise: 48000
                     currency: INR
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
@@ -1850,9 +1856,9 @@ paths:
                 items:
                 - member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
                   role: cashier
-                  bill_count: 12
+                  bill_count: 1
                   net:
-                    amount_paise: 504000
+                    amount_paise: 48000
                     currency: INR
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
@@ -1907,13 +1913,13 @@ paths:
                   rate_bp: 500
                   gst_applies: true
                   bill_taxable:
-                    amount_paise: 504000
+                    amount_paise: 48000
                     currency: INR
                   bill_cgst:
-                    amount_paise: 12600
+                    amount_paise: 1200
                     currency: INR
                   bill_sgst:
-                    amount_paise: 12600
+                    amount_paise: 1200
                     currency: INR
                   credit_taxable:
                     amount_paise: 0
@@ -1926,13 +1932,13 @@ paths:
                     currency: INR
                 totals:
                   net_taxable:
-                    amount_paise: 504000
+                    amount_paise: 48000
                     currency: INR
                   net_cgst:
-                    amount_paise: 12600
+                    amount_paise: 1200
                     currency: INR
                   net_sgst:
-                    amount_paise: 12600
+                    amount_paise: 1200
                     currency: INR
                   non_gst:
                     amount_paise: 0
@@ -1987,15 +1993,15 @@ paths:
                 basis: business_date
                 items:
                 - tender: cash
-                  payment_count: 12
+                  payment_count: 1
                   paid:
-                    amount_paise: 529200
+                    amount_paise: 50400
                     currency: INR
                   refunded:
                     amount_paise: 0
                     currency: INR
                   net:
-                    amount_paise: 529200
+                    amount_paise: 50400
                     currency: INR
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
@@ -2191,8 +2197,8 @@ paths:
                 $ref: '#/components/schemas/SeriesLastSeen'
               example:
                 series_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6c
-                last_number: A7K/2627/000123
-                count: 123
+                last_number: A7K/2627/000001
+                count: 1
                 as_of: '2026-11-24T13:05:11.120Z'
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
@@ -2569,6 +2575,7 @@ paths:
                 calc_v: 1
                 state: published
                 review_status: reviewed
+                content_hash: a3f5c0de9d1b7e44c2f9a8b6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6
                 rules:
                 - tax_class: fnb_standard
                   regime: regular
@@ -2584,7 +2591,7 @@ paths:
                   reviewer_name: A. Reviewer
                   signed_on: '2026-11-20'
                   reference_note: CA advice note 2026-11 ref 12
-                published_at: '2026-11-24T13:09:40.000Z'
+                published_at: '2026-11-24T13:09:11.120Z'
                 organisations_total: 3
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
@@ -2650,6 +2657,7 @@ paths:
                 calc_v: 1
                 state: signed
                 review_status: reviewed
+                content_hash: a3f5c0de9d1b7e44c2f9a8b6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6
                 rules:
                 - tax_class: fnb_standard
                   regime: regular
@@ -2984,7 +2992,7 @@ components:
           type: string
           description: <code>/<FY>/<running>, at most 16 characters; for a manual_book bill the book's own number.
           maxLength: 16
-          example: A7K/2627/000123
+          example: A7K/2627/000001
         doc_type:
           $ref: '#/components/schemas/BillDocType'
         source_kind:
@@ -3140,14 +3148,14 @@ components:
           type: string
           description: Number from the issuing device's credit-note series.
           maxLength: 16
-          example: A7M/2627/000004
+          example: A7M/2627/000001
         bill_id:
           $ref: ../../../common/components.yaml#/components/schemas/Id
         bill_number:
           type: string
           description: Number of the original bill.
           maxLength: 16
-          example: A7K/2627/000123
+          example: A7K/2627/000001
         bill_invoice_date:
           type: string
           description: Invoice date of the original bill.
@@ -3416,12 +3424,12 @@ components:
           type: string
           description: First number seen.
           maxLength: 16
-          example: A7K/2627/000112
+          example: A7K/2627/000001
         last_number:
           type: string
           description: Last number seen.
           maxLength: 16
-          example: A7K/2627/000123
+          example: A7K/2627/000001
         count:
           type: integer
           description: Numbers seen.
@@ -3767,7 +3775,7 @@ components:
         last_number:
           type: string
           description: Highest number seen.
-          example: A7K/2627/000123
+          example: A7K/2627/000001
         count:
           type: integer
           description: Numbers seen.
@@ -3885,7 +3893,7 @@ components:
         last_number:
           type: string
           description: Highest number seen; absent when none.
-          example: A7K/2627/000123
+          example: A7K/2627/000001
         count:
           type: integer
           description: Numbers seen.
@@ -4288,7 +4296,7 @@ components:
         bill_number:
           type: string
           description: Number of the bill concerned, when it has one.
-          example: A7K/2627/000123
+          example: A7K/2627/000001
         reason_code_id:
           $ref: ../../../common/components.yaml#/components/schemas/Id
         member_id:

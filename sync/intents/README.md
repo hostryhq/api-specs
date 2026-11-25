@@ -45,7 +45,7 @@ is written by at least one intent. A guarded (money or tax) entity is never chan
 `creditnote.issue`, `credit_note.issue` to `creditnote.issue` (`bill.credit_note.create`, action proof, override); `menu.item.edit`, `menu.add`, `menu.rename`,
 `menu.del`, `menu.undel` to `menu.item.edit` / `menu.item.archive` (`menu.manage`); `menu.price.set`, `menu.price` to `menu.price.set` (`menu.price.edit`);
 `stock.*` have no Phase 2 intent (stock is Phase 4 and 8); `conflict.confirm` is not in the restaurant registry (exceptions are resolved online in Phase 2);
-`approval.grant`, `session.open` and `series.activate` keep their names; `sync.void` and `cloud.emit` keep theirs (cloud-origin).
+`approval.grant`, `session.open` and `series.activate` keep their names; `sync.void` keeps its name (cloud-origin); `cloud.emit` is retired for one named cloud-origin intent per online action (`menu.tax_class.set`, `tax.rule_set.publish`, `settings.tax_profile.set`, `settings.numbering.set`, `settings.discount_limit.set`, `day.revision.record`; ADR-0014 A2.3); `series.close` is the device statement of a closed series (ADR-0014 A2.5); `bill.reprint` is an audit-only trading intent.
 
 ## Provisional choices
 

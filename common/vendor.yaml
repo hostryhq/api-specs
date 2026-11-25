@@ -26,7 +26,6 @@ components:
         facade only; an executing service takes it from the grant.
       schema:
         type: string
-        pattern: '^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$'
       example: eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InZlbmRvci1yZWFsbS0xIn0.eyJpc3MiOiJodHRwczovL2lkZW50aXR5Lmhvc3RyeS5pbnZhbGlkL3ZlbmRvciIsInJlYWxtIjoidmVuZG9yIiwiYXVkIjoidGVuYW5jeSIsInR5cCI6InZlbmRvcl9hcHByb3ZhbCIsImp0aSI6IjAxOTBhMWIyLWMzZDQtN2U1Zi04YTliLTBjMWQyZTNmNGFiMiIsImFwcHJvdmFsX2lkIjoiMDE5MGExYjItYzNkNC03ZTVmLThhOWItMGMxZDJlM2Y0YTZkIiwia2luZCI6Im9yZ19zdXNwZW5kIiwib3JnIjoiMDE5MGExYjItYzNkNC03ZTVmLThhOWItMGMxZDJlM2Y0YTYwIiwicmVxdWVzdGVyIjoiMDE5MGExYjItYzNkNC03ZTVmLThhOWItMGMxZDJlM2Y0YTY2IiwiYXBwcm92ZXIiOiIwMTkwYTFiMi1jM2Q0LTdlNWYtOGE5Yi0wYzFkMmUzZjRhNzgiLCJzdWJqZWN0X2hhc2giOiJhODJhNjhiMmI4ODU5NjhmNWQ1Y2ZmYzEwODE5Y2I0NzI3MjMyZjBmNmRmM2MyMmU1MzgwZjkyNGZkMDk3Zjc0IiwiaWF0IjoxNzk1NTI1NTcxLCJleHAiOjE3OTU1MjU4NzF9.qhs1FZkoNZmloYKP3Fpu35Gl-RxAwRYu4gHfYZfoRfw-kNSChKTpeBh8rmSOU_Dm8bkJZ3pyYP7Mwnm60bC2pA
     IfMatch:
       name: If-Match
@@ -35,7 +34,7 @@ components:
       description: Entity tag of the version being edited (from the last read); a stale tag returns 412 with code precondition_failed.
       schema:
         type: string
-      example: '"7"'
+      example: '"1"'
   schemas:
     VendorApprovalGrantClaims:
       type: object

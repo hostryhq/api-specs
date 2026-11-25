@@ -9,12 +9,14 @@ info:
     in one service, R7), read access to checks, a projection digest for the T9 convergence test and one internal
     read for billing. It never writes a synced row. The tenant is always the caller''s organisation from the token;
     outlet-scoped calls take X-Outlet-Id. Business date is explicit and never derived from a timestamp. Entity fields:
-    entities/restaurant/.'
+    entities/restaurant/. Display joins to other owners'' reference entities (station, table name, day state) come from read-only replicas (ADR-0014 A2.4, replicated_to) that may lag, so a joined field is absent until the replica row arrives and a client never shows a placeholder id.'
   x-status: stable
   x-example-worlds:
-    base: Outlet 4a61, table 5152 (T4) with open seating 6031. Open check 6001 (dine_in, label Guest 2, presented
-      once, one sent line 6011 Paneer Tikka x2 now ready, list total 52000), KOT 6021 (P1-0007, printed), one cancel
-      of a started line (wastage) at 13:05:11 and one present record. No exception exists. The caller is a manager.
+    base: Outlet 4a61, table 5152 (T1) with open seating 6031. Open check 6001 (dine_in, label Guest 2, presented
+      once; one live sent line 6011 Paneer Tikka Full with Extra cheese x2 at 26000 each, now ready, list total 52000;
+      and line 6012 Paneer Tikka Full with Extra cheese x1, started and cancelled as wastage at 13:05:11, which is not
+      counted as a live line), KOT 6021 (P1-0007, printed, carrying both lines, so line_count 2), station 5131, and one
+      present record. Reason code 5161 is the wastage reason. No exception exists. The caller is a manager.
     orphan-line: Base plus an open exception 6041 (orphan_line, subject order_line 6011).
     no-open-checks: Outlet 4a61 with no open check (every check billed or cancelled). The caller is the billing
       service.
@@ -358,7 +360,7 @@ paths:
                 basis: business_date
                 items:
                 - kind: cancel
-                  order_line_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6011
+                  order_line_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6012
                   check_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6001
                   item_name: Paneer Tikka
                   qty_milli: 1000
@@ -549,12 +551,12 @@ paths:
                 items:
                 - check_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6001
                   seating_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6031
-                  table_name: T4
+                  table_name: T1
                   label: Guest 2
                   opened_business_date: '2026-11-24'
                   carried_over: false
                   presented: true
-                  line_count: 3
+                  line_count: 1
                   list_total:
                     amount_paise: 52000
                     currency: INR
@@ -639,7 +641,7 @@ paths:
     get:
       operationId: getOpenCheckCount
       summary: Count open checks of an outlet
-      description: 'Called by billing before it accepts a change of number_at (only with no open check, RM-O21).
+      description: 'An unknown outlet has no open check, so the answer is 0, never 404. Called by billing before it accepts a change of number_at (only with no open check, RM-O21).
         Not on the trading path. x-provisional: a synchronous service-to-service read; ADR-0014 R1 forbids it on
         the trading path only.'
       tags:
@@ -674,8 +676,6 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
           $ref: ../../../common/components.yaml#/components/responses/Forbidden
-        '404':
-          $ref: ../../../common/components.yaml#/components/responses/NotFound
       x-example-world: no-open-checks
 components:
   securitySchemes:
@@ -914,8 +914,6 @@ components:
       - item_name
       - qty_milli
       - list_value
-      - reason_code_id
-      - member_id
       - wastage
       - kitchen_status
       - cancelled_at
@@ -1031,12 +1029,9 @@ components:
       - kot_id
       - kot_no
       - kind
-      - station_id
       - check_id
       - line_count
       - sent_at
-      - member_id
-      - device_id
       - printed
       - reprint_count
       - business_date
@@ -1107,7 +1102,6 @@ components:
           minimum: 0
           example: 1
       required:
-      - station_id
       - business_date
       - line_count
       - median_prep_seconds
@@ -1198,8 +1192,6 @@ components:
       - content_hash
       - total
       - mode
-      - member_id
-      - device_id
       - presented_at
       - changes_after
       - billed
@@ -1294,8 +1286,6 @@ components:
           $ref: ../../../common/components.yaml#/components/schemas/Money
       required:
       - check_id
-      - seating_id
-      - table_name
       - label
       - opened_business_date
       - carried_over

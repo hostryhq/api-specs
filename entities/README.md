@@ -16,6 +16,7 @@ mutations of entities it owns and ignores the rest of an op). `make lint-entitie
 | `id` | `client_uuidv7`, or `uuidv5` with a `name` template when two devices must converge on one row (deterministic ids). |
 | `tombstone` | Deletable master data; `del` and `undel` sync. |
 | `guarded` | Money or tax: only `append` facts; invariants are detectors, resolved by a new op (refund, credit note), never merged. |
+| `replicated_to` | Read-only replicas of another owner's reference entity (ADR-0014 A2.4): `[{service, purpose}]`. Applied by the same engine into tables only the projection role writes; never written, emitted or served as the entity; never `pii`; a `guarded` entity only with a stated `guarded_exception` (day_close, see the ADR note). Initial list, all to `orders`: `station`, `dining_table`, `outlet_settings`, `business_day`, `day_close`. |
 | `cloud_origin_only` | Written only by a cloud service through the gateway `emit` API. |
 | `fields.<name>` | `type`, `required`, `policy`, `description`, plus `group`, `values`, `order`, `ref`, `pii`, `doc_number`, bounds. |
 | `detectors` | Derived queries that raise exceptions (shared schema `common/exceptions.yaml`). |

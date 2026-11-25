@@ -10,8 +10,8 @@ uuid_namespace: 9a3c7f1e-5b2d-5c84-a1e6-4d0f8b27c3a9
 # Fixed facts every document of the restaurant worlds agrees on.
 constants:
   business_date: '2026-11-24'
-  bill_number: A7K/2627/000123
-  credit_note_number: A7M/2627/000004
+  bill_number: A7K/2627/000001
+  credit_note_number: A7M/2627/000001
   z_number: Z/2026-11-24/P1
   tax_vector_count: 65
 entries:
@@ -39,13 +39,14 @@ entries:
 # ---- orders -------------------------------------------------------------------------------------------------------
 - {name: check, id: '6001', kind: check, facts: {label: Guest 2}}
 - {name: order_line, id: '6011', kind: order_line}
+- {name: order_line_cancelled, id: '6012', kind: order_line}
 - {name: kot, id: '6021', kind: kot}
 - {name: seating, id: '6031', kind: seating}
 - {name: exception_orphan_line, id: '6041', kind: exception, facts: {kind: orphan_line}}
 - {name: order, id: '6051', kind: order}
 # ---- billing --------------------------------------------------------------------------------------------------------
-- {name: bill, id: '7001', kind: bill, facts: {number: A7K/2627/000123}}
-- {name: credit_note, id: '7011', kind: credit_note, facts: {number: A7M/2627/000004}}
+- {name: bill, id: '7001', kind: bill, facts: {number: A7K/2627/000001}}
+- {name: credit_note, id: '7011', kind: credit_note, facts: {number: A7M/2627/000001}}
 - {name: payment_cash, id: '7021', kind: payment}
 - name: business_day
   id: 781c2cf3-5c86-5dca-8c74-ef356237bbac

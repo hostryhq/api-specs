@@ -36,13 +36,13 @@ type vectors struct {
 		H, Message     string
 	} `json:"seal_message"`
 	EndorseMessage []struct {
-		Origin, Stream string
-		Seq            int64
+		Origin, Stream  string
+		Seq             int64
 		H, Rec, Message string
 	} `json:"endorse_message"`
 	AttestMessage []struct {
-		Origin, Stream string
-		Seq            int64
+		Origin, Stream      string
+		Seq                 int64
 		H, By, Rec, Message string
 	} `json:"attest_message"`
 	EndorseVerify []struct {

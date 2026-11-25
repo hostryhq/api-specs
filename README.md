@@ -5,7 +5,13 @@ Change the contract first, then regenerate, then implement (`api-contract-standa
 
 ## Layout
 ```
-openapi/<service>/v1/openapi.yaml   one OpenAPI 3.1 document per service and major version
+openapi/<service>/v1/openapi.yaml   one OpenAPI 3.1 document per service and major version (sync: /sync/v1 device operations and the internal emit)
+sync/protocol-v1.md                 normative sync rules a schema cannot state (hashing, chain, seal, size limit, the op event, emit)
+sync/conformance/v1.json            shared vectors for the Go and TypeScript sync engines
+sync/intents/                       sync intent registry (device and cloud-origin intents)
+events/sync/                        gateway events: sync.op.<namespace> (whole op), quarantine.recorded, op.flagged, pii.erased
+examples/worlds/<domain>.yaml       one shared example world per domain: ids, GSTINs, series codes, members, devices (make lint-worlds)
+common/vendor-grant.vectors.v1.json subject-hash and example-grant vectors for the vendor approval grant (ADR-0014 A2.6)
 common/components.yaml              shared Problem, Money, Id, phone/GSTIN/ticket formats, cursor + Idempotency-Key + header params, error responses
 common/permissions.yaml             permission catalogue (flags), vendor roles, link scopes
 events/_envelope.v1.yaml            ADR-0011 envelope (JSON Schema)
@@ -40,7 +46,7 @@ Tools install locally (`make tools` puts Go tools in `.tools/bin`; Node tools ru
 
 | Target | Does |
 |---|---|
-| `make lint` | Spectral on all specs + event schemas and examples + `validate-specs` (catalogue flags, realms, callers, vendor-audit marker) + `validate-entities` (entity owners, policies, references, pii) |
+| `make lint` | Spectral on all specs + event schemas and examples + `validate-specs` (catalogue flags, realms, callers, vendor-audit marker) + `validate-entities` (entity owners, policies, references, pii, replicas) + `validate-intents` (registry, `x-emits-intent`, emit callers, generated `sync.op` subscribers) + `validate-worlds` (every example against the shared worlds) |
 | `make breaking` | oasdiff against `BASE` (default `origin/main`); breaking changes fail |
 | `make generate` | bundle, then Go (`gen/go/<service>/`, oapi-codegen: types, net/http server, client) and TypeScript (`gen/ts/<service>.d.ts`, openapi-typescript) |
 | `make test` | `go vet` and tests, including the harness self-test |

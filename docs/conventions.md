@@ -38,3 +38,20 @@ The harness sends `Idempotency-Key: <operationId>:<example key>` so keys never c
 - GSTIN examples must pass the check-character rule. `33ABCDE1234F1Z7`, `33AAAAA0000A1Z9` and `29ABCDE1234F1ZW` are valid; do not invent others without computing the check character.
 - Document series codes are three characters from `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (no `I`, `O`, `0`, `1`; ADR-0002 S7 and the registry). The ADR's own example `A07` contains a `0` and is superseded by the registry alphabet; the architect is to correct the ADR text.
 - An approval's `body_hash` is `sha256:` plus the lower-case hex SHA-256 over the exact request body bytes as sent, with no re-serialisation (empty body: hash of the empty string). See `ApprovalRequest.body_hash` in the identity spec.
+
+## Shared example worlds (examples/worlds)
+
+`examples/worlds/<domain>.yaml` (`platform`, `restaurant`, `sync`) declares every id, GSTIN, series code, member, device and fixed
+fact once. `make lint-worlds` reads every spec, event, entity and registry document and fails on: an id no world declares; an id whose
+kind does not fit its field (a vendor user as `member_id`); a GSTIN with a wrong check character or without a registration; a series
+code outside the registry alphabet or without a series; an example entity whose `name`, `code`, `number` ... differ from the declared
+facts; a deterministic row id (`id.rule: uuidv5`) that is not the UUIDv5 of its natural key (the entry carries `derive`); a duplicated
+event example id; a `next_cursor` in a response example (a base-world list holds every row); a vector count that disagrees with
+`tax/conformance`. A new example uses an id from the world or adds one there first. Example prose uses the last four hex digits.
+
+## Cloud emit and intents (ADR-0014 A2.2, A2.3)
+
+An operation that writes synced data from the cloud declares `x-emits-intent: <cloud-origin intent>` (owned by the same service,
+its `x-permission` in the intent's `authorised_online_by`, checked both ways by `make lint-intents`) and, when interactive,
+answers 503 `emit.unavailable` with `Retry-After` through the shared `EmitUnavailable` response. `POST /internal/v1/emit`
+(`openapi/sync/v1`) is the only way a service writes to devices; its tenant is a body field because a service token carries none.

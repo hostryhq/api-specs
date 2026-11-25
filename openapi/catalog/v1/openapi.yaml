@@ -17,8 +17,11 @@ info:
       5131 (KITCHEN) with printer 5141 (LAN), floor 5151, table 5152 (T1), reason code 5161, item_outlet for 5101
       available and a quick item. No menu import job and no exceptions. The caller is the owner Asha in a strong
       online session.
-    import-previewed: Base plus menu import job 5171 (owner source, file menu.csv, one valid row, no errors) in
-      status previewed.
+    menu-empty: Brand 4a6a with outlet 4a61 (restaurant, state 33), station 5131 (KITCHEN), floor 5151 and table 5152
+      (T1), and no category, item, variant, modifier or price rows. The caller is the owner Asha in a strong online session.
+    import-previewed: The menu-empty world plus menu import job 5171 (owner source, file menu.csv, one valid row
+      creating category 5001 Starters and item 5101 Paneer Tikka with variant 5111 Full at 24000, no errors) in status
+      previewed. Committing it emits one op per row to the brand stream; the first emit of the brand is cloud-1 seq 1.
     price-conflict: Base plus an open exception 5181 (price_conflict, price_entry 7090, kept 25000, lost 24000)
       detected 13:05:11.
 servers:
@@ -116,7 +119,7 @@ paths:
                 id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5001
                 tax_class: fnb_non_gst
                 updated_at: '2026-11-24T13:05:11.120Z'
-                op_id: cloud-1/brand:0190a1b2/412
+                op_id: cloud-1/brand:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6a/1
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -260,7 +263,7 @@ paths:
           enum:
           - 'true'
           - 'false'
-        example: 'false'
+        example: 'true'
       - $ref: ../../../common/components.yaml#/components/parameters/Cursor
       - $ref: ../../../common/components.yaml#/components/parameters/Limit
       responses:
@@ -451,7 +454,7 @@ paths:
                 id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5101
                 tax_class: fnb_non_gst
                 updated_at: '2026-11-24T13:05:11.120Z'
-                op_id: cloud-1/brand:0190a1b2/412
+                op_id: cloud-1/brand:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6a/1
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -549,6 +552,7 @@ paths:
       tags:
       - menu-import
       x-permission: menu.import
+      x-example-world: menu-empty
       x-step-up: true
       x-permission-widened-by: catalog.import
       x-provisional: Act-mode access stays off until security-reviewer signs catalog.import.
@@ -561,6 +565,7 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateMenuImport'
             example:
+              brand_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6a
               filename: menu.csv
               csv_text: 'category,item name,item code,variant name,price,veg mark,station
 
@@ -775,7 +780,7 @@ paths:
                 items_updated: 0
                 price_changes: 0
                 created_at: '2026-11-24T13:05:11.120Z'
-                committed_at: '2026-11-24T13:09:40.000Z'
+                committed_at: '2026-11-24T13:09:11.120Z'
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -1494,6 +1499,9 @@ components:
       type: object
       description: A CSV menu, previewed and validated; nothing is written until commit.
       properties:
+        brand_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+          description: The brand whose menu is imported (a menu is per brand and is emitted to the brand stream). Optional; when absent it is the brand of the outlet in X-Outlet-Id, and 422 brand_required when the organisation has several brands and no outlet scope is given. Another organisation's brand is 404.
         filename:
           type: string
           description: Original file name, for the audit line.

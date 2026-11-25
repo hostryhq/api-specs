@@ -1607,6 +1607,7 @@ paths:
       summary: Start a read-only support session
       description: Onboarding and billing staff are refused. A second start while one is active is refused;
         the panel then asks to end the first.
+      x-audit-action: support.session.started
       tags:
       - admin
       x-permission: admin.support.session.start
