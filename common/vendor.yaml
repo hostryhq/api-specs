@@ -18,7 +18,7 @@ components:
         vendor-realm key (`kid` in the header), 5 minutes. Claims are in the schema VendorApprovalGrantClaims; the subject hash is
         defined there and checked by the shared vectors in common/vendor-grant.vectors.v1.json. The executing service verifies in
         this order: signature and kid; typ, realm and aud (the service itself); exp; kind (the one this operation executes); org
-        (equals the path organisation, or absent); approver (equals the subject of the bearer vendor token, which holds the
+        (equals the path organisation; the literal platform for a platform-wide kind); approver (equals the subject of the bearer vendor token, which holds the
         kind's approve permission); the subject hash, recomputed from the path and the service's own stored state, never from a
         value the caller sends; then jti is inserted into approval_grant_used in the action's own transaction. Refusals are 403
         with code grant.required (no header), grant.invalid (signature, kid, typ, realm, aud, kind, org or approver), grant.expired
@@ -39,7 +39,7 @@ components:
     VendorApprovalGrantClaims:
       type: object
       description: Claims of the vendor approval grant (ADR-0014 A2.6 item 1). The header is {alg ES256, typ JWT, kid}. Unknown claims are ignored.
-      required: [iss, realm, aud, typ, jti, approval_id, kind, requester, approver, subject_hash, iat, exp]
+      required: [iss, realm, aud, typ, jti, approval_id, kind, org, requester, approver, subject_hash, iat, exp]
       properties:
         iss:
           type: string
@@ -68,7 +68,7 @@ components:
           enum: [org_suspend, org_reinstate, org_close, tax_rule_set_publish]
         org:
           type: string
-          description: Organisation id; absent for tax_rule_set_publish.
+          description: Organisation id, or the literal platform for a platform-wide action (tax_rule_set_publish), so the verifier can always require a non-empty org (O2-9). Not part of the subject hash.
         requester:
           type: string
           description: Vendor user who filed the request.

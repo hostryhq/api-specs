@@ -444,12 +444,93 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
         '429':
           $ref: ../../../common/components.yaml#/components/responses/TooManyRequests
+    get:
+      operationId: listActivationCodes
+      summary: List the activation codes that can still be redeemed
+      description: 'Owner view of codes that were created and not yet redeemed, revoked or lapsed, so an owner can find an
+        orphaned code (for example a device that lost the response of its activation). The code itself is never returned
+        again. A code lapses 10 minutes after creation and then disappears from this list. strong_only like creation.'
+      tags:
+      - identity
+      x-permission: device.activation_code.create
+      x-outlet-scoped: true
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/OutletScope
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: Redeemable codes, newest first.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivationCodePage'
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a75
+                  outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  kind: pos
+                  state: pending
+                  created_by: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
+                  created_at: '2026-11-24T13:05:11.120Z'
+                  expires_at: '2026-11-24T13:10:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ApprovalRequired'
+  /v1/activation-codes/{activation_code_id}:
+    delete:
+      operationId: revokeActivationCode
+      summary: Revoke an unredeemed activation code
+      description: 'strong_only. Revokes a code that has not been redeemed; revoking one that is already revoked or has lapsed
+        answers 200 and changes nothing. A code already redeemed is 409 activation_code_redeemed (revoke the device instead).'
+      tags:
+      - identity
+      x-permission: device.activation_code.create
+      x-outlet-scoped: true
+      parameters:
+      - name: activation_code_id
+        in: path
+        required: true
+        description: Activation code ID (the id from createActivationCode, not the code).
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a75
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      - $ref: ../../../common/components.yaml#/components/parameters/ApprovalToken
+      responses:
+        '200':
+          description: The code after revocation (no code value).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivationCodeSummary'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a75
+                outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                kind: pos
+                state: revoked
+                created_by: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
+                created_at: '2026-11-24T13:05:11.120Z'
+                expires_at: '2026-11-24T13:10:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ApprovalRequired'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
   /v1/device-activations:
     post:
       operationId: activateDevice
       summary: Activate a device with an activation code
       description: The owners of the organisation are notified with device name, kind, outlet and key_protection.
-        A pending series registration that is unverified does not block registration, only billing.
+        A pending series registration that is unverified does not block registration, only billing. Recovery when the
+        response was lost after the device registered, the device already holds its key, so it signs in with a device token
+        (createDeviceToken) and fetches its pack with getDeviceOfflinePack; or it repeats this call with the same device id and public key under a new
+        Idempotency-Key, which returns the same device and pack (a different key or device is refused 409 for a redeemed code). An unredeemed code that nobody holds can be
+        listed and revoked by the owner (listActivationCodes, revokeActivationCode); codes lapse after 10 minutes.
       tags:
       - identity
       x-permission: public
@@ -3821,6 +3902,67 @@ paths:
           $ref: '#/components/responses/ApprovalConflict'
         '422':
           $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /internal/v1/vendor/approvals/{approval_id}/grants:
+    post:
+      operationId: issueVendorApprovalGrant
+      summary: Issue a fresh grant for a still-approved approval
+      description: The 5-minute grant returned with the decision is single-use and lapses; when the executing
+        service refused it (or it lapsed unused) the approval stays approved until its own 24-hour expiry,
+        and this call issues a new grant for it (ADR-0014 A2.5 item 4 assumes one grant per execution call).
+        Only for the kinds executed by another service (org_suspend, org_reinstate, org_close,
+        tax_rule_set_publish). The caller must be the approver of the record (the grant's approver claim equals
+        the bearer subject), hold the kind's approve permission and still be eligible; a different vendor user,
+        including the requester, is refused 409 approval_not_executable with reason not_approver. An approval
+        that is not approved, has lapsed, or whose execution already succeeded is refused with the reason
+        not_approved, lapsed or executed. identity recomputes the subject hash from the fields stored on the
+        approval; the issue is recorded in the vendor audit with the approval id and the new grant's jti. At
+        most one unused grant is live per approval (issuing a new one voids the previous, which then answers
+        grant.used), so a lost grant cannot be replayed after a fresh one was issued.
+      tags:
+      - vendor
+      x-permission: admin.approval.decide
+      x-example-world: vendor-approval-approved
+      x-service-callers:
+      - admin
+      x-vendor-class: approval
+      x-vendor-audit: recorded
+      x-permission-by-kind:
+        org_suspend: admin.org.lifecycle.approve
+        org_reinstate: admin.org.lifecycle.approve
+        org_close: admin.org.lifecycle.approve
+        tax_rule_set_publish: admin.taxrules.publish
+      security:
+      - vendorBearerAuth: []
+        serviceAuth: []
+      parameters:
+      - name: approval_id
+        in: path
+        required: true
+        description: Vendor approval ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6d
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      responses:
+        '201':
+          description: A new single-use grant for the approval. A replay with the same Idempotency-Key answers the
+            same grant while it has not lapsed; after that it is 409 approval_not_executable (lapsed).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VendorApprovalGrant'
+              example:
+                token: grant.example
+                expires_at: '2026-11-24T13:10:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: '#/components/responses/ApprovalNotExecutable'
   /internal/v1/vendor/approvals/{approval_id}/code-half-claims:
     post:
       operationId: claimCodeHalf
@@ -4512,6 +4654,53 @@ components:
           $ref: '#/components/schemas/DeviceKind'
         expires_at:
           $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+    ActivationCodeSummary:
+      type: object
+      description: An activation code without its value, as the owner sees it.
+      required:
+      - id
+      - outlet_id
+      - kind
+      - state
+      - created_by
+      - created_at
+      - expires_at
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        outlet_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        kind:
+          $ref: '#/components/schemas/DeviceKind'
+        state:
+          type: string
+          description: pending (can still be redeemed), revoked, redeemed or lapsed. The list holds pending codes only.
+          enum:
+          - pending
+          - revoked
+          - redeemed
+          - lapsed
+          example: pending
+        created_by:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        created_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+        expires_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+    ActivationCodePage:
+      type: object
+      description: A page of activation codes.
+      required:
+      - items
+      properties:
+        items:
+          type: array
+          description: Codes on this page.
+          items:
+            $ref: '#/components/schemas/ActivationCodeSummary'
+        next_cursor:
+          type: string
+          description: Opaque cursor for the next page; absent when there are no more results.
     ActivateDevice:
       type: object
       description: Activate a new device with a code. No OTP is spent and the manager session never touches
@@ -5221,7 +5410,7 @@ components:
         request_path:
           type: string
           description: 'Concrete path of the refused request, with every path parameter filled in (for
-            example /v1/members/0198a000-0000-7000-8000-000000000001/owner-role), as it will be sent. The
+            example /v1/members/0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a9e/owner-role), as it will be sent. The
             approval token is bound to method, this path and the body (claim th), so an approval for one
             resource cannot release the same operation on another.'
           pattern: ^/v1/[^?#]*$
@@ -6186,7 +6375,7 @@ components:
       description: 'What the two-person approval authorises. org_suspend, org_reinstate and org_close
         are executed by tenancy and tax_rule_set_publish by billing, with a vendor approval grant from
         the approval decision (ADR-0014 A1.3); they lapse after 24 hours, and tax_rule_set_publish
-        concerns no organisation.'
+        concerns no organisation (its grant carries org platform).'
       enum:
       - sign_in_code
       - owner_recovery
@@ -6226,6 +6415,10 @@ components:
           description: Business date the rule set takes effect (tax_rule_set_publish only), part of the
             subject hash.
           example: '2026-12-01'
+        owner_export_offered:
+          type: boolean
+          description: 'org_close only: the requester confirms the owner was offered an export (BR-A1-72); recorded with the approval and echoed on the record so the approver sees it.'
+          example: true
         mobile_e164:
           $ref: ../../../common/components.yaml#/components/schemas/MobileE164
         new_mobile_e164:
@@ -6268,6 +6461,13 @@ components:
           $ref: ../../../common/components.yaml#/components/schemas/Id
         subject_id:
           $ref: ../../../common/components.yaml#/components/schemas/Id
+        rule_set_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+          description: The tax rule set the approval would publish (tax_rule_set_publish only); absent for every other kind.
+        owner_export_offered:
+          type: boolean
+          description: 'org_close only: whether the requester confirmed the owner was offered an export (BR-A1-72); shown to the approver. Absent for every other kind.'
+          example: true
         mobile_masked:
           $ref: ../../../common/components.yaml#/components/schemas/MobileMasked
         requested_by:
@@ -6354,11 +6554,11 @@ components:
       type: object
       description: 'Signed, single-use grant (vendor realm, type vendor_approval, 5 minutes) for the
         kinds executed by another service (ADR-0014 A1.3). Its claims are the approval id, kind,
-        organisation or none, requester, approver and a subject hash over the fields named per kind:
+        organisation (the literal platform for tax_rule_set_publish), requester, approver and a subject hash over the fields named per kind:
         organisation id and target status for org_suspend, org_reinstate and org_close; rule-set id,
         content hash and effective date for tax_rule_set_publish. The admin service passes it to the
         executing service and never to the browser. If the executor refuses, the approval stays approved
-        and a fresh grant can be issued until it lapses.'
+        and a fresh grant can be issued with issueVendorApprovalGrant until the approval lapses.'
       required:
       - token
       - expires_at
@@ -6614,6 +6814,21 @@ components:
                 title: The approval is not pending
                 status: 409
                 code: approval_not_pending
+    ApprovalNotExecutable:
+      description: The approval cannot yield a grant now (409 approval_not_executable). reason is one of
+        not_approved, lapsed, executed, not_approver, subject_changed or not_grantable (a kind identity executes itself).
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../../../common/components.yaml#/components/schemas/Problem
+          examples:
+            lapsed:
+              value:
+                type: urn:hostry:problem:approval_not_executable
+                title: The approval cannot be executed
+                status: 409
+                code: approval_not_executable
+                reason: lapsed
     SwitchOwnerRole:
       description: The owner role is assigned only through assignOwnerRole.
       content:

@@ -3136,7 +3136,7 @@ paths:
         (ADR-0014 A1.3): the grant is verified, its subject hash (organisation and target status) recomputed, its
         id recorded as used in this transaction, and the audit row written with the "show to owner" marker (V7). Refused
         409 open_trading_day while any outlet has a day in progress (open, dated today or yesterday IST); the approval
-        stays approved and a fresh grant may be issued until the request lapses.  Suspended means read and export
+        stays approved and the admin service asks identity (issueVendorApprovalGrant) for a fresh grant until the request lapses.  Suspended means read and export
         only after the grace period; it never wipes devices and never blocks a trading day in progress; the device
         rule is the guarantee (A1.2 item 5).'
       tags:
@@ -3563,7 +3563,7 @@ paths:
         (ADR-0014 A1.3): the grant is verified, its subject hash (organisation and target status) recomputed, its
         id recorded as used in this transaction, and the audit row written with the "show to owner" marker (V7). Refused
         409 open_trading_day while any outlet has a day in progress (open, dated today or yesterday IST); the approval
-        stays approved and a fresh grant may be issued until the request lapses.  Suspended means read and export
+        stays approved and the admin service asks identity (issueVendorApprovalGrant) for a fresh grant until the request lapses.  Suspended means read and export
         only after the grace period; it never wipes devices and never blocks a trading day in progress; the device
         rule is the guarantee (A1.2 item 5).'
       tags:
