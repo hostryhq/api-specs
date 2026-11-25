@@ -1,0 +1,67 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: urn:hostry:events:billing.document_gap.detected:v1
+title: billing.document_gap.detected v1
+description: The document register found a gap in a series; a gap is an alert, never a silent state. Book gaps (kind
+  manual_book) are reported apart from device-series gaps.
+x-publisher: billing
+x-subscribers: []
+allOf:
+- $ref: urn:hostry:events:envelope:v1
+- type: object
+  properties:
+    type:
+      const: billing.document_gap.detected
+    v:
+      const: 1
+    source:
+      const: billing
+    data:
+      type: object
+      required:
+      - tax_registration_id
+      - series_code
+      - financial_year
+      - kind
+      - missing_from
+      - missing_to
+      properties:
+        tax_registration_id:
+          type: string
+          description: The registration.
+        series_code:
+          type: string
+          description: Series code.
+        financial_year:
+          type: string
+          description: Four-digit FY.
+        kind:
+          type: string
+          description: device or manual_book.
+          enum:
+          - device
+          - manual_book
+        missing_from:
+          type: integer
+          description: First missing running number.
+          minimum: 1
+        missing_to:
+          type: integer
+          description: Last missing running number.
+          minimum: 1
+examples:
+- id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f9005
+  type: billing.document_gap.detected
+  v: 1
+  source: billing
+  tenant_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+  key: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b:AAA:2627
+  key_seq: 1
+  occurred_at: '2026-11-24T13:05:11.120Z'
+  actor: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+  data:
+    tax_registration_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+    series_code: AAA
+    financial_year: '2627'
+    kind: device
+    missing_from: 57
+    missing_to: 57

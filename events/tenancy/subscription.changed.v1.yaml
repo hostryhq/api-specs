@@ -1,0 +1,62 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: urn:hostry:events:tenancy.subscription.changed:v1
+title: tenancy.subscription.changed v1
+description: 'A plan was assigned, changed or cancelled; entitlement rows changed in the same transaction (ADR-0008
+  S2, BR-A1-14). Plan key and state only: no amounts, no personal data.'
+x-publisher: tenancy
+x-subscribers:
+- identity
+allOf:
+- $ref: urn:hostry:events:envelope:v1
+- type: object
+  properties:
+    type:
+      const: tenancy.subscription.changed
+    v:
+      const: 1
+    source:
+      const: tenancy
+    data:
+      type: object
+      required:
+      - plan_key
+      - plan_version
+      - cycle
+      - state
+      properties:
+        plan_key:
+          type: string
+          description: Plan key.
+        plan_version:
+          type: integer
+          description: Version.
+          minimum: 1
+        cycle:
+          type: string
+          description: Billing cycle.
+          enum:
+          - none
+          - monthly
+          - annual
+        state:
+          type: string
+          description: Stored state.
+          enum:
+          - pilot
+          - active
+          - cancelled
+examples:
+- id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f900a
+  type: tenancy.subscription.changed
+  v: 1
+  source: tenancy
+  tenant_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+  key: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8011
+  key_seq: 1
+  occurred_at: '2026-11-24T13:05:11.120Z'
+  actor: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+  data:
+    plan_key: table_service
+    plan_version: 1
+    cycle: monthly
+    state: active

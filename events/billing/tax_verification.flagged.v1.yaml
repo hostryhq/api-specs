@@ -1,0 +1,77 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: urn:hostry:events:billing.tax_verification.flagged:v1
+title: billing.tax_verification.flagged v1
+description: 'A document was recomputed and did not verify: mismatch (high severity, the owner is to be notified
+  once a channel exists, Phase 3), stale_rules, profile_mismatch or manual_entry. The document is never altered
+  or rejected; the remedy is a credit note.'
+x-publisher: billing
+x-subscribers: []
+allOf:
+- $ref: urn:hostry:events:envelope:v1
+- type: object
+  properties:
+    type:
+      const: billing.tax_verification.flagged
+    v:
+      const: 1
+    source:
+      const: billing
+    data:
+      type: object
+      required:
+      - document_kind
+      - document_id
+      - outlet_id
+      - status
+      - calc_v
+      - difference_paise
+      properties:
+        document_kind:
+          type: string
+          description: bill or credit_note.
+          enum:
+          - bill
+          - credit_note
+        document_id:
+          type: string
+          description: The document.
+        outlet_id:
+          type: string
+          description: The outlet.
+        status:
+          type: string
+          description: Result.
+          enum:
+          - mismatch
+          - stale_rules
+          - profile_mismatch
+          - manual_entry
+        calc_v:
+          type: integer
+          description: Calculation version used.
+          minimum: 1
+        ruleset_id:
+          type: string
+          description: Rule set version used.
+        difference_paise:
+          type: integer
+          description: Device total minus recomputed total, signed.
+examples:
+- id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f9004
+  type: billing.tax_verification.flagged
+  v: 1
+  source: billing
+  tenant_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+  outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+  key: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001
+  key_seq: 1
+  occurred_at: '2026-11-24T13:05:11.120Z'
+  actor: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+  data:
+    document_kind: bill
+    document_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001
+    outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+    status: mismatch
+    calc_v: 1
+    ruleset_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7041
+    difference_paise: 100

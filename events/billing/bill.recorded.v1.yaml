@@ -1,0 +1,96 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: urn:hostry:events:billing.bill.recorded:v1
+title: billing.bill.recorded v1
+description: billing projected a bill and recomputed it. The source of "first bill synced" for the go-live checklist
+  and, later, of analytics. No names, no GSTIN, no free text.
+x-publisher: billing
+x-subscribers:
+- analytics
+allOf:
+- $ref: urn:hostry:events:envelope:v1
+- type: object
+  properties:
+    type:
+      const: billing.bill.recorded
+    v:
+      const: 1
+    source:
+      const: billing
+    data:
+      type: object
+      required:
+      - bill_id
+      - outlet_id
+      - doc_type
+      - source_kind
+      - business_date
+      - invoice_date
+      - total_paise
+      - late
+      - verification
+      properties:
+        bill_id:
+          type: string
+          description: The bill.
+        outlet_id:
+          type: string
+          description: The outlet.
+        doc_type:
+          type: string
+          description: Document type.
+          enum:
+          - tax_invoice
+          - bill_of_supply
+          - plain_bill
+        source_kind:
+          type: string
+          description: Source.
+          enum:
+          - check
+          - counter
+          - manual_book
+        business_date:
+          type: string
+          description: Business date.
+          format: date
+        invoice_date:
+          type: string
+          description: Invoice date.
+          format: date
+        total_paise:
+          type: integer
+          description: Total in paise.
+          minimum: 0
+        late:
+          type: boolean
+          description: A late document of a closed business day.
+        verification:
+          type: string
+          description: Result of the recomputation.
+          enum:
+          - verified
+          - mismatch
+          - stale_rules
+          - profile_mismatch
+          - manual_entry
+examples:
+- id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f9002
+  type: billing.bill.recorded
+  v: 1
+  source: billing
+  tenant_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+  outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+  key: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001
+  key_seq: 1
+  occurred_at: '2026-11-24T13:05:11.120Z'
+  actor: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+  data:
+    bill_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001
+    outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+    doc_type: tax_invoice
+    source_kind: check
+    business_date: '2026-11-24'
+    invoice_date: '2026-11-24'
+    total_paise: 50400
+    late: false
+    verification: verified

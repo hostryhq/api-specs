@@ -1,0 +1,64 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: urn:hostry:events:billing.vendor_access.recorded:v1
+title: billing.vendor_access.recorded v1
+description: 'A vendor action executed in billing was recorded (the rule-set publication). Concerns no organisation,
+  so it goes to the vendor log only; identity marks the approval executed from it (ADR-0014 A1.3, A1.4 item 2).
+  Platform-level: tenant_id is the literal platform.'
+x-publisher: billing
+x-subscribers:
+- identity
+allOf:
+- $ref: urn:hostry:events:envelope:v1
+- type: object
+  properties:
+    type:
+      const: billing.vendor_access.recorded
+    v:
+      const: 1
+    source:
+      const: billing
+    data:
+      type: object
+      required:
+      - approval_id
+      - action
+      - vendor_user_id
+      - result
+      properties:
+        approval_id:
+          type: string
+          description: The vendor approval.
+        action:
+          type: string
+          description: What was done.
+          enum:
+          - tax_rule_set_publish
+        vendor_user_id:
+          type: string
+          description: The acting vendor user.
+        ticket:
+          type: string
+          description: Ticket reference.
+          pattern: ^[A-Za-z0-9][A-Za-z0-9._-]{1,63}$
+        result:
+          type: string
+          description: success or refused.
+          enum:
+          - success
+          - refused
+examples:
+- id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f9007
+  type: billing.vendor_access.recorded
+  v: 1
+  source: billing
+  tenant_id: platform
+  key: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f90f1
+  key_seq: 1
+  occurred_at: '2026-11-24T13:05:11.120Z'
+  actor: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+  data:
+    approval_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f90f1
+    action: tax_rule_set_publish
+    vendor_user_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a90
+    ticket: SUP-2041
+    result: success

@@ -1,0 +1,60 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: urn:hostry:events:billing.trading_day.changed:v1
+title: billing.trading_day.changed v1
+description: 'A business day of an outlet opened or closed (ADR-0014 A1.2). Ids and a date only (ADR-0011 B6). Tenancy
+  keeps outlet_trading_state from it to guard suspension and closure: in progress means open with a business date
+  of today or yesterday in IST. Later products publish the same shape under their own service name.'
+x-publisher: billing
+x-subscribers:
+- tenancy
+allOf:
+- $ref: urn:hostry:events:envelope:v1
+- type: object
+  properties:
+    type:
+      const: billing.trading_day.changed
+    v:
+      const: 1
+    source:
+      const: billing
+    data:
+      type: object
+      required:
+      - outlet_id
+      - business_date
+      - state
+      - changed_at
+      properties:
+        outlet_id:
+          type: string
+          description: The outlet.
+        business_date:
+          type: string
+          description: The business date.
+          format: date
+        state:
+          type: string
+          description: New state.
+          enum:
+          - open
+          - closed
+        changed_at:
+          type: string
+          description: When billing saw the change, RFC 3339 UTC.
+          format: date-time
+examples:
+- id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f9001
+  type: billing.trading_day.changed
+  v: 1
+  source: billing
+  tenant_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+  outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+  key: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61:2026-11-24
+  key_seq: 1
+  occurred_at: '2026-11-24T13:05:11.120Z'
+  actor: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+  data:
+    outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+    business_date: '2026-11-24'
+    state: open
+    changed_at: '2026-11-24T13:05:11.120Z'

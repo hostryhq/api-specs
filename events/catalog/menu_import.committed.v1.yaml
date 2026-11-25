@@ -1,0 +1,70 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: urn:hostry:events:catalog.menu_import.committed:v1
+title: catalog.menu_import.committed v1
+description: A menu import was committed and its ops emitted. Counts and ids only; a support act-mode import also
+  appears in the owner's access log through identity.
+x-publisher: catalog
+x-subscribers:
+- identity
+allOf:
+- $ref: urn:hostry:events:envelope:v1
+- type: object
+  properties:
+    type:
+      const: catalog.menu_import.committed
+    v:
+      const: 1
+    source:
+      const: catalog
+    data:
+      type: object
+      required:
+      - import_id
+      - source
+      - row_count
+      - items_created
+      - items_updated
+      - price_changes
+      properties:
+        import_id:
+          type: string
+          description: The import job.
+        source:
+          type: string
+          description: owner or support_session.
+          enum:
+          - owner
+          - support_session
+        row_count:
+          type: integer
+          description: Rows imported.
+          minimum: 1
+        items_created:
+          type: integer
+          description: Items created.
+          minimum: 0
+        items_updated:
+          type: integer
+          description: Items updated.
+          minimum: 0
+        price_changes:
+          type: integer
+          description: Price edits among the updates.
+          minimum: 0
+examples:
+- id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f9008
+  type: catalog.menu_import.committed
+  v: 1
+  source: catalog
+  tenant_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+  key: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5171
+  key_seq: 1
+  occurred_at: '2026-11-24T13:05:11.120Z'
+  actor: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+  data:
+    import_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5171
+    source: owner
+    row_count: 120
+    items_created: 118
+    items_updated: 2
+    price_changes: 2
