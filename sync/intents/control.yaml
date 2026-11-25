@@ -39,8 +39,8 @@ intents:
   intent_v: 1
   class: control
   owner: identity
-  description: 'Manager override at the counter (ADR-0005 section 8): approval id, permission, target, action hash over the
-    fields the registry names, requester, approver, pin_v and the action proof. One action, 2 minutes. Requester and approver differ (a
+  description: 'Manager override at the counter (ADR-0005 section 8): approval id, permission, target, action hash over the intent, permission, requester, target, approval id, reason and the
+    `values` of the fields the registry names (`proof.binds`) as the citing op records them, requester, approver, pin_v and the action proof. One action, 2 minutes. Requester and approver differ (a
     two-person approval); confirming one''s own PIN is `approval.self_confirm`. The op body carries the approver''s `pin_v` beside
     the proof (ADR-0005 A3.1).'
   permission: null

@@ -183,12 +183,16 @@ messages (`SessionProofMessage`, `ApprovalProofMessageBound`); `client-core` mus
 - **Session proof:** `session|<sid>|<device id>|<member id>|<pack_v>|<pin_v>|<opened at>`.
 - **Approval proof** (the approver's, over the record of `approval.grant`): `approval|<action hash>|<device id>|<approver member id>|<pack_v>|<pin_v>|<approval id>|<permission>|<quoted target>|<requester id>|<approved at>|<quoted reason>`;
   `reason` is the empty quoted string `""` when the record has none. `approved at` is the op's `at`.
-- **Action hash** (`x-provisional`, orchestrator ruling in round 5): `sha256:` plus the lower-case hex SHA-256 of the JCS of the object
-  `{intent, permission, requester, target, approval_id, reason}`; `target` and `reason` are empty strings when the record has none. The
-  gateway recomputes it from the citing op: `intent` and `permission` are the op's intent and the permission it needs, `requester` the op's `actor`,
-  `target` the `<entity>:<row id>` of the row the op inserts or sets, `approval_id` the op's `approval`, `reason` the record's. Because
-  `intent` is in the hash, the proof binds the intent as well as the permission and target. Vectors `action_hash`. (The `proof.binds`
-  names of an intent no longer enter the hash; they name the fields a screen shows the approver.)
+- **Action hash** (`x-provisional`): `sha256:` plus the lower-case hex SHA-256 of the JCS of the object
+  `{intent, permission, requester, target, approval_id, reason, values}`; `target` and `reason` are empty strings when the record has none.
+  `values` is a JSON object of the **overridden fields and the new values the citing op records**: one member per name the intent lists in
+  `proof.binds` (for `creditnote.issue`, `bill_id` and `total_paise`; for a discount, `{"discount_paise": 15000}`), each read from the first
+  mutation of the op that sets a field of that name (integers stay integers, ids strings); `{}` when the intent binds none. A bound name the op
+  does not set is a `mismatch`. The gateway recomputes the hash from the citing op: `intent` and `permission` are the op's intent and the
+  permission it needs, `requester` the op's `actor`, `target` the `<entity>:<row id>` of the row the op inserts or sets, `approval_id` the op's
+  `approval`, `reason` the record's. An approval given for another amount therefore recomputes to another hash and the op is `approval_flag`
+  `mismatch` (ADR-0014 test OV2). `intent` is in the hash, so the proof binds the intent as well as permission and target. Vectors `action_hash`
+  (including a mismatch case).
 
 ## Approval citation (ADR-0014 A3.3; ADR-0005 section 8)
 An op of an intent with `override: true` whose actor lacks the permission cites an approval: body field `approval` = the approval id. The

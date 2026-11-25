@@ -105,10 +105,14 @@ type vectors struct {
 			RequesterID                        string `json:"requester_id"`
 			ApprovedAt                         string `json:"approved_at"`
 			Reason                             string
+			Values                             map[string]any
 		} `json:"cases"`
 	} `json:"approval_proof"`
 	ActionHash []struct {
 		Case, Intent, Permission, Requester, Target, Reason string
+		Values                                              map[string]any
+		ApprovedActionHash                                  string `json:"approved_action_hash"`
+		MatchesApproved                                     *bool  `json:"matches_approved"`
 		ApprovalID                                          string `json:"approval_id"`
 		JCS                                                 string `json:"jcs"`
 		ActionHash                                          string `json:"action_hash"`
@@ -272,7 +276,7 @@ func TestVectorsAreSelfConsistent(t *testing.T) {
 			msg = strings.Join([]string{"session", c.SessionID, c.DeviceID, c.MemberID, strconv.Itoa(c.PackV), strconv.Itoa(c.PinV), c.OpenedAt}, "|")
 		case "approval":
 			j, _ := canon.JCS(map[string]any{"intent": c.Intent, "permission": c.Permission, "requester": c.RequesterID, "target": c.Target,
-				"approval_id": c.ApprovalID, "reason": c.Reason})
+				"approval_id": c.ApprovalID, "reason": c.Reason, "values": c.Values})
 			if want := "sha256:" + sum(string(j)); want != c.ActionHash {
 				t.Errorf("approval_proof %q: action_hash %s, recomputed %s", c.Case, c.ActionHash, want)
 			}
@@ -294,15 +298,25 @@ func TestVectorsAreSelfConsistent(t *testing.T) {
 	if len(v.ActionHash) == 0 {
 		t.Error("action_hash vectors are required (ADR-0014 A3.3 item 1)")
 	}
+	mismatch := 0
 	for _, c := range v.ActionHash {
+		if c.MatchesApproved != nil {
+			mismatch++
+			if (c.ActionHash == c.ApprovedActionHash) != *c.MatchesApproved || *c.MatchesApproved {
+				t.Errorf("action_hash %q: a changed value must change the hash", c.Case)
+			}
+		}
 		j, err := canon.JCS(map[string]any{"intent": c.Intent, "permission": c.Permission, "requester": c.Requester, "target": c.Target,
-			"approval_id": c.ApprovalID, "reason": c.Reason})
+			"approval_id": c.ApprovalID, "reason": c.Reason, "values": c.Values})
 		if err != nil || string(j) != c.JCS {
 			t.Errorf("action_hash %q: JCS %s (%v), vector says %s", c.Case, j, err, c.JCS)
 		}
 		if want := "sha256:" + sum(string(j)); want != c.ActionHash {
 			t.Errorf("action_hash %q: %s, vector says %s", c.Case, want, c.ActionHash)
 		}
+	}
+	if mismatch == 0 {
+		t.Error("an action_hash mismatch vector is required (ADR-0014 test OV2)")
 	}
 	if len(v.DigestRow) < 3 {
 		t.Error("digest_row vectors are required (ADR-0014 A3.2)")

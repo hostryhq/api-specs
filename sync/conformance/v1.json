@@ -347,7 +347,7 @@
     }
   ],
   "approval_proof": {
-    "note": "HMAC-SHA256 with the PIN-derived proof key, base64url without padding (ADR-0005 sections 7 and 8, A3.1). The message is the fields joined by \"|\"; times are UTC with exactly three millisecond digits; target and reason are quoted with Go strconv.Quote (protocol-v1.md, Proof messages). action_hash is sha256: plus the hex SHA-256 of the JCS of {intent, permission, requester, target, approval_id, reason} (vectors action_hash).",
+    "note": "HMAC-SHA256 with the PIN-derived proof key, base64url without padding (ADR-0005 sections 7 and 8, A3.1). The message is the fields joined by \"|\"; times are UTC with exactly three millisecond digits; target and reason are quoted with Go strconv.Quote (protocol-v1.md, Proof messages). action_hash is sha256: plus the hex SHA-256 of the JCS of {intent, permission, requester, target, approval_id, reason, values} (vectors action_hash).",
     "proof_key": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
     "cases": [
       {
@@ -366,7 +366,11 @@
         "case": "approval proof, plain fields",
         "kind": "approval",
         "intent": "creditnote.issue",
-        "action_hash": "sha256:24d0f31086ee0c471d6402a05de217e7f8fb512c3a9f65b89090c7c41829dcb6",
+        "values": {
+          "bill_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001",
+          "total_paise": 50400
+        },
+        "action_hash": "sha256:354f235e907e620950b5bbb1f4d93b9396c1582f79ee0f846eb1681016dd8d81",
         "device_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e",
         "member_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64",
         "pack_v": 7,
@@ -377,14 +381,18 @@
         "requester_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65",
         "approved_at": "2026-11-24T13:06:11.120Z",
         "reason": "guest left",
-        "message": "approval|sha256:24d0f31086ee0c471d6402a05de217e7f8fb512c3a9f65b89090c7c41829dcb6|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64|7|1|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a77|bill.credit_note.create|\"credit_note:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7011\"|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65|2026-11-24T13:06:11.120Z|\"guest left\"",
-        "proof": "1GnntrZmbabaMgUgqb9iYuCZaFxVj0JL__frqTFcQQQ"
+        "message": "approval|sha256:354f235e907e620950b5bbb1f4d93b9396c1582f79ee0f846eb1681016dd8d81|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64|7|1|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a77|bill.credit_note.create|\"credit_note:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7011\"|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65|2026-11-24T13:06:11.120Z|\"guest left\"",
+        "proof": "mJjA1S1XMrNIRYtg_L5MgHRtl2rjD5CY63TYILtpUHI"
       },
       {
         "case": "approval proof, separator, quote and newline inside the free text",
         "kind": "approval",
         "intent": "creditnote.issue",
-        "action_hash": "sha256:c44b100a33ba073649455dd59ad3d31cc22a30b866d845490b4d6a081475219e",
+        "values": {
+          "bill_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001",
+          "total_paise": 50400
+        },
+        "action_hash": "sha256:fc785d147da660b65dfa1253bccef5aac45ad1a6c5187ca4df0da88be4de260f",
         "device_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e",
         "member_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64",
         "pack_v": 7,
@@ -395,14 +403,18 @@
         "requester_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65",
         "approved_at": "2026-11-24T13:06:11.120Z",
         "reason": "wrong \"item\" | line\nbreak \\ end",
-        "message": "approval|sha256:c44b100a33ba073649455dd59ad3d31cc22a30b866d845490b4d6a081475219e|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64|7|1|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a77|bill.credit_note.create|\"bill:a|b\\\"c\"|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65|2026-11-24T13:06:11.120Z|\"wrong \\\"item\\\" | line\\nbreak \\\\ end\"",
-        "proof": "k2UdsjUA-ShyZ56RgFt79n_xh-kDHu0wUUic7WG1G58"
+        "message": "approval|sha256:fc785d147da660b65dfa1253bccef5aac45ad1a6c5187ca4df0da88be4de260f|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64|7|1|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a77|bill.credit_note.create|\"bill:a|b\\\"c\"|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65|2026-11-24T13:06:11.120Z|\"wrong \\\"item\\\" | line\\nbreak \\\\ end\"",
+        "proof": "eMmwjxTm0hi3Qf2ZjHfwQv_vhVKXfMMqXbhSm9DgoB8"
       },
       {
         "case": "approval proof, non-ASCII and a control character in the reason",
         "kind": "approval",
         "intent": "creditnote.issue",
-        "action_hash": "sha256:7cb207ae806bf5c28263750c449d3bff13894013ac07ce3c36bf5942cbd15e34",
+        "values": {
+          "bill_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001",
+          "total_paise": 50400
+        },
+        "action_hash": "sha256:4776a8c535bb7da5a82c0baab5d9ad0140484b041ac69e338d596b6040a8988e",
         "device_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e",
         "member_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64",
         "pack_v": 7,
@@ -413,14 +425,18 @@
         "requester_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65",
         "approved_at": "2026-11-24T13:06:11.120Z",
         "reason": "café 中文 \u0007",
-        "message": "approval|sha256:7cb207ae806bf5c28263750c449d3bff13894013ac07ce3c36bf5942cbd15e34|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64|7|1|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a77|bill.credit_note.create|\"credit_note:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7011\"|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65|2026-11-24T13:06:11.120Z|\"café 中文 \\a\"",
-        "proof": "e4Q_oM2cFIZqtoedaqPqFcqU2V3Ui7bNDeydzWp5Kf0"
+        "message": "approval|sha256:4776a8c535bb7da5a82c0baab5d9ad0140484b041ac69e338d596b6040a8988e|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64|7|1|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a77|bill.credit_note.create|\"credit_note:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7011\"|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65|2026-11-24T13:06:11.120Z|\"café 中文 \\a\"",
+        "proof": "vKCiK98btQoNUnWWq4qODWiDSSbrGxHyKGXLL7VvNuk"
       },
       {
         "case": "approval proof, empty reason",
         "kind": "approval",
         "intent": "creditnote.issue",
-        "action_hash": "sha256:6f27c919bea4aec3332fb638b517532023d2b90011d9073e07d55a0be9c33111",
+        "values": {
+          "bill_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001",
+          "total_paise": 50400
+        },
+        "action_hash": "sha256:356c0fded93558808117e62a27eb85d3076620acdb0db29782b8a6e4669577c9",
         "device_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e",
         "member_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64",
         "pack_v": 7,
@@ -431,14 +447,18 @@
         "requester_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65",
         "approved_at": "2026-11-24T13:06:11.120Z",
         "reason": "",
-        "message": "approval|sha256:6f27c919bea4aec3332fb638b517532023d2b90011d9073e07d55a0be9c33111|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64|7|1|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a77|bill.credit_note.create|\"credit_note:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7011\"|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65|2026-11-24T13:06:11.120Z|\"\"",
-        "proof": "tlwiCguiiR_nmeCUvQKxNxPV-t-q7kLJNqym7A2OrbI"
+        "message": "approval|sha256:356c0fded93558808117e62a27eb85d3076620acdb0db29782b8a6e4669577c9|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64|7|1|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a77|bill.credit_note.create|\"credit_note:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7011\"|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65|2026-11-24T13:06:11.120Z|\"\"",
+        "proof": "Qt_e8eHZMgSAYOQL0UwbePktAaIHcpCbHtD5E1TKSIs"
       },
       {
         "case": "self confirmation: requester is the approver (intent approval.self_confirm)",
         "kind": "approval",
         "intent": "creditnote.issue",
-        "action_hash": "sha256:ecdb6dccab054bc1caf72b5fc72c573f4b74147d547b2870f9535f13b147d4f0",
+        "values": {
+          "bill_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001",
+          "total_paise": 50400
+        },
+        "action_hash": "sha256:8a4d99a5a8498899ef7084af00679eb0e6bdedead3d41377a63391fb90c081fc",
         "device_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e",
         "member_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64",
         "pack_v": 7,
@@ -449,8 +469,8 @@
         "requester_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64",
         "approved_at": "2026-11-24T13:06:11.120Z",
         "reason": "own refund",
-        "message": "approval|sha256:ecdb6dccab054bc1caf72b5fc72c573f4b74147d547b2870f9535f13b147d4f0|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64|7|1|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a77|bill.credit_note.create|\"credit_note:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7011\"|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64|2026-11-24T13:06:11.120Z|\"own refund\"",
-        "proof": "qaiPCVXi18XMeiANH1FNRdONzWffCQsuUlwz1nKIgPM"
+        "message": "approval|sha256:8a4d99a5a8498899ef7084af00679eb0e6bdedead3d41377a63391fb90c081fc|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64|7|1|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a77|bill.credit_note.create|\"credit_note:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7011\"|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64|2026-11-24T13:06:11.120Z|\"own refund\"",
+        "proof": "YIBuHRsbCcqBokRJNhYIh6wSTaiVhcoZaDTnGse0C_Q"
       }
     ]
   },
@@ -463,8 +483,12 @@
       "target": "credit_note:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7011",
       "approval_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a77",
       "reason": "guest left",
-      "jcs": "{\"approval_id\":\"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a77\",\"intent\":\"creditnote.issue\",\"permission\":\"bill.credit_note.create\",\"reason\":\"guest left\",\"requester\":\"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65\",\"target\":\"credit_note:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7011\"}",
-      "action_hash": "sha256:24d0f31086ee0c471d6402a05de217e7f8fb512c3a9f65b89090c7c41829dcb6"
+      "values": {
+        "bill_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001",
+        "total_paise": 50400
+      },
+      "jcs": "{\"approval_id\":\"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a77\",\"intent\":\"creditnote.issue\",\"permission\":\"bill.credit_note.create\",\"reason\":\"guest left\",\"requester\":\"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65\",\"target\":\"credit_note:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7011\",\"values\":{\"bill_id\":\"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001\",\"total_paise\":50400}}",
+      "action_hash": "sha256:354f235e907e620950b5bbb1f4d93b9396c1582f79ee0f846eb1681016dd8d81"
     },
     {
       "case": "approval proof, separator, quote and newline inside the free text",
@@ -474,8 +498,12 @@
       "target": "bill:a|b\"c",
       "approval_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a77",
       "reason": "wrong \"item\" | line\nbreak \\ end",
-      "jcs": "{\"approval_id\":\"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a77\",\"intent\":\"creditnote.issue\",\"permission\":\"bill.credit_note.create\",\"reason\":\"wrong \\\"item\\\" | line\\nbreak \\\\ end\",\"requester\":\"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65\",\"target\":\"bill:a|b\\\"c\"}",
-      "action_hash": "sha256:c44b100a33ba073649455dd59ad3d31cc22a30b866d845490b4d6a081475219e"
+      "values": {
+        "bill_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001",
+        "total_paise": 50400
+      },
+      "jcs": "{\"approval_id\":\"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a77\",\"intent\":\"creditnote.issue\",\"permission\":\"bill.credit_note.create\",\"reason\":\"wrong \\\"item\\\" | line\\nbreak \\\\ end\",\"requester\":\"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65\",\"target\":\"bill:a|b\\\"c\",\"values\":{\"bill_id\":\"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001\",\"total_paise\":50400}}",
+      "action_hash": "sha256:fc785d147da660b65dfa1253bccef5aac45ad1a6c5187ca4df0da88be4de260f"
     },
     {
       "case": "approval proof, non-ASCII and a control character in the reason",
@@ -485,8 +513,12 @@
       "target": "credit_note:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7011",
       "approval_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a77",
       "reason": "café 中文 \u0007",
-      "jcs": "{\"approval_id\":\"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a77\",\"intent\":\"creditnote.issue\",\"permission\":\"bill.credit_note.create\",\"reason\":\"café 中文 \\u0007\",\"requester\":\"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65\",\"target\":\"credit_note:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7011\"}",
-      "action_hash": "sha256:7cb207ae806bf5c28263750c449d3bff13894013ac07ce3c36bf5942cbd15e34"
+      "values": {
+        "bill_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001",
+        "total_paise": 50400
+      },
+      "jcs": "{\"approval_id\":\"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a77\",\"intent\":\"creditnote.issue\",\"permission\":\"bill.credit_note.create\",\"reason\":\"café 中文 \\u0007\",\"requester\":\"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65\",\"target\":\"credit_note:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7011\",\"values\":{\"bill_id\":\"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001\",\"total_paise\":50400}}",
+      "action_hash": "sha256:4776a8c535bb7da5a82c0baab5d9ad0140484b041ac69e338d596b6040a8988e"
     },
     {
       "case": "approval proof, empty reason",
@@ -496,8 +528,12 @@
       "target": "credit_note:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7011",
       "approval_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a77",
       "reason": "",
-      "jcs": "{\"approval_id\":\"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a77\",\"intent\":\"creditnote.issue\",\"permission\":\"bill.credit_note.create\",\"reason\":\"\",\"requester\":\"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65\",\"target\":\"credit_note:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7011\"}",
-      "action_hash": "sha256:6f27c919bea4aec3332fb638b517532023d2b90011d9073e07d55a0be9c33111"
+      "values": {
+        "bill_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001",
+        "total_paise": 50400
+      },
+      "jcs": "{\"approval_id\":\"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a77\",\"intent\":\"creditnote.issue\",\"permission\":\"bill.credit_note.create\",\"reason\":\"\",\"requester\":\"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65\",\"target\":\"credit_note:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7011\",\"values\":{\"bill_id\":\"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001\",\"total_paise\":50400}}",
+      "action_hash": "sha256:356c0fded93558808117e62a27eb85d3076620acdb0db29782b8a6e4669577c9"
     },
     {
       "case": "self confirmation: requester is the approver (intent approval.self_confirm)",
@@ -507,8 +543,29 @@
       "target": "credit_note:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7011",
       "approval_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a77",
       "reason": "own refund",
-      "jcs": "{\"approval_id\":\"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a77\",\"intent\":\"creditnote.issue\",\"permission\":\"bill.credit_note.create\",\"reason\":\"own refund\",\"requester\":\"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64\",\"target\":\"credit_note:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7011\"}",
-      "action_hash": "sha256:ecdb6dccab054bc1caf72b5fc72c573f4b74147d547b2870f9535f13b147d4f0"
+      "values": {
+        "bill_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001",
+        "total_paise": 50400
+      },
+      "jcs": "{\"approval_id\":\"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a77\",\"intent\":\"creditnote.issue\",\"permission\":\"bill.credit_note.create\",\"reason\":\"own refund\",\"requester\":\"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64\",\"target\":\"credit_note:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7011\",\"values\":{\"bill_id\":\"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001\",\"total_paise\":50400}}",
+      "action_hash": "sha256:8a4d99a5a8498899ef7084af00679eb0e6bdedead3d41377a63391fb90c081fc"
+    },
+    {
+      "case": "OV2: approved for 50400 paise, the citing op records 60000",
+      "intent": "creditnote.issue",
+      "permission": "bill.credit_note.create",
+      "requester": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65",
+      "target": "credit_note:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7011",
+      "approval_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a77",
+      "reason": "guest left",
+      "values": {
+        "bill_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001",
+        "total_paise": 60000
+      },
+      "jcs": "{\"approval_id\":\"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a77\",\"intent\":\"creditnote.issue\",\"permission\":\"bill.credit_note.create\",\"reason\":\"guest left\",\"requester\":\"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65\",\"target\":\"credit_note:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7011\",\"values\":{\"bill_id\":\"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001\",\"total_paise\":60000}}",
+      "action_hash": "sha256:0616603fdbaad36d9ccc3a24d95dbdfac5ad51f74c74547d369703e2afa27ece",
+      "approved_action_hash": "sha256:354f235e907e620950b5bbb1f4d93b9396c1582f79ee0f846eb1681016dd8d81",
+      "matches_approved": false
     }
   ],
   "digest_row": [
