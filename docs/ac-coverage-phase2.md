@@ -85,16 +85,23 @@ policy: AC 6 price conflicts (`lww_review`), AC 77 (`rank`), double payment and 
 | 109, 111 open trading day, trading-day event | `T suspendOrganisation`, `closeOrganisation` (409 `open_trading_day`); `Ev billing.trading_day.changed` (ids and a date only) | The "in progress" window is tenancy's rule |
 | 112, 121 grant single-use, subject hash | `common/vendor.yaml VendorApprovalGrant`; `B publishTaxRuleSet`, `T` lifecycle ops (403 `grant.used`, `grant.expired`, `grant.subject_mismatch`) | Verification is go-auth and the services |
 | 113 four approval kinds | `T` lifecycle ops, `B publishTaxRuleSet` | Approval record is identity's |
-| 115 act mode checks both permissions | Not in this contract (identity); `admin.support.session.act` is in the catalogue | The spec says `admin.support.session.create`; the catalogue key is `admin.support.session.start` |
+| 115 act mode checks both permissions | Not in this contract (identity); `admin.support.session.act` is in the catalogue | The contract and the catalogue use `admin.support.session.start`; the spec text still says `admin.support.session.create` and should be corrected there |
 | 117, 120 lead time, one audit entry | `B publishTaxRuleSet` (422 `effective_date_too_soon`); `Ev billing.vendor_access.recorded` | Lead is deployment configuration |
+
+## Added after the first pass
+
+| Item | Where | Note |
+|---|---|---|
+| Sync intent registry | `sync/intents/*.yaml` (63 intents), `cmd/validate-intents`, `make lint-intents`; keys and rules in `sync/intents/README.md` | Pair of `entities/`; consistent with `svc-sync` `syncproto/intents.go` (mapping in the README) |
+| Admin facade for tenancy and billing vendor routes | `openapi/admin/v1`: `listPlans`, `createPlan`, `getPlan`, `createPlanVersion`, `activatePlanVersion`, `retirePlanVersion`, `listBillingConfigurations`, `createBillingConfiguration`, `getOrganisationSubscription`, `startSubscription`, `changeSubscription`, `cancelSubscription`, `listCharges`, `raiseCharge`, `getCharge`, `cancelCharge`, `waiveCharge`, `setChargeInvoiceReference`, `listChargePayments`, `recordPayment`, `reversePayment`, `listLedgerEntries`, `exportLedger`, `suspendOrganisation`, `reinstateOrganisation`, `closeOrganisation`, and the tax rule set lifecycle `listTaxRuleSetMasters`, `createTaxRuleSetDraft`, `getTaxRuleSetMaster`, `updateTaxRuleSetDraft`, `deleteTaxRuleSetDraft`, `validateTaxRuleSet`, `signTaxRuleSet`, `publishTaxRuleSet` | Same operation ids as the serving service; the grant operations (suspend, reinstate, close, publish) take `approval_id`, never the grant |
+| Support-session permission name | Catalogue key `admin.support.session.start` is the only name used in the contract | Row 115 above |
+| CSV export of reports (RM-S54, AC 167) | Not in this contract | AC 167 is tagged [UI] and Should: the screen builds the CSV from the report response it already shows, so figures equal the screen's by construction; `report.export` stays in the catalogue for the app's control and no report operation returns CSV. A server-side export would need its own operation and an ADR on report size; none is required by an [API] criterion. The ledger export (`exportLedger`) is the one CSV operation, vendor side |
 
 ## Gaps (not contract content)
 
-Role-level write denial and isolation suites per tenant-owned table (go-service-standard tests); the sync intent registry
-(`api-specs/sync/intents`, which needs ADR-0002 S4 fields per intent and is the pair of the entity files); TypeScript implementation
-of the vectors; ESC/POS golden files; the admin-facing facade for the new tenancy and billing vendor routes (`openapi/admin`);
-CSV export of reports (`report.export`, Should) other than the ledger export; item images and starter menu templates (server-only,
-not in Phase 2 MVP). Role templates (owner, manager, cashier, waiter, kitchen) are data seeded by identity from the permission catalogue.
+Role-level write denial and isolation suites per tenant-owned table (go-service-standard tests); TypeScript implementation
+of the vectors; ESC/POS golden files; item images and starter menu templates (server-only,
+not in Phase 2 MVP). A facade for `rejectTaxRegistration` (tenancy vendor route, not in this pass). Role templates (owner, manager, cashier, waiter, kitchen) are data seeded by identity from the permission catalogue.
 
 ## Provisional choices (`x-provisional`) and what they need
 
@@ -109,3 +116,5 @@ not in Phase 2 MVP). Role templates (owner, manager, cashier, waiter, kitchen) a
 | Paper bill-book series `manual_book` registered through tenancy | `T registerManualBookSeries` | CA (parallel series under one GSTIN) |
 | Projection digest algorithm `sha256-canon-v1` | `O`, `B` digests | go-common/sync |
 | UUIDv5 namespace constant for deterministic ids | `E README` | go-common/sync |
+| Admin facade executes an approval by `approval_id`; refusal code `approval_not_executable` (409) is new | `A suspendOrganisation`, `reinstateOrganisation`, `closeOrganisation`, `publishTaxRuleSet` | `architect` (ADR-0013 V4 detail) |
+| Catalogue keys `series.activate`, `device.clock.confirm`; other intent choices | `sync/intents/README.md` (Provisional choices) | `security-reviewer` |

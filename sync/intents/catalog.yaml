@@ -1,0 +1,347 @@
+# Sync intent registry, catalog (ADR-0002 S4, ADR-0005 section 7 and A2, ADR-0014 R1). Source of truth for the client can() table, the
+# gateway check (ADR-0002 S11) and the hub structural check (S8). Checked by `make lint-intents` (cmd/validate-intents);
+# keys and rules are in sync/intents/README.md. Generated once from a table, edited by hand from here.
+registry: sync-intents
+registry_v: 1
+group: catalog
+description: Menu, price, floor and outlet configuration (class config).
+intents:
+- intent: settings.outlet.edit
+  intent_v: 1
+  class: config
+  owner: catalog
+  description: 'Outlet settings: service charge, rounding, idle lock, KOT settings, stations, printers, print routes, tender
+    kinds, quick items. GST profile, numbering mode and discount limit are strong-only online calls, not intents.'
+  permission: settings.outlet.edit
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - personal
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    outlet_settings:
+    - insert
+    - set
+    - del
+    - undel
+    printer:
+    - insert
+    - set
+    - del
+    - undel
+    print_route:
+    - insert
+    - set
+    - del
+    - undel
+    station:
+    - insert
+    - set
+    - del
+    - undel
+    receipt_profile:
+    - insert
+    - set
+    - del
+    - undel
+    outlet_power_profile:
+    - insert
+    - set
+    - del
+    - undel
+    billing_settings:
+    - insert
+    - set
+    tender_kind:
+    - insert
+    - set
+    - del
+    - undel
+    item_outlet:
+    - insert
+    - set
+    - del
+    - undel
+  idempotency: Mutations are per field group, last writer by (hlc, origin); replaying the same op re-applies the same (hlc,
+    origin) and is a no-op. A lww_review field carries prev, so a concurrent edit is kept and sent to a manager, never merged
+    silently. Singleton rows use deterministic UUIDv5 ids.
+- intent: settings.reason.edit
+  intent_v: 1
+  class: config
+  owner: catalog
+  description: Reason codes for cancels, comps, discounts and returns (brand level).
+  permission: settings.outlet.edit
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - personal
+  streams:
+  - brand
+  numbering: none
+  entities:
+    reason_code:
+    - insert
+    - set
+    - del
+    - undel
+  idempotency: Mutations are per field group, last writer by (hlc, origin); replaying the same op re-applies the same (hlc,
+    origin) and is a no-op. A lww_review field carries prev, so a concurrent edit is kept and sent to a manager, never merged
+    silently.
+- intent: floor.manage
+  intent_v: 1
+  class: config
+  owner: catalog
+  description: Sections and tables.
+  permission: floor.manage
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - personal
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    floor:
+    - insert
+    - set
+    - del
+    - undel
+    dining_table:
+    - insert
+    - set
+    - del
+    - undel
+  idempotency: Mutations are per field group, last writer by (hlc, origin); replaying the same op re-applies the same (hlc,
+    origin) and is a no-op. A lww_review field carries prev, so a concurrent edit is kept and sent to a manager, never merged
+    silently.
+- intent: menu.category.edit
+  intent_v: 1
+  class: config
+  owner: catalog
+  description: 'Menu categories: name, order and the default station.'
+  permission: menu.manage
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - personal
+  streams:
+  - brand
+  numbering: none
+  entities:
+    category:
+    - insert
+    - set
+    - del
+    - undel
+  idempotency: Mutations are per field group, last writer by (hlc, origin); replaying the same op re-applies the same (hlc,
+    origin) and is a no-op. A lww_review field carries prev, so a concurrent edit is kept and sent to a manager, never merged
+    silently.
+- intent: menu.item.edit
+  intent_v: 1
+  class: config
+  owner: catalog
+  description: Items, variants and the modifier groups attached to an item. Tax class is a strong-only online call, not an
+    intent.
+  permission: menu.manage
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - personal
+  streams:
+  - brand
+  numbering: none
+  entities:
+    item:
+    - insert
+    - set
+    - del
+    - undel
+    item_variant:
+    - insert
+    - set
+    - del
+    - undel
+    item_modifier_group:
+    - insert
+    - del
+    - undel
+  idempotency: Mutations are per field group, last writer by (hlc, origin); replaying the same op re-applies the same (hlc,
+    origin) and is a no-op. A lww_review field carries prev, so a concurrent edit is kept and sent to a manager, never merged
+    silently.
+- intent: menu.item.archive
+  intent_v: 1
+  class: config
+  owner: catalog
+  description: Archive or restore an item (a tombstone that syncs like any other op).
+  permission: menu.manage
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - personal
+  streams:
+  - brand
+  numbering: none
+  entities:
+    item:
+    - del
+    - undel
+  idempotency: Mutations are per field group, last writer by (hlc, origin); replaying the same op re-applies the same (hlc,
+    origin) and is a no-op. A lww_review field carries prev, so a concurrent edit is kept and sent to a manager, never merged
+    silently.
+- intent: menu.modifier.edit
+  intent_v: 1
+  class: config
+  owner: catalog
+  description: Modifier groups and modifiers.
+  permission: menu.manage
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - personal
+  streams:
+  - brand
+  numbering: none
+  entities:
+    modifier_group:
+    - insert
+    - set
+    - del
+    - undel
+    modifier:
+    - insert
+    - set
+    - del
+    - undel
+  idempotency: Mutations are per field group, last writer by (hlc, origin); replaying the same op re-applies the same (hlc,
+    origin) and is a no-op. A lww_review field carries prev, so a concurrent edit is kept and sent to a manager, never merged
+    silently.
+- intent: menu.price.set
+  intent_v: 1
+  class: config
+  owner: catalog
+  description: Change a brand-level price. Price changes need an action proof; recorded in a pin session they are accepted
+    and listed for the owner as configuration changed on a shared device.
+  permission: menu.price.edit
+  proof:
+    kind: action
+    binds:
+    - item_id
+    - variant_id
+    - price_paise
+  override: true
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - personal
+  streams:
+  - brand
+  numbering: none
+  entities:
+    price_entry:
+    - insert
+    - set
+    - del
+    - undel
+  idempotency: Mutations are per field group, last writer by (hlc, origin); replaying the same op re-applies the same (hlc,
+    origin) and is a no-op. A lww_review field carries prev, so a concurrent edit is kept and sent to a manager, never merged
+    silently. The price row id is a UUIDv5 of its natural key, so concurrent edits meet on one row.
+- intent: menu.price.outlet_set
+  intent_v: 1
+  class: config
+  owner: catalog
+  description: Per-outlet price override (Could, later).
+  permission: menu.price.edit
+  proof:
+    kind: action
+    binds:
+    - item_id
+    - outlet_price_paise
+  override: true
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - personal
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    item_outlet:
+    - set
+  idempotency: Mutations are per field group, last writer by (hlc, origin); replaying the same op re-applies the same (hlc,
+    origin) and is a no-op. A lww_review field carries prev, so a concurrent edit is kept and sent to a manager, never merged
+    silently.
+  x-provisional: Spec lists per-outlet price overrides as Could, later; the entity field exists. Replaces menu.price.set in
+    item_outlet.written_by_intents because one op has one stream.
+- intent: menu.availability.set
+  intent_v: 1
+  class: config
+  owner: catalog
+  description: Mark an item sold out or available at one outlet. The kitchen holds this permission; a KDS acts in its device
+    session.
+  permission: menu.availability.set
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  - device
+  device_kinds:
+  - pos
+  - waiter
+  - kds
+  - personal
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    item_outlet:
+    - insert
+    - set
+    - del
+    - undel
+  idempotency: Mutations are per field group, last writer by (hlc, origin); replaying the same op re-applies the same (hlc,
+    origin) and is a no-op. A lww_review field carries prev, so a concurrent edit is kept and sent to a manager, never merged
+    silently. The row id is a deterministic UUIDv5 of its natural key (entity file id.name), so two devices that write the
+    same key converge on one row; a replayed op is ignored.

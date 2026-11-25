@@ -19,7 +19,7 @@ mutations of entities it owns and ignores the rest of an op). `make lint-entitie
 | `cloud_origin_only` | Written only by a cloud service through the gateway `emit` API. |
 | `fields.<name>` | `type`, `required`, `policy`, `description`, plus `group`, `values`, `order`, `ref`, `pii`, `doc_number`, bounds. |
 | `detectors` | Derived queries that raise exceptions (shared schema `common/exceptions.yaml`). |
-| `written_by_intents` | Informational: intents expected to mutate the entity. The authoritative list is the intent registry, which is a separate deliverable. |
+| `written_by_intents` | Informational: intents expected to mutate the entity. The authoritative list is the intent registry (`sync/intents`); `make lint-intents` fails a name that is not in it or does not list this entity. |
 
 ## Field policy (ADR-0002 S6)
 

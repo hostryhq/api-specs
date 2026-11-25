@@ -47,5 +47,5 @@ fields:
     description: Order among quick items.
 written_by_intents:
 - menu.availability.set
-- menu.price.set
+- menu.price.outlet_set
 - settings.outlet.edit

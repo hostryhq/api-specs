@@ -109,6 +109,9 @@ permissions:
   - {key: member.disable_local, realm: tenant, service: identity, description_key: perm.member.disable_local, flags: [sensitive]}  # Should; off until the ADR-0005 amendment (O2-2)
   - {key: audit.read.vendor_access, realm: tenant, service: identity, description_key: perm.audit.read.vendor_access, flags: []}
   - {key: subscription.read, realm: tenant, service: tenancy, description_key: perm.subscription.read, flags: []}  # owner "My plan" (Could, A1 BR-A1-90)
+  # Added with the sync intent registry (sync/intents): named by the spec and ADR-0005 section 8 but absent from the catalogue. Provisional; security-reviewer confirms.
+  - {key: series.activate, realm: tenant, service: tenancy, description_key: perm.series.activate, flags: [sensitive]}  # P; offline activation of a dormant billing series with an approval (RM-O25)
+  - {key: device.clock.confirm, realm: tenant, service: identity, description_key: perm.device.clock.confirm, flags: [sensitive]}  # P; manager confirms date and time after a clock skew (RM-X3)
   - {key: series.manual_book.register, realm: tenant, service: tenancy, description_key: perm.series.manual_book.register, flags: [sensitive, strong_only, owner_grant]}  # owner registers a paper bill book as an entry-only series (ADR-0014 A1.6 item 4)
   # ---- service callers (x-service-callers) ----
   - {key: revocation.read, realm: service, service: identity, description_key: perm.revocation.read, flags: []}
