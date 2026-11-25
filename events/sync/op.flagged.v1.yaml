@@ -1,0 +1,57 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: urn:hostry:events:sync.op.flagged:v1
+title: sync.op.flagged v1
+description: "An op already published was flagged afterwards (ADR-0014 A2.1 item 4). Identity of the op and a coarse code only; the flag text and attribution stay behind the member-token exceptions endpoint and never reach a device."
+x-publisher: sync
+x-subscribers:
+- billing
+- catalog
+- orders
+allOf:
+- $ref: urn:hostry:events:envelope:v1
+- type: object
+  required:
+  - key_seq
+  properties:
+    type:
+      const: sync.op.flagged
+    v:
+      const: 1
+    source:
+      const: sync
+    data:
+      type: object
+      required:
+      - origin
+      - stream
+      - seq
+      - code
+      properties:
+        origin:
+          type: string
+          description: Origin node.
+        stream:
+          type: string
+          description: Stream id.
+        seq:
+          type: integer
+          description: Sequence number of the flagged op.
+          minimum: 1
+        code:
+          type: string
+          description: Coarse code, for example unsealed, after_closure, foreign_series, manual_clock.
+examples:
+- id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f9203
+  type: sync.op.flagged
+  v: 1
+  source: sync
+  tenant_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+  outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+  key: outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+  key_seq: 2
+  occurred_at: '2026-11-24T13:08:11.120Z'
+  data:
+    origin: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+    stream: outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+    seq: 2
+    code: unsealed

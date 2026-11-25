@@ -1,7 +1,7 @@
 # api-specs tooling. CLI tools are installed locally (no global changes):
 #   Go tools into .tools/bin via `make tools`; Node tools run through pinned npx.
 SHELL := /bin/bash
-SERVICES := identity tenancy admin catalog orders billing
+SERVICES := identity tenancy admin catalog orders billing sync
 SPECS := $(foreach s,$(SERVICES),openapi/$(s)/v1/openapi.yaml)
 LINT_SPECS := $(SPECS) examples/ping/openapi.yaml
 BASE ?= origin/main

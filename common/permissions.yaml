@@ -153,6 +153,13 @@ permissions:
   - {key: admin.org.lifecycle.approve, realm: vendor, service: admin, description_key: perm.admin.org.lifecycle.approve, flags: []}
   - {key: admin.support.session.act, realm: vendor, service: admin, description_key: perm.admin.support.session.act, flags: []}
   - {key: admin.report.ledger, realm: vendor, service: admin, description_key: perm.admin.report.ledger, flags: []}
+  # ---- sync (device-token capabilities, member-token read-backs, and the internal emit) ----
+  - {key: sync.push, realm: tenant, service: sync, description_key: perm.sync.push, flags: []}  # device token: hello, push, pull, snapshot, poke
+  - {key: sync.drain, realm: tenant, service: sync, description_key: perm.sync.drain, flags: []}  # drain token: quarantine-upload only (ADR-0005 section 4)
+  - {key: sync.quarantine.manage, realm: tenant, service: sync, description_key: perm.sync.quarantine.manage, flags: [sensitive]}
+  - {key: sync.exceptions.read, realm: tenant, service: sync, description_key: perm.sync.exceptions.read, flags: []}
+  - {key: sync.register.read, realm: tenant, service: sync, description_key: perm.sync.register.read, flags: []}
+  - {key: sync.emit, realm: service, service: sync, description_key: perm.sync.emit, flags: []}  # catalog and billing write cloud-origin ops (ADR-0014 A2.2)
 
 # Vendor roles are sets of permissions (checks are on permissions, never role names). A0 table of
 # docs/product/admin-a0-spec.md section 2, plus admin.registration.verify (ADR-0003 A1.1: platform admin and onboarding)

@@ -1,0 +1,125 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: urn:hostry:events:sync.op:v1
+title: sync.op.<namespace> v1
+description: 'An op became applicable at the gateway (accepted, or released from quarantine) and is published whole (ADR-0014 A2.1).
+  One schema for every namespace; the type is sync.op.<namespace>, the namespace being the text before the first dot of the
+  intent name, and the subject is evt.sync.op.<namespace>.v1. A void is an op of intent sync.void, namespace sync. `data.body` is
+  the JSON string holding the exact bytes the origin sent and `h` was computed over (never re-serialised or upcast); no op field
+  is repeated beside it. Consumers read it only through go-common/sync.ParseOp, need no order and do not wait for gaps (seq is
+  sparse for a service). A quarantined op is never published with its body. `pii` is stored by a consumer only for an entity it
+  owns (never for a replica), in an erasable side table; the bus keeps a message 7 days at most. Key is <stream>|<origin>, key_seq
+  is seq, outlet_id is set for an outlet stream. See sync/protocol-v1.md.'
+x-publisher: sync
+x-subscribers:
+- billing
+- catalog
+- orders
+x-subscribers-by-namespace:
+  bill: [billing, orders]
+  check: [billing, orders]
+  creditnote: [billing]
+  day: [billing, orders]
+  drawer: [billing]
+  floor: [catalog, orders]
+  kds: [orders]
+  kot: [orders]
+  menu: [catalog, orders]
+  order: [orders]
+  payment: [billing]
+  seating: [orders]
+  series: [billing]
+  settings: [billing, catalog, orders]
+  shift: [billing]
+  tax: [billing]
+allOf:
+- $ref: urn:hostry:events:envelope:v1
+- type: object
+  required:
+  - key_seq
+  properties:
+    type:
+      type: string
+      description: sync.op.<namespace>.
+      pattern: ^sync\.op\.[a-z]+$
+    v:
+      const: 1
+    source:
+      const: sync
+    key:
+      type: string
+      description: <stream>|<origin>.
+      pattern: ^(outlet|brand|tenant):[^|]+\|[^|]+$
+    data:
+      type: object
+      required:
+      - origin
+      - stream
+      - seq
+      - h
+      - intent
+      - intent_v
+      - status
+      - body
+      properties:
+        origin:
+          type: string
+          description: Origin node, a device id or cloud-<epoch>.
+        stream:
+          type: string
+          description: 'Stream id: outlet:<id>, brand:<id> or tenant:<id>.'
+        seq:
+          type: integer
+          description: Sequence number of the op within (origin, stream).
+          minimum: 1
+        h:
+          type: string
+          description: Lower-case hex SHA-256 of the UTF-8 bytes of body.
+          pattern: ^[0-9a-f]{64}$
+        intent:
+          type: string
+          description: Intent name from the registry.
+        intent_v:
+          type: integer
+          description: Intent version.
+          minimum: 1
+        status:
+          type: string
+          description: accepted, or flagged when the gateway marked the op (identity and coarse code only; the flag itself is never published here).
+          enum:
+          - accepted
+          - flagged
+        marks:
+          type: array
+          description: Audit marks, for example unsealed (released tail of a key-lost origin) or unbound (taken by hash, ADR-0002 A2.8).
+          items:
+            type: string
+        body:
+          type: string
+          description: The exact bytes of the op body as the origin sent them (canonical JSON text as a JSON string); at most 262144 bytes.
+          maxLength: 262144
+        pii:
+          type: object
+          description: Personal data beside the op, outside the hash; at most 16384 bytes. Stored only by the owner of the entity it belongs to.
+          additionalProperties: true
+examples:
+- id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f9201
+  type: sync.op.menu
+  v: 1
+  source: sync
+  tenant_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+  outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+  key: outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+  key_seq: 1
+  occurred_at: '2026-11-24T13:05:12.000Z'
+  actor: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
+  data:
+    origin: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+    stream: outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+    seq: 1
+    h: 7a12848dfd8c7c9dce262261d97432158905aeb5f99798239d4583528921b057
+    intent: menu.availability.set
+    intent_v: 1
+    status: accepted
+    marks: []
+    body: '{"actor":"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64","at":"2026-11-24T13:05:11.120Z","clk":"sync","hlc":"01a1ee565e000000","intent":"menu.availability.set","intent_v":1,"muts":[{"e":"item_outlet","f":{"available":false},"id":"a7ac8341-e6c5-58a2-8a75-d00c40f77035","k":"set"}],"origin":"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e","ph":"9b47040fc954b008feead3268b905c243a183232441bf09e34e467054c975a12","seq":1,"stream":"outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61","tenant_id":"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60","v":1}'
+    pii: {}

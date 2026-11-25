@@ -3,13 +3,13 @@ extends: ['spectral:oas']
 rules:
   # --- Hostry rules ---
   hostry-path-v1-kebab-plural:
-    description: Paths are under /v1 (or /internal/v1 for service-to-service and admin-service operations), kebab-case segments, `{snake_case}` path params.
+    description: Paths are under /v1 (or /internal/v1 for service-to-service and admin-service operations, or /sync/v1 for the sync protocol, ADR-0002 S10), kebab-case segments, `{snake_case}` path params.
     severity: error
     given: $.paths[*]~
     then:
       function: pattern
       functionOptions:
-        match: '^(/internal)?/v1(/([a-z0-9]+(-[a-z0-9]+)*|\{[a-z][a-z0-9_]*\}))+$'
+        match: '^(/internal|/sync)?/v1(/([a-z0-9]+(-[a-z0-9]+)*|\{[a-z][a-z0-9_]*\}))+$'
   hostry-operation-id-camel-case:
     description: operationId is <verb><Resource> in lowerCamelCase.
     severity: error
@@ -60,9 +60,9 @@ rules:
       field: description
       function: truthy
   hostry-no-tenant-in-request-body:
-    description: Tenant comes from the token, never from a request body field.
+    description: Tenant comes from the token, never from a request body field. Exception, /internal/v1 operations called with a service token only (it carries no tenant), for example the sync emit operation.
     severity: error
-    given: $.paths[*][*].requestBody.content[*].schema..properties
+    given: $.paths[?(!@property.startsWith('/internal/'))][*].requestBody.content[*].schema..properties
     then:
       field: tenant_id
       function: undefined
@@ -106,3 +106,9 @@ rules:
   operation-tags: error
   operation-operationId: error
   oas3-api-servers: off
+overrides:
+  # The signed op body echoes the tenant of the device credential (ADR-0002 S4); the gateway checks it equals the token's
+  # tenant and never takes the tenant from it.
+  - files: ['openapi/sync/v1/openapi.yaml#/components/schemas/OpBody/properties/tenant_id']
+    rules:
+      hostry-no-tenant-in-request-body: off

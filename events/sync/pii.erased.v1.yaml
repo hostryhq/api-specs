@@ -1,0 +1,49 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: urn:hostry:events:sync.pii.erased:v1
+title: sync.pii.erased v1
+description: The gateway erased the personal data of an op (ADR-0014 A2.1 item 7). Ids only. Each owner erases its side-table rows for the op; the copy on the bus ages out within 7 days in the internal queue.
+x-publisher: sync
+x-subscribers:
+- billing
+- catalog
+- orders
+allOf:
+- $ref: urn:hostry:events:envelope:v1
+- type: object
+  properties:
+    type:
+      const: sync.pii.erased
+    v:
+      const: 1
+    source:
+      const: sync
+    data:
+      type: object
+      required:
+      - origin
+      - stream
+      - seq
+      properties:
+        origin:
+          type: string
+          description: Origin node.
+        stream:
+          type: string
+          description: Stream id.
+        seq:
+          type: integer
+          description: Sequence number of the op whose pii was erased.
+          minimum: 1
+examples:
+- id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f9204
+  type: sync.pii.erased
+  v: 1
+  source: sync
+  tenant_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+  outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+  key: outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+  occurred_at: '2026-11-24T13:09:11.120Z'
+  data:
+    origin: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+    stream: outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+    seq: 1
