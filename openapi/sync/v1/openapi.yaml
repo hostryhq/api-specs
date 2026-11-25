@@ -698,7 +698,7 @@ paths:
       - billing
       summary: Write cloud-origin ops to devices (the only way a service does).
       description: |-
-        The caller has already authorised the action online (its own `x-permission`, step-up or vendor grant); the gateway does not re-check the user. The gateway checks that the caller owns the intent, that the intent is cloud-origin (`device_kinds: [cloud]`), that every mutation is of an entity and kind the intent lists, that the stream belongs to the tenant, the size limit (262144 bytes of `body`, 16384 of `pii`) and the batch size (1 to 200 ops). It alone stamps `origin = cloud-<epoch>`, `seq`, `ph` and `hlc` and seals the batch with the op-signing key; a caller never chooses or holds any of these. The batch is atomic and in one tenant.
+        The caller has already authorised the action online (its own `x-permission`, step-up or vendor grant); the gateway does not re-check the user. Who acts (ADR-0014 A2, O2-20): an interactive emit carries the user's token forwarded by the caller beside the service token, so the audit shows the user; a queued emit (from `emit_queue`, after the request ended) acts on service authority alone and names the actor in the op's `actor` and `authorised_by`. The gateway checks that the caller owns the intent, that the intent is cloud-origin (`device_kinds: [cloud]`), that every mutation is of an entity and kind the intent lists, that the stream belongs to the tenant, the size limit (262144 bytes of `body`, 16384 of `pii`) and the batch size (1 to 200 ops). It alone stamps `origin = cloud-<epoch>`, `seq`, `ph` and `hlc` and seals the batch with the op-signing key; a caller never chooses or holds any of these. The batch is atomic and in one tenant.
 
         Idempotency is `(tenant_id, caller, key)` for each op, written in the transaction that stores it and kept as long as the op. The same key with the same content answers 200 with the original `origin`, `stream`, `seq` and `replayed: true`; the same key with other content is 422 `idempotency.mismatch`. A whole replayed batch is therefore a 200 with every op `replayed`. Every row an emit inserts has an id derived from its key (UUIDv5), so an emit repeated after a cloud restore converges on the same row. The `Idempotency-Key` header is accepted and ignored.
 
@@ -765,6 +765,21 @@ paths:
                 title: Idempotency key reused with other content
                 status: 422
                 code: idempotency.mismatch
+        '429':
+          description: The caller or tenant exceeds its emit rate. Nothing is stored; retry the same batch with the same keys after `Retry-After`. An
+            interactive caller answers its own client 503 `emit.unavailable`; a queued emission stays in the caller's `emit_queue` and is retried with jitter.
+          headers:
+            Retry-After:
+              $ref: ../../../common/components.yaml#/components/headers/RetryAfter
+          content:
+            application/problem+json:
+              schema:
+                $ref: ../../../common/components.yaml#/components/schemas/Problem
+              example:
+                type: urn:hostry:problem:emit.rate_limited
+                title: Emit rate limited
+                status: 429
+                code: emit.rate_limited
         '503':
           description: The gateway is not ready (restore in progress) or its store is unavailable. Retry with the same keys.
           headers:

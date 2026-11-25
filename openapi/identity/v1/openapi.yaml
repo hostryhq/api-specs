@@ -426,7 +426,7 @@ paths:
               kind: pos
       responses:
         '201':
-          description: Code, shown once. A replay returns the same code.
+          description: The code, shown once. The code is never stored, so a replay with the same Idempotency-Key is 409 `idempotency.replay_secret`.
           content:
             application/json:
               schema:
@@ -443,6 +443,26 @@ paths:
           $ref: '#/components/responses/ApprovalRequired'
         '404':
           $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          description: The Idempotency-Key was used before. The code is never stored, so a replay is 409 `idempotency.replay_secret` and creates nothing
+            (ADR-0002 A2.5, ADR-0005 A3.4); the owner asks again under a new key, or finds the unredeemed code through listActivationCodes and revokes it.
+          content:
+            application/problem+json:
+              schema:
+                $ref: ../../../common/components.yaml#/components/schemas/Problem
+              examples:
+                replay_secret:
+                  value:
+                    type: urn:hostry:problem:idempotency.replay_secret
+                    title: The result of this request is a secret and is not stored
+                    status: 409
+                    code: idempotency.replay_secret
+                in_progress:
+                  value:
+                    type: urn:hostry:problem:idempotency.in_progress
+                    title: Conflict
+                    status: 409
+                    code: idempotency.in_progress
         '422':
           $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
         '429':
@@ -709,6 +729,7 @@ paths:
                     catalogue_version: 1
                     issued_at: '2026-11-24T13:05:11.120Z'
                     offline_valid_until: '2026-12-08T13:05:11.120Z'
+                    issuer_env: dev
                     idle_lock_minutes: 5
                     identity_public_keys:
                     - kty: EC
@@ -1019,6 +1040,7 @@ paths:
                   catalogue_version: 1
                   issued_at: '2026-11-24T13:05:11.120Z'
                   offline_valid_until: '2026-12-08T13:05:11.120Z'
+                  issuer_env: dev
                   idle_lock_minutes: 5
                   identity_public_keys:
                   - kty: EC
@@ -5249,6 +5271,48 @@ components:
             type: string
             description: Permission string.
             example: order.create
+    IssuerEnv:
+      type: string
+      description: 'The environment of the identity that signed the pack (its HOSTRY_ENV), claimed in every pack. A build that is not a development
+        build refuses a pack whose `issuer_env` is not `live`; a browser build refuses any pack whose `issuer_env` is not `dev` when it is itself a
+        development build, and refuses every non-`live` issuer otherwise. The claim is signed with the pack, so a pack from a dev issuer cannot pass
+        for a live one.'
+      enum:
+      - dev
+      - test
+      - ci
+      - live
+      example: dev
+    HubPackPeer:
+      type: object
+      description: A peer device of the hub's outlet as a hub pack lists it, so offline tablet-to-tablet relay needs no cloud contact first.
+        The same facts as the peer's `PackDevice`, without its outlet and brand (those are the hub's).
+      additionalProperties: false
+      required:
+      - device_id
+      - kind
+      - kid
+      - public_key
+      - store
+      - credential
+      properties:
+        device_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        kind:
+          $ref: '#/components/schemas/DeviceKind'
+        kid:
+          type: string
+          description: Key id of the peer's own credential (one key per device id for life, ADR-0002 S7).
+          example: dev-4a5e-1
+        public_key:
+          $ref: '#/components/schemas/PublicJwk'
+        store:
+          $ref: '#/components/schemas/StoreProtection'
+        credential:
+          type: string
+          description: The peer's identity-signed LAN credential as a compact JWS (as `PackDevice.credential`), with `not_after` = this pack's
+            `offline_valid_until`.
+          example: cred.jws.example
     HubPackClaims:
       type: object
       description: 'Payload of the signed offline pack of a device of kind `hub` (ADR-0002 A3.4 item 3). Holds its LAN credential, `pack_v`,
@@ -5266,6 +5330,8 @@ components:
       - intent_table_version
       - issued_at
       - offline_valid_until
+      - issuer_env
+      - peers
       - identity_public_keys
       - op_signing_public_key
       properties:
@@ -5297,6 +5363,15 @@ components:
           $ref: ../../../common/components.yaml#/components/schemas/Timestamp
         offline_valid_until:
           $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+        issuer_env:
+          $ref: '#/components/schemas/IssuerEnv'
+        peers:
+          type: array
+          description: The other devices of the outlet as identity knows them at issue (active, not revoked, any kind but `hub`), so a device can
+            relay to a peer tablet-to-tablet with no cloud contact first. Each entry is the same data as that peer's own `PackDevice`; an entry
+            holds no member data. A peer revoked later is learned from `revoked_device_ids` of a newer pack or from the cloud.
+          items:
+            $ref: '#/components/schemas/HubPackPeer'
         identity_public_keys:
           type: array
           description: Current and next identity public keys.
@@ -5329,6 +5404,18 @@ components:
         intent_table_version: 3
         issued_at: '2026-11-24T13:05:11.120Z'
         offline_valid_until: '2026-12-08T13:05:11.120Z'
+        issuer_env: dev
+        peers:
+        - device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+          kind: pos
+          kid: dev-4a5e-1
+          public_key:
+            kty: EC
+            crv: P-256
+            x: f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU
+            y: x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0
+          store: protected
+          credential: cred.jws.example
         identity_public_keys:
         - kty: EC
           crv: P-256
@@ -5455,6 +5542,7 @@ components:
       - catalogue_version
       - issued_at
       - offline_valid_until
+      - issuer_env
       - idle_lock_minutes
       - identity_public_keys
       - op_signing_public_key
@@ -5503,6 +5591,8 @@ components:
           $ref: ../../../common/components.yaml#/components/schemas/Timestamp
         offline_valid_until:
           $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+        issuer_env:
+          $ref: '#/components/schemas/IssuerEnv'
         idle_lock_minutes:
           type: integer
           description: Idle lock for shared devices.
@@ -5537,7 +5627,10 @@ components:
           example: 7
         jws:
           type: string
-          description: Compact ES256 JWS whose payload is OfflinePackClaims, or HubPackClaims for a hub.
+          description: 'Compact ES256 JWS whose payload is OfflinePackClaims, or HubPackClaims for a hub. Header `{"alg":"ES256","kid":<kid>,"typ":"hostry-pack+jws"}`;
+            payload = the RFC 8785 JSON of the claims. It is signed with an identity key published in `identity_public_keys` (the claim of every pack:
+            the current and the next key, also served by the identity JWKS), so a hub or device verifies the whole pack with keys it already holds
+            and refuses a pack whose `kid` is not among them. The `credential` strings inside are themselves JWS (`hostry-cred+jws`) under the same keys.'
           example: pack.jws.example
         claims:
           description: OfflinePackClaims for every device kind but `hub`; HubPackClaims for a `hub` (ADR-0002 A3.4 item 3).

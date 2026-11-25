@@ -55,3 +55,5 @@ An operation that writes synced data from the cloud declares `x-emits-intent: <c
 its `x-permission` in the intent's `authorised_online_by`, checked both ways by `make lint-intents`) and, when interactive,
 answers 503 `emit.unavailable` with `Retry-After` through the shared `EmitUnavailable` response. `POST /internal/v1/emit`
 (`openapi/sync/v1`) is the only way a service writes to devices; its tenant is a body field because a service token carries none.
+Who acts (ADR-0014 A2, O2-20): an interactive emit forwards the user's token beside the service token; a queued emit (from `emit_queue`) acts on service
+authority alone. A busy gateway answers 429 `emit.rate_limited` with `Retry-After`.

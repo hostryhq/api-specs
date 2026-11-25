@@ -58,6 +58,12 @@ components:
           type: string
           description: Op identity (origin/stream/seq) or entity id of the fact that resolved it (a refund, credit note or move).
           example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5102
+        reason:
+          type: string
+          description: 'Why the detector fired, when a kind has more than one cause. `missing`: the approval or document the subject needed never arrived
+            (for example the approval a re-bill past its allowance cites). Absent when the kind has a single cause.'
+          enum: [missing]
+          example: missing
         detail_key:
           type: string
           description: i18n key of the plain-language explanation; params carry ids and numbers only.

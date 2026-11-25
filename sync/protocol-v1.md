@@ -84,8 +84,9 @@ defeat the seal). `KeyRing.addCloudKey(kid, pub)` is the right entry. Seals carr
 **Channel.** TLS 1.3 only, on every interface including loopback, for every `/sync/v1` route and the poke (`wss`). The hub makes a P-256 key
 and a self-signed certificate in memory at each start and again after 7 days of running; names and dates in it mean nothing and no node checks
 them. A device accepts whatever certificate is offered, computes **`spki`** = lower-case hex SHA-256 of the certificate's DER
-`SubjectPublicKeyInfo`, and sends nothing but `helloLan` until the hub is proven. No pin is stored. A plain listener exists only in a binary
-built with the tag `devlan`, which refuses to start outside `HOSTRY_ENV` dev, test and ci.
+`SubjectPublicKeyInfo`, and sends nothing but `helloLan` until the hub is proven. No pin is stored. A plain listener (no TLS, no channel step) exists only in a binary
+built with the tag `devlan`, which refuses to start outside `HOSTRY_ENV` dev, test and ci. It is a development path for native test rigs, not a
+supported transport: a browser never uses it (a browser build refuses a hub that is not `wss` over TLS), and no release artifact is built with the tag.
 
 **LAN credential.** The device's identity-signed credential as a compact JWS: ES256, header `{"alg":"ES256","kid":<identity kid>,"typ":"hostry-cred+jws"}`,
 payload = RFC 8785 JSON of the `Credential` (`device_id`, `tenant_id`, `outlet_id`, `brand_id`, `kind`, `kid`, `pub`, `store`, `not_after`;
