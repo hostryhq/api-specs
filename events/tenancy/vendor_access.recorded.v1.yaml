@@ -69,17 +69,17 @@ allOf:
           type: string
           description: Request id for correlation.
 examples:
-- id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a81
+- id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f9125
   type: tenancy.vendor_access.recorded
   v: 1
   source: tenancy
   tenant_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
-  key: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a90
+  key: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a9c
   key_seq: 1
   occurred_at: '2026-11-24T13:05:11.120Z'
   actor: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
   data:
-    entry_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a90
+    entry_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a9c
     vendor_user_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
     token_type: support
     support_session_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a68

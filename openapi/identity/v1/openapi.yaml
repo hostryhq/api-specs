@@ -24,7 +24,7 @@ info:
     co-owner: "Base plus owner-role assignment 4a8d on Ravi 4a9e (built-in role Owner 4a9a)."
     approval-pending: "Base plus approval request 4a70 (operation createMember, body hash as in the example) filed by Ravi on binding 4a6e and pending; the caller is Asha, who may decide it."
     approval-approved: "The approval-pending world after the request was approved; the caller is the requester Ravi and the token is still unclaimed."
-    owner-recovery-pending: "Base plus owner recovery 4a8d pending for the organisation; the caller is Asha, who did not request it."
+    owner-recovery-pending: "Base plus owner recovery 4a99 pending for the organisation; the caller is Asha, who did not request it."
     org-no-owner: "Organisation 4a60 exists with no members and no owner invitation; the caller is a vendor user with admin.owner_invite.manage."
     owner-invited: "Organisation 4a60 exists with no members and a pending owner invitation 4a67 for +919876543210 (owner name Asha) created at 13:05:11."
     vendor-session-active: "Base plus an active vendor session for Priya with renewal handle renew_example."
@@ -2141,7 +2141,7 @@ paths:
         description: Recovery ID (the vendor approval id).
         schema:
           $ref: ../../../common/components.yaml#/components/schemas/Id
-        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a8d
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a99
       - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
       requestBody:
         required: true
@@ -2160,7 +2160,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/OwnerRecovery'
               example:
-                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a8d
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a99
                 state: cancelled
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized

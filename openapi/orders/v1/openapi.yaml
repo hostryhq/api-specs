@@ -92,7 +92,6 @@ paths:
                   list_total:
                     amount_paise: 52000
                     currency: INR
-                next_cursor: eyJhZnRlciI6IjAxOTBhMWIyIn0
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -367,7 +366,7 @@ paths:
                     amount_paise: 26000
                     currency: INR
                   reason_code_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5161
-                  member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+                  member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
                   wastage: true
                   kitchen_status: preparing
                   cancelled_at: '2026-11-24T13:05:11.120Z'
@@ -380,7 +379,6 @@ paths:
                   wastage_value:
                     amount_paise: 26000
                     currency: INR
-                next_cursor: eyJhZnRlciI6IjAxOTBhMWIyIn0
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -437,7 +435,6 @@ paths:
                   median_prep_seconds: 420
                   p95_prep_seconds: 980
                   cancelled_after_start: 1
-                next_cursor: eyJhZnRlciI6IjAxOTBhMWIyIn0
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -495,12 +492,11 @@ paths:
                   check_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6001
                   line_count: 2
                   sent_at: '2026-11-24T13:05:11.120Z'
-                  member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+                  member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
                   device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
                   printed: true
                   reprint_count: 0
                   business_date: '2026-11-24'
-                next_cursor: eyJhZnRlciI6IjAxOTBhMWIyIn0
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -567,7 +563,6 @@ paths:
                   list_total:
                     amount_paise: 52000
                     currency: INR
-                next_cursor: eyJhZnRlciI6IjAxOTBhMWIyIn0
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -625,7 +620,7 @@ paths:
                     amount_paise: 52000
                     currency: INR
                   mode: printed
-                  member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+                  member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
                   device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
                   presented_at: '2026-11-24T13:05:11.120Z'
                   changes_after: 0
@@ -634,7 +629,6 @@ paths:
                 totals:
                   presents: 1
                   presents_without_bill: 1
-                next_cursor: eyJhZnRlciI6IjAxOTBhMWIyIn0
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':

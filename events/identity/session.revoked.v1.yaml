@@ -39,7 +39,7 @@ allOf:
           - vendor_user_deactivated
           - support_session_ended
 examples:
-- id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a81
+- id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f9104
   type: identity.session.revoked
   v: 1
   source: identity

@@ -54,13 +54,13 @@ examples:
   v: 1
   source: billing
   tenant_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
-  key: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b:AAA:2627
+  key: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b:A7K:2627
   key_seq: 1
   occurred_at: '2026-11-24T13:05:11.120Z'
-  actor: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+  actor: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
   data:
     tax_registration_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
-    series_code: AAA
+    series_code: A7K
     financial_year: '2627'
     kind: device
     missing_from: 57

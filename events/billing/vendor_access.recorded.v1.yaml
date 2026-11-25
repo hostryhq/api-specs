@@ -52,13 +52,13 @@ examples:
   v: 1
   source: billing
   tenant_id: platform
-  key: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f90f1
+  key: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6d
   key_seq: 1
   occurred_at: '2026-11-24T13:05:11.120Z'
   actor: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
   data:
-    approval_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f90f1
+    approval_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6d
     action: tax_rule_set_publish
-    vendor_user_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a90
+    vendor_user_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
     ticket: SUP-2041
     result: success

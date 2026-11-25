@@ -83,7 +83,7 @@ examples:
   key: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001
   key_seq: 1
   occurred_at: '2026-11-24T13:05:11.120Z'
-  actor: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+  actor: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
   data:
     bill_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001
     outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61

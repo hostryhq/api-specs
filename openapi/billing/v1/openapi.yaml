@@ -16,17 +16,17 @@ info:
     thousandths; rates are basis points.'
   x-status: stable
   x-example-worlds:
-    base: Organisation 4a60 with outlet 4a61 and verified registration 4a6b (regular). Bill 7001 (AAA/2627/000123,
+    base: Organisation 4a60 with outlet 4a61 and verified registration 4a6b (regular). Bill 7001 (A7K/2627/000123,
       tax_invoice, paid by cash payment 7021, verified), credit note 7011, refund 7061, shift 7051 closed, business
-      day 7031 closed with no revisions (Z/2026-11-24/P1), internal consumption 7081, series AAA registered, published
-      rule set 7041 (unreviewed) in force, outlet billing config at defaults (number_at settle), orders reports
+      day bbac closed with no revisions (Z/2026-11-24/P1), internal consumption 7081, series A7K registered, published
+      rule set c799 (unreviewed) in force, outlet billing config at defaults (number_at settle), orders reports
       no open check. No exception, no gap, no draft rule set. The caller is an owner (strong session) or, on /internal/v1/vendor
       routes, the admin service with a vendor user holding the needed permission.
     payments-exceed: Base plus an open exception 7091 (payments_exceed_total on bill 7001) after a second payment
       was taken on another device.
-    rule-set-draft: Base plus draft rule set 7042 (version 2, revision 1, effective 2026-12-15, unreviewed, one
+    rule-set-draft: Base plus draft rule set 3c47 (version 2, revision 1, effective 2026-12-15, unreviewed, one
       rule).
-    rule-set-signed: Base plus rule set 7042 signed (reviewed, sign-off recorded, effective 2026-12-15) and a valid
+    rule-set-signed: Base plus rule set 3c47 signed (reviewed, sign-off recorded, effective 2026-12-15) and a valid
       single-use vendor approval grant for it; the caller is the approver, a second platform admin.
 servers:
 - url: /
@@ -82,7 +82,7 @@ paths:
         description: Exact bill number.
         schema:
           type: string
-        example: AAA/2627/000123
+        example: A7K/2627/000123
       - name: source_kind
         in: query
         required: false
@@ -121,7 +121,7 @@ paths:
                 items:
                 - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001
                   outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
-                  number: AAA/2627/000123
+                  number: A7K/2627/000123
                   doc_type: tax_invoice
                   source_kind: check
                   check_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6001
@@ -130,10 +130,10 @@ paths:
                   business_date: '2026-11-24'
                   invoice_date: '2026-11-24'
                   finalized_at: '2026-11-24T13:05:11.120Z'
-                  cashier_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+                  cashier_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
                   device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
                   calc_v: 1
-                  ruleset_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7041
+                  ruleset_id: 9107573a-9de6-569a-a692-fb53d5d4c799
                   price_mode: exclusive
                   total:
                     amount_paise: 50400
@@ -151,13 +151,12 @@ paths:
                   verification:
                     status: verified
                     calc_v: 1
-                    ruleset_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7041
+                    ruleset_id: 9107573a-9de6-569a-a692-fb53d5d4c799
                     difference:
                       amount_paise: 0
                       currency: INR
                     checked_at: '2026-11-24T13:05:11.120Z'
                   late: false
-                next_cursor: eyJhZnRlciI6IjAxOTBhMWIyIn0
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -189,7 +188,7 @@ paths:
               example:
                 id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001
                 outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
-                number: AAA/2627/000123
+                number: A7K/2627/000123
                 doc_type: tax_invoice
                 source_kind: check
                 check_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6001
@@ -198,10 +197,10 @@ paths:
                 business_date: '2026-11-24'
                 invoice_date: '2026-11-24'
                 finalized_at: '2026-11-24T13:05:11.120Z'
-                cashier_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+                cashier_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
                 device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
                 calc_v: 1
-                ruleset_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7041
+                ruleset_id: 9107573a-9de6-569a-a692-fb53d5d4c799
                 price_mode: exclusive
                 total:
                   amount_paise: 50400
@@ -219,7 +218,7 @@ paths:
                 verification:
                   status: verified
                   calc_v: 1
-                  ruleset_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7041
+                  ruleset_id: 9107573a-9de6-569a-a692-fb53d5d4c799
                   difference:
                     amount_paise: 0
                     currency: INR
@@ -296,7 +295,7 @@ paths:
                   change:
                     amount_paise: 600
                     currency: INR
-                  member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+                  member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
                   device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
                   shift_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7051
                   business_date: '2026-11-24'
@@ -338,7 +337,7 @@ paths:
                 $ref: '#/components/schemas/BusinessDayPage'
               example:
                 items:
-                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7031
+                - id: 781c2cf3-5c86-5dca-8c74-ef356237bbac
                   outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
                   business_date: '2026-11-24'
                   status: closed
@@ -346,7 +345,7 @@ paths:
                   close:
                     z_number: Z/2026-11-24/P1
                     closing_device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
-                    closing_member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+                    closing_member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
                     closed_at: '2026-11-24T13:05:11.120Z'
                     cutoff: '{"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e":812}'
                     totals:
@@ -395,14 +394,13 @@ paths:
                           amount_paise: 504000
                           currency: INR
                     series_ranges:
-                    - series_code: AAA
+                    - series_code: A7K
                       doc_type: tax_invoice
-                      first_number: AAA/2627/000112
-                      last_number: AAA/2627/000123
+                      first_number: A7K/2627/000112
+                      last_number: A7K/2627/000123
                       count: 12
                   revision_count: 0
                   late_document_count: 0
-                next_cursor: eyJhZnRlciI6IjAxOTBhMWIyIn0
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -423,7 +421,7 @@ paths:
         description: Business day id (UUIDv5 of outlet and date).
         schema:
           $ref: ../../../common/components.yaml#/components/schemas/Id
-        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7031
+        example: 781c2cf3-5c86-5dca-8c74-ef356237bbac
       responses:
         '200':
           description: The day.
@@ -432,7 +430,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/BusinessDay'
               example:
-                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7031
+                id: 781c2cf3-5c86-5dca-8c74-ef356237bbac
                 outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
                 business_date: '2026-11-24'
                 status: closed
@@ -440,7 +438,7 @@ paths:
                 close:
                   z_number: Z/2026-11-24/P1
                   closing_device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
-                  closing_member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+                  closing_member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
                   closed_at: '2026-11-24T13:05:11.120Z'
                   cutoff: '{"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e":812}'
                   totals:
@@ -489,10 +487,10 @@ paths:
                         amount_paise: 504000
                         currency: INR
                   series_ranges:
-                  - series_code: AAA
+                  - series_code: A7K
                     doc_type: tax_invoice
-                    first_number: AAA/2627/000112
-                    last_number: AAA/2627/000123
+                    first_number: A7K/2627/000112
+                    last_number: A7K/2627/000123
                     count: 12
                 revision_count: 0
                 late_document_count: 0
@@ -518,7 +516,7 @@ paths:
         description: Business day id.
         schema:
           $ref: ../../../common/components.yaml#/components/schemas/Id
-        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7031
+        example: 781c2cf3-5c86-5dca-8c74-ef356237bbac
       - $ref: ../../../common/components.yaml#/components/parameters/Cursor
       - $ref: ../../../common/components.yaml#/components/parameters/Limit
       responses:
@@ -531,11 +529,11 @@ paths:
               example:
                 items:
                 - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7071
-                  business_day_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7031
+                  business_day_id: 781c2cf3-5c86-5dca-8c74-ef356237bbac
                   revision: 1
                   display_number: Z/2026-11-24/P1/R1
                   cause: late_device
-                  origin_device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5f
+                  origin_device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
                   op_from_seq: 813
                   op_to_seq: 830
                   added_totals:
@@ -584,13 +582,12 @@ paths:
                         amount_paise: 504000
                         currency: INR
                   added_series_ranges:
-                  - series_code: AAA
+                  - series_code: A7K
                     doc_type: tax_invoice
-                    first_number: AAA/2627/000112
-                    last_number: AAA/2627/000123
+                    first_number: A7K/2627/000112
+                    last_number: A7K/2627/000123
                     count: 12
                   created_at: '2026-11-24T13:09:40.000Z'
-                next_cursor: eyJhZnRlciI6IjAxOTBhMWIyIn0
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -635,14 +632,14 @@ paths:
                 items:
                 - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7011
                   outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
-                  number: AAB/2627/000004
+                  number: A7M/2627/000004
                   bill_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001
-                  bill_number: AAA/2627/000123
+                  bill_number: A7K/2627/000123
                   bill_invoice_date: '2026-11-24'
                   business_date: '2026-11-24'
                   invoice_date: '2026-11-24'
                   device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
-                  member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+                  member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
                   calc_v: 1
                   total:
                     amount_paise: 50400
@@ -699,13 +696,12 @@ paths:
                   verification:
                     status: verified
                     calc_v: 1
-                    ruleset_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7041
+                    ruleset_id: 9107573a-9de6-569a-a692-fb53d5d4c799
                     difference:
                       amount_paise: 0
                       currency: INR
                     checked_at: '2026-11-24T13:05:11.120Z'
                   created_at: '2026-11-24T13:05:11.120Z'
-                next_cursor: eyJhZnRlciI6IjAxOTBhMWIyIn0
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -737,14 +733,14 @@ paths:
               example:
                 id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7011
                 outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
-                number: AAB/2627/000004
+                number: A7M/2627/000004
                 bill_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001
-                bill_number: AAA/2627/000123
+                bill_number: A7K/2627/000123
                 bill_invoice_date: '2026-11-24'
                 business_date: '2026-11-24'
                 invoice_date: '2026-11-24'
                 device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
-                member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+                member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
                 calc_v: 1
                 total:
                   amount_paise: 50400
@@ -801,7 +797,7 @@ paths:
                 verification:
                   status: verified
                   calc_v: 1
-                  ruleset_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7041
+                  ruleset_id: 9107573a-9de6-569a-a692-fb53d5d4c799
                   difference:
                     amount_paise: 0
                     currency: INR
@@ -852,18 +848,17 @@ paths:
               example:
                 items:
                 - tax_registration_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
-                  series_code: AAA
+                  series_code: A7K
                   kind: device
                   doc_type: tax_invoice
                   financial_year: '2627'
                   device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
-                  first_number: AAA/2627/000001
-                  last_number: AAA/2627/000123
+                  first_number: A7K/2627/000001
+                  last_number: A7K/2627/000123
                   count: 123
                   gap_count: 0
                   state: active
                   last_seen_at: '2026-11-24T13:05:11.120Z'
-                next_cursor: eyJhZnRlciI6IjAxOTBhMWIyIn0
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -912,14 +907,13 @@ paths:
               example:
                 items:
                 - tax_registration_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
-                  series_code: AAA
+                  series_code: A7K
                   financial_year: '2627'
                   kind: device
                   missing_from: 57
                   missing_to: 57
                   detected_at: '2026-11-24T13:05:11.120Z'
                   status: open
-                next_cursor: eyJhZnRlciI6IjAxOTBhMWIyIn0
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -1073,11 +1067,10 @@ paths:
                   list_value:
                     amount_paise: 36000
                     currency: INR
-                  member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+                  member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
                   device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
                   business_date: '2026-11-24'
                   closed_at: '2026-11-24T13:05:11.120Z'
-                next_cursor: eyJhZnRlciI6IjAxOTBhMWIyIn0
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -1355,12 +1348,11 @@ paths:
                   change:
                     amount_paise: 600
                     currency: INR
-                  member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+                  member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
                   device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
                   shift_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7051
                   business_date: '2026-11-24'
                   paid_at: '2026-11-24T13:05:11.120Z'
-                next_cursor: eyJhZnRlciI6IjAxOTBhMWIyIn0
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -1447,10 +1439,9 @@ paths:
                     currency: INR
                   tender: cash
                   reason_code_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5162
-                  member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+                  member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
                   business_date: '2026-11-24'
                   refunded_at: '2026-11-24T13:05:11.120Z'
-                next_cursor: eyJhZnRlciI6IjAxOTBhMWIyIn0
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -1508,7 +1499,6 @@ paths:
                   net:
                     amount_paise: 576000
                     currency: INR
-                next_cursor: eyJhZnRlciI6IjAxOTBhMWIyIn0
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -1606,7 +1596,6 @@ paths:
                         amount_paise: 504000
                         currency: INR
                   revision_count: 0
-                next_cursor: eyJhZnRlciI6IjAxOTBhMWIyIn0
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -1673,9 +1662,9 @@ paths:
                 items:
                 - kind: discount
                   subject_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001
-                  bill_number: AAA/2627/000123
+                  bill_number: A7K/2627/000123
                   reason_code_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5164
-                  member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+                  member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
                   within_allowance: false
                   value:
                     amount_paise: 5000
@@ -1687,7 +1676,6 @@ paths:
                   value:
                     amount_paise: 5000
                     currency: INR
-                next_cursor: eyJhZnRlciI6IjAxOTBhMWIyIn0
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -1743,7 +1731,6 @@ paths:
                   net:
                     amount_paise: 168000
                     currency: INR
-                next_cursor: eyJhZnRlciI6IjAxOTBhMWIyIn0
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -1803,7 +1790,6 @@ paths:
                   net:
                     amount_paise: 576000
                     currency: INR
-                next_cursor: eyJhZnRlciI6IjAxOTBhMWIyIn0
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -1853,13 +1839,12 @@ paths:
                 to: '2026-11-24'
                 basis: business_date
                 items:
-                - member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+                - member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
                   role: cashier
                   bill_count: 12
                   net:
                     amount_paise: 504000
                     currency: INR
-                next_cursor: eyJhZnRlciI6IjAxOTBhMWIyIn0
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -1943,7 +1928,6 @@ paths:
                   non_gst:
                     amount_paise: 0
                     currency: INR
-                next_cursor: eyJhZnRlciI6IjAxOTBhMWIyIn0
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -2004,7 +1988,6 @@ paths:
                   net:
                     amount_paise: 529200
                     currency: INR
-                next_cursor: eyJhZnRlciI6IjAxOTBhMWIyIn0
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -2044,7 +2027,7 @@ paths:
                 - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7051
                   outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
                   device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
-                  member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+                  member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
                   business_date: '2026-11-24'
                   status: closed
                   opened_at: '2026-11-24T13:05:11.120Z'
@@ -2063,7 +2046,6 @@ paths:
                     currency: INR
                   force_closed: false
                   handover_counted: true
-                next_cursor: eyJhZnRlciI6IjAxOTBhMWIyIn0
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -2099,7 +2081,7 @@ paths:
                 $ref: '#/components/schemas/TaxRuleSetPage'
               example:
                 items:
-                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7041
+                - id: 9107573a-9de6-569a-a692-fb53d5d4c799
                   version: 1
                   name: GST restaurant services 2026
                   effective_date: '2026-04-01'
@@ -2117,7 +2099,6 @@ paths:
                     cgst_bp: 250
                     sgst_bp: 250
                     igst_bp: 0
-                next_cursor: eyJhZnRlciI6IjAxOTBhMWIyIn0
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -2138,7 +2119,7 @@ paths:
         description: Rule set id.
         schema:
           $ref: ../../../common/components.yaml#/components/schemas/Id
-        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7041
+        example: 9107573a-9de6-569a-a692-fb53d5d4c799
       responses:
         '200':
           description: The rule set.
@@ -2147,7 +2128,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/TaxRuleSet'
               example:
-                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7041
+                id: 9107573a-9de6-569a-a692-fb53d5d4c799
                 version: 1
                 name: GST restaurant services 2026
                 effective_date: '2026-04-01'
@@ -2201,7 +2182,7 @@ paths:
                 $ref: '#/components/schemas/SeriesLastSeen'
               example:
                 series_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6c
-                last_number: AAA/2627/000123
+                last_number: A7K/2627/000123
                 count: 123
                 as_of: '2026-11-24T13:05:11.120Z'
         '401':
@@ -2249,7 +2230,7 @@ paths:
                 $ref: '#/components/schemas/TaxRuleSetMasterPage'
               example:
                 items:
-                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7042
+                - id: 72bdd3f5-68b5-59b0-8e62-2075a1f43c47
                   version: 2
                   revision: 1
                   name: GST restaurant services 2026 B
@@ -2268,7 +2249,6 @@ paths:
                     sgst_bp: 250
                     igst_bp: 0
                   created_at: '2026-11-24T13:05:11.120Z'
-                next_cursor: eyJhZnRlciI6IjAxOTBhMWIyIn0
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -2320,7 +2300,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/TaxRuleSetMaster'
               example:
-                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7042
+                id: 72bdd3f5-68b5-59b0-8e62-2075a1f43c47
                 version: 2
                 revision: 1
                 name: GST restaurant services 2026 B
@@ -2368,7 +2348,7 @@ paths:
         description: Rule set id.
         schema:
           $ref: ../../../common/components.yaml#/components/schemas/Id
-        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7042
+        example: 72bdd3f5-68b5-59b0-8e62-2075a1f43c47
       - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
       responses:
         '200':
@@ -2378,7 +2358,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/TaxRuleSetMaster'
               example:
-                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7042
+                id: 72bdd3f5-68b5-59b0-8e62-2075a1f43c47
                 version: 2
                 revision: 1
                 name: GST restaurant services 2026 B
@@ -2426,7 +2406,7 @@ paths:
         description: Rule set id.
         schema:
           $ref: ../../../common/components.yaml#/components/schemas/Id
-        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7042
+        example: 72bdd3f5-68b5-59b0-8e62-2075a1f43c47
       - $ref: ../../../common/vendor.yaml#/components/parameters/IfMatch
       - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
       - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
@@ -2458,7 +2438,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/TaxRuleSetMaster'
               example:
-                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7042
+                id: 72bdd3f5-68b5-59b0-8e62-2075a1f43c47
                 version: 2
                 revision: 2
                 name: GST restaurant services 2026 B
@@ -2511,7 +2491,7 @@ paths:
         description: Rule set id.
         schema:
           $ref: ../../../common/components.yaml#/components/schemas/Id
-        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7042
+        example: 72bdd3f5-68b5-59b0-8e62-2075a1f43c47
       - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
       - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
       responses:
@@ -2552,7 +2532,7 @@ paths:
         description: Rule set id.
         schema:
           $ref: ../../../common/components.yaml#/components/schemas/Id
-        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7042
+        example: 72bdd3f5-68b5-59b0-8e62-2075a1f43c47
       - $ref: ../../../common/vendor.yaml#/components/parameters/VendorApprovalGrant
       - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
       - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
@@ -2571,7 +2551,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/TaxRuleSetMaster'
               example:
-                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7042
+                id: 72bdd3f5-68b5-59b0-8e62-2075a1f43c47
                 version: 2
                 revision: 1
                 name: GST restaurant services 2026 B
@@ -2630,7 +2610,7 @@ paths:
         description: Rule set id.
         schema:
           $ref: ../../../common/components.yaml#/components/schemas/Id
-        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7042
+        example: 72bdd3f5-68b5-59b0-8e62-2075a1f43c47
       - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
       - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
       requestBody:
@@ -2652,7 +2632,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/TaxRuleSetMaster'
               example:
-                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7042
+                id: 72bdd3f5-68b5-59b0-8e62-2075a1f43c47
                 version: 2
                 revision: 1
                 name: GST restaurant services 2026 B
@@ -2709,7 +2689,7 @@ paths:
         description: Rule set id.
         schema:
           $ref: ../../../common/components.yaml#/components/schemas/Id
-        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7042
+        example: 72bdd3f5-68b5-59b0-8e62-2075a1f43c47
       - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
       - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
       responses:
@@ -2722,8 +2702,8 @@ paths:
               example:
                 valid: true
                 errors: []
-                vectors_total: 48
-                vectors_passed: 48
+                vectors_total: 65
+                vectors_passed: 65
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -2994,7 +2974,7 @@ components:
           type: string
           description: <code>/<FY>/<running>, at most 16 characters; for a manual_book bill the book's own number.
           maxLength: 16
-          example: AAA/2627/000123
+          example: A7K/2627/000123
         doc_type:
           $ref: '#/components/schemas/BillDocType'
         source_kind:
@@ -3150,14 +3130,14 @@ components:
           type: string
           description: Number from the issuing device's credit-note series.
           maxLength: 16
-          example: AAB/2627/000004
+          example: A7M/2627/000004
         bill_id:
           $ref: ../../../common/components.yaml#/components/schemas/Id
         bill_number:
           type: string
           description: Number of the original bill.
           maxLength: 16
-          example: AAA/2627/000123
+          example: A7K/2627/000123
         bill_invoice_date:
           type: string
           description: Invoice date of the original bill.
@@ -3411,7 +3391,7 @@ components:
           type: string
           description: Three-character series code.
           maxLength: 3
-          example: AAA
+          example: A7K
         doc_type:
           type: string
           description: Document type.
@@ -3426,12 +3406,12 @@ components:
           type: string
           description: First number seen.
           maxLength: 16
-          example: AAA/2627/000112
+          example: A7K/2627/000112
         last_number:
           type: string
           description: Last number seen.
           maxLength: 16
-          example: AAA/2627/000123
+          example: A7K/2627/000123
         count:
           type: integer
           description: Numbers seen.
@@ -3746,7 +3726,7 @@ components:
           type: string
           description: Series code.
           maxLength: 3
-          example: AAA
+          example: A7K
         kind:
           type: string
           description: 'device: allocated by a device; manual_book: typed from a paper book.'
@@ -3773,11 +3753,11 @@ components:
         first_number:
           type: string
           description: First number seen.
-          example: AAA/2627/000001
+          example: A7K/2627/000001
         last_number:
           type: string
           description: Highest number seen.
-          example: AAA/2627/000123
+          example: A7K/2627/000123
         count:
           type: integer
           description: Numbers seen.
@@ -3831,7 +3811,7 @@ components:
         series_code:
           type: string
           description: Series code.
-          example: AAA
+          example: A7K
         financial_year:
           type: string
           description: Four-digit FY.
@@ -3895,7 +3875,7 @@ components:
         last_number:
           type: string
           description: Highest number seen; absent when none.
-          example: AAA/2627/000123
+          example: A7K/2627/000123
         count:
           type: integer
           description: Numbers seen.
@@ -4298,7 +4278,7 @@ components:
         bill_number:
           type: string
           description: Number of the bill concerned, when it has one.
-          example: AAA/2627/000123
+          example: A7K/2627/000123
         reason_code_id:
           $ref: ../../../common/components.yaml#/components/schemas/Id
         member_id:

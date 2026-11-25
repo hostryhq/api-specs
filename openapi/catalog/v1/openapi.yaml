@@ -19,7 +19,7 @@ info:
       online session.
     import-previewed: Base plus menu import job 5171 (owner source, file menu.csv, one valid row, no errors) in
       status previewed.
-    price-conflict: Base plus an open exception 5181 (price_conflict, price_entry 5191, kept 25000, lost 24000)
+    price-conflict: Base plus an open exception 5181 (price_conflict, price_entry 7090, kept 25000, lost 24000)
       detected 13:05:11.
 servers:
 - url: /
@@ -195,7 +195,7 @@ paths:
                   severity: warning
                   status: open
                   subject_kind: price_entry
-                  subject_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5191
+                  subject_id: d20af895-7a0a-5c92-947f-eae31ccd7090
                   outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
                   detected_at: '2026-11-24T13:05:11.120Z'
                   detail_key: exception.price_conflict
@@ -347,7 +347,6 @@ paths:
                     sort_order: 1
                   modifier_group_ids:
                   - 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5121
-                next_cursor: eyJhZnRlciI6IjAxOTBhMWIyIn0
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':

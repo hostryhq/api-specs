@@ -32,8 +32,8 @@ info:
     org-active-approved-close: Organisation 4a60 active (a plan was assigned), outlet 4a61 with no business day in progress. Vendor approval 4a6d of kind org_close was approved by the caller (Arun 4a78, platform_admin), and the admin service holds its grant in memory. The caller is signed in to the admin panel (cookie and CSRF token csrf_example_token) as Arun.
     org-suspended-approved-reinstate: Organisation 4a60 suspended, outlet 4a61 with no business day in progress. Vendor approval 4a6d of kind org_reinstate was approved by the caller (Arun 4a78, platform_admin), and the admin service holds its grant in memory. The caller is signed in to the admin panel (cookie and CSRF token csrf_example_token) as Arun.
     org-active-approved-suspend: Organisation 4a60 active (a plan was assigned), outlet 4a61 with no business day in progress. Vendor approval 4a6d of kind org_suspend was approved by the caller (Arun 4a78, platform_admin), and the admin service holds its grant in memory. The caller is signed in to the admin panel (cookie and CSRF token csrf_example_token) as Arun.
-    rule-set-draft: The billing world "rule-set-draft" (Base plus draft rule set 7042 (version 2, revision 1, effective 2026-12-15, unreviewed, one rule)). The caller is signed in to the admin panel (cookie and CSRF token csrf_example_token) as a vendor user whose role holds the permission of the operation.
-    rule-set-signed-approved: Base plus rule set 7042 signed (reviewed, sign-off recorded, effective 2026-12-15) and a valid single-use vendor approval grant for it; the caller is the approver, a second platform admin. Vendor approval 4a6d of kind tax_rule_set_publish was approved by the caller (Arun 4a78, platform_admin), and the admin service holds its grant in memory. The caller is signed in to the admin panel (cookie and CSRF token csrf_example_token) as Arun.
+    rule-set-draft: The billing world "rule-set-draft" (Base plus draft rule set 3c47 (version 2, revision 1, effective 2026-12-15, unreviewed, one rule)). The caller is signed in to the admin panel (cookie and CSRF token csrf_example_token) as a vendor user whose role holds the permission of the operation.
+    rule-set-signed-approved: Base plus rule set 3c47 signed (reviewed, sign-off recorded, effective 2026-12-15) and a valid single-use vendor approval grant for it; the caller is the approver, a second platform admin. Vendor approval 4a6d of kind tax_rule_set_publish was approved by the caller (Arun 4a78, platform_admin), and the admin service holds its grant in memory. The caller is signed in to the admin panel (cookie and CSRF token csrf_example_token) as Arun.
 servers:
 - url: /
 tags:
@@ -2137,7 +2137,6 @@ paths:
                   payment_tolerance_paise: 99
                   payment_terms_days: 7
                   created_at: '2026-11-24T13:05:11.120Z'
-                next_cursor: eyJhZnRlciI6IjAxOTBhMWIyIn0
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -2298,7 +2297,6 @@ paths:
                   amount:
                     amount_paise: 153282
                     currency: INR
-                next_cursor: eyJhZnRlciI6IjAxOTBhMWIyIn0
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -2378,7 +2376,6 @@ paths:
                     amount_paise: 153282
                     currency: INR
                   created_at: '2026-11-24T13:05:11.120Z'
-                next_cursor: eyJhZnRlciI6IjAxOTBhMWIyIn0
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -2781,9 +2778,8 @@ paths:
                   method: upi
                   reference: UTR1234567890
                   received_on: '2026-12-02'
-                  recorded_by: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a90
+                  recorded_by: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a78
                   created_at: '2026-11-24T13:05:11.120Z'
-                next_cursor: eyJhZnRlciI6IjAxOTBhMWIyIn0
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -2859,7 +2855,7 @@ paths:
                 method: upi
                 reference: UTR1234567890
                 received_on: '2026-12-02'
-                recorded_by: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a90
+                recorded_by: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a78
                 created_at: '2026-11-24T13:05:11.120Z'
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
@@ -2940,7 +2936,7 @@ paths:
                 method: upi
                 reference: UTR1234567890
                 received_on: '2026-12-02'
-                recorded_by: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a90
+                recorded_by: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a78
                 created_at: '2026-11-24T13:05:11.120Z'
                 reversal_of: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8031
                 reason: Duplicate period raised by mistake.
@@ -3590,7 +3586,6 @@ paths:
                     state: draft
                     created_at: '2026-11-24T13:05:11.120Z'
                   created_at: '2026-11-24T13:05:11.120Z'
-                next_cursor: eyJhZnRlciI6IjAxOTBhMWIyIn0
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -3989,7 +3984,7 @@ paths:
                 $ref: ../../billing/v1/openapi.yaml#/components/schemas/TaxRuleSetMasterPage
               example:
                 items:
-                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7042
+                - id: 72bdd3f5-68b5-59b0-8e62-2075a1f43c47
                   version: 2
                   revision: 1
                   name: GST restaurant services 2026 B
@@ -4008,7 +4003,6 @@ paths:
                     sgst_bp: 250
                     igst_bp: 0
                   created_at: '2026-11-24T13:05:11.120Z'
-                next_cursor: eyJhZnRlciI6IjAxOTBhMWIyIn0
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -4066,7 +4060,7 @@ paths:
               schema:
                 $ref: ../../billing/v1/openapi.yaml#/components/schemas/TaxRuleSetMaster
               example:
-                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7042
+                id: 72bdd3f5-68b5-59b0-8e62-2075a1f43c47
                 version: 2
                 revision: 1
                 name: GST restaurant services 2026 B
@@ -4112,7 +4106,7 @@ paths:
         description: Rule set id.
         schema:
           $ref: ../../../common/components.yaml#/components/schemas/Id
-        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7042
+        example: 72bdd3f5-68b5-59b0-8e62-2075a1f43c47
       responses:
         '200':
           description: The version; the ETag header carries its revision.
@@ -4121,7 +4115,7 @@ paths:
               schema:
                 $ref: ../../billing/v1/openapi.yaml#/components/schemas/TaxRuleSetMaster
               example:
-                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7042
+                id: 72bdd3f5-68b5-59b0-8e62-2075a1f43c47
                 version: 2
                 revision: 1
                 name: GST restaurant services 2026 B
@@ -4167,7 +4161,7 @@ paths:
         description: Rule set id.
         schema:
           $ref: ../../../common/components.yaml#/components/schemas/Id
-        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7042
+        example: 72bdd3f5-68b5-59b0-8e62-2075a1f43c47
       - name: X-CSRF-Token
         in: header
         required: true
@@ -4206,7 +4200,7 @@ paths:
               schema:
                 $ref: ../../billing/v1/openapi.yaml#/components/schemas/TaxRuleSetMaster
               example:
-                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7042
+                id: 72bdd3f5-68b5-59b0-8e62-2075a1f43c47
                 version: 2
                 revision: 2
                 name: GST restaurant services 2026 B
@@ -4258,7 +4252,7 @@ paths:
         description: Rule set id.
         schema:
           $ref: ../../../common/components.yaml#/components/schemas/Id
-        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7042
+        example: 72bdd3f5-68b5-59b0-8e62-2075a1f43c47
       - name: X-CSRF-Token
         in: header
         required: true
@@ -4309,7 +4303,7 @@ paths:
         description: Rule set id.
         schema:
           $ref: ../../../common/components.yaml#/components/schemas/Id
-        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7042
+        example: 72bdd3f5-68b5-59b0-8e62-2075a1f43c47
       - name: X-CSRF-Token
         in: header
         required: true
@@ -4335,7 +4329,7 @@ paths:
               schema:
                 $ref: ../../billing/v1/openapi.yaml#/components/schemas/TaxRuleSetMaster
               example:
-                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7042
+                id: 72bdd3f5-68b5-59b0-8e62-2075a1f43c47
                 version: 2
                 revision: 1
                 name: GST restaurant services 2026 B
@@ -4392,7 +4386,7 @@ paths:
         description: Rule set id.
         schema:
           $ref: ../../../common/components.yaml#/components/schemas/Id
-        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7042
+        example: 72bdd3f5-68b5-59b0-8e62-2075a1f43c47
       - name: X-CSRF-Token
         in: header
         required: true
@@ -4421,7 +4415,7 @@ paths:
               schema:
                 $ref: ../../billing/v1/openapi.yaml#/components/schemas/TaxRuleSetMaster
               example:
-                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7042
+                id: 72bdd3f5-68b5-59b0-8e62-2075a1f43c47
                 version: 2
                 revision: 1
                 name: GST restaurant services 2026 B
@@ -4477,7 +4471,7 @@ paths:
         description: Rule set id.
         schema:
           $ref: ../../../common/components.yaml#/components/schemas/Id
-        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7042
+        example: 72bdd3f5-68b5-59b0-8e62-2075a1f43c47
       - name: X-CSRF-Token
         in: header
         required: true
@@ -4497,8 +4491,8 @@ paths:
               example:
                 valid: true
                 errors: []
-                vectors_total: 48
-                vectors_passed: 48
+                vectors_total: 65
+                vectors_passed: 65
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':

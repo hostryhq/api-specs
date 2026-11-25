@@ -1,0 +1,81 @@
+# Shared example world: restaurant domain (catalog, orders, billing and the sync intents/entities they own).
+# Same rules and tooling as platform.yaml (`make lint-worlds`). The organisation, outlet, registration, series, members and
+# devices are the platform world's: org 4a60, outlet 4a61, registration 4a6b, series A7K (4a6c) and A7M (4a95), device 4a5e,
+# members Asha 4a64 (owner and cashier) and Ravi 4a9e. A restaurant example never names a vendor user as a member.
+# `derive` states how a deterministic row id (entity file `id.rule: uuidv5`) is built; the validator recomputes it with the
+# namespace 9a3c7f1e-5b2d-5c84-a1e6-4d0f8b27c3a9 and fails on a mismatch.
+world: restaurant
+id_prefix: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f
+uuid_namespace: 9a3c7f1e-5b2d-5c84-a1e6-4d0f8b27c3a9
+# Fixed facts every document of the restaurant worlds agrees on.
+constants:
+  business_date: '2026-11-24'
+  bill_number: A7K/2627/000123
+  credit_note_number: A7M/2627/000004
+  z_number: Z/2026-11-24/P1
+  tax_vector_count: 65
+entries:
+# ---- catalog ------------------------------------------------------------------------------------------------------
+- {name: category_starters, id: '5001', kind: category, facts: {name: Starters}}
+- {name: item_paneer_tikka, id: '5101', kind: item, facts: {code: '101', name: Paneer Tikka}}
+- {name: item_other, id: '5102', kind: item, note: a second item used only where an example needs one}
+- {name: variant_full, id: '5111', kind: item_variant, facts: {name: Full}}
+- {name: modifier_group_addons, id: '5121', kind: modifier_group, facts: {name: Add-ons}}
+- {name: modifier_extra_cheese, id: '5122', kind: modifier, facts: {name: Extra cheese}}
+- {name: station_kitchen, id: '5131', kind: station, facts: {code: KITCHEN, name: Kitchen}}
+- {name: printer_kitchen, id: '5141', kind: printer, facts: {name: Kitchen LAN}}
+- {name: floor_ground, id: '5151', kind: floor, facts: {name: Ground floor}}
+- {name: table_t1, id: '5152', kind: dining_table, facts: {name: T1}}
+- {name: reason_code, id: '5161', kind: reason_code}
+- {name: reason_code_2, id: '5162', kind: reason_code}
+- {name: reason_code_3, id: '5163', kind: reason_code}
+- {name: reason_code_4, id: '5164', kind: reason_code}
+- {name: menu_import, id: '5171', kind: menu_import_job}
+- {name: exception_price_conflict, id: '5181', kind: exception, facts: {kind: price_conflict}}
+- name: price_entry_paneer_full
+  id: d20af895-7a0a-5c92-947f-eae31ccd7090
+  kind: price_entry
+  derive: {entity: price_entry, args: {item_id: item_paneer_tikka, variant_id: variant_full}}
+# ---- orders -------------------------------------------------------------------------------------------------------
+- {name: check, id: '6001', kind: check, facts: {label: Guest 2}}
+- {name: order_line, id: '6011', kind: order_line}
+- {name: kot, id: '6021', kind: kot}
+- {name: seating, id: '6031', kind: seating}
+- {name: exception_orphan_line, id: '6041', kind: exception, facts: {kind: orphan_line}}
+- {name: order, id: '6051', kind: order}
+# ---- billing --------------------------------------------------------------------------------------------------------
+- {name: bill, id: '7001', kind: bill, facts: {number: A7K/2627/000123}}
+- {name: credit_note, id: '7011', kind: credit_note, facts: {number: A7M/2627/000004}}
+- {name: payment_cash, id: '7021', kind: payment}
+- name: business_day
+  id: 781c2cf3-5c86-5dca-8c74-ef356237bbac
+  kind: business_day
+  derive: {entity: business_day, args: {outlet_id: outlet, business_date: '2026-11-24'}}
+- name: rule_set_v1
+  id: 9107573a-9de6-569a-a692-fb53d5d4c799
+  kind: tax_rule_set
+  facts: {name: GST restaurant services 2026}
+  derive: {entity: tax_rule_set, args: {tenant_id: org, version: '1'}}
+- name: rule_set_v2
+  id: 72bdd3f5-68b5-59b0-8e62-2075a1f43c47
+  kind: tax_rule_set
+  facts: {name: GST restaurant services 2026 B}
+  derive: {entity: tax_rule_set, args: {tenant_id: org, version: '2'}}
+- {name: shift, id: '7051', kind: shift}
+- {name: refund, id: '7061', kind: refund}
+- {name: revision, id: '7071', kind: business_day_revision, facts: {display_number: Z/2026-11-24/P1/R1}}
+- {name: internal_consumption, id: '7081', kind: internal_consumption, facts: {kind: staff_meal}}
+- {name: exception_payments_exceed, id: '7091', kind: exception, facts: {kind: payments_exceed_total}}
+- {name: tender_coupon, id: '70a1', kind: tender_kind, facts: {name: Coupon, kind: other}}
+- {name: gap, id: '70b1', kind: document_gap}
+# ---- events published by catalog, orders and billing; one id per event example ------------------------------------------
+- {name: ev_trading_day_changed, id: '9001', kind: event}
+- {name: ev_bill_recorded, id: '9002', kind: event}
+- {name: ev_credit_note_recorded, id: '9003', kind: event}
+- {name: ev_tax_verification_flagged, id: '9004', kind: event}
+- {name: ev_document_gap_detected, id: '9005', kind: event}
+- {name: ev_tax_rule_set_published, id: '9006', kind: event}
+- {name: ev_billing_vendor_access, id: '9007', kind: event}
+- {name: ev_menu_import_committed, id: '9008', kind: event}
+- {name: ev_exception_opened, id: '9009', kind: event}
+- {name: ev_series_reconciled, id: '9010', kind: event}

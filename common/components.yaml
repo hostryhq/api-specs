@@ -11,7 +11,9 @@ components:
     Id:
       type: string
       description: Client-generated, time-sortable UUIDv7 in lower-case canonical form (ADR-0003 policy; ULID is not accepted).
-      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+        The row id of an entity whose entity file declares a deterministic id (id.rule uuidv5, ADR-0014) is a UUIDv5 in the
+        same form, so two devices that write the same natural key converge on one row.
+      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[57][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
       example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b
     Timestamp:
       type: string
@@ -186,7 +188,7 @@ components:
         is always taken from the token, never from a header, query or body field.
       schema:
         $ref: '#/components/schemas/Id'
-      example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5c
+      example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
     VendorLimit:
       name: limit
       in: query
