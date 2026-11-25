@@ -150,3 +150,15 @@ the checks.
 ## Hold codes, verdicts
 `pending`, `held_manager`, `held_support` only (see Verdicts above). Flags and reasons exist behind member-token admin
 endpoints (`listExceptions`, `listQuarantine`) and never reach a device.
+
+## Several document numbers in one op; mixed field policies
+- **One op may allocate more than one legal document number** when its intent inserts more than one numbered document, for
+  example `bill.rebill` = a credit note number (series of type credit_note) and a new bill number (series of type tax_invoice
+  or bill_of_supply), allocated in the same local transaction. Each number sits in the `doc` of its own inserted row
+  (the registry marks the entity's `doc_number` field, `numbering: allocated`, and lists every document type in `documents`).
+  The op body's single `doc` member of OpBody carries the first; the others are read from the mutated rows' `doc_number`
+  fields by the gateway and the register. An op never takes a number twice from one series.
+- **Entities with mixed per-field policies are valid** (`check`, `order_line` and other entities whose `policy` is `mixed`):
+  each field states its own policy (`immutable`, `lww`, `lww_review`, `delta`, `rank`) and the engine applies it per field
+  group; a `set` mutation names only fields of `lww` or `lww_review` policy, an `insert` sets immutable and initial values.
+  Conflict resolution is per field group, never per row.

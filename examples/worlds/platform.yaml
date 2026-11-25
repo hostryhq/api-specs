@@ -52,6 +52,7 @@ entries:
 - {name: vendor_arun, id: '4a78', kind: vendor_user, facts: {display_name: Arun, role: platform_admin, email: admin@example.invalid}}
 - {name: vendor_karthik, id: '4a88', kind: vendor_user, facts: {display_name: Karthik, email: new.staff@example.invalid}, note: created by createVendorUser}
 - {name: vendor_approval, id: '4a6d', kind: vendor_approval}
+- {name: vendor_grant, id: '4ab2', kind: vendor_grant, note: jti of the example vendor approval grant (common/vendor-grant.vectors.v1.json)}
 - {name: support_session, id: '4a68', kind: support_session}
 - {name: audit_support_session, id: '4a69', kind: audit_entry, note: support.session.started}
 - {name: audit_device_revoked, id: '4a8a', kind: audit_entry, note: vendor.device.revoked}
@@ -93,4 +94,3 @@ entries:
 - {name: ev_series_issued, id: '9131', kind: event}
 - {name: ev_series_closed, id: '9132', kind: event}
 - {name: ev_device_drained, id: '9133', kind: event}
-- {name: ev_tax_registration_changed, id: '9134', kind: event}

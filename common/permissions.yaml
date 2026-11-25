@@ -165,6 +165,9 @@ permissions:
 # docs/product/admin-a0-spec.md section 2, plus admin.registration.verify (ADR-0003 A1.1: platform admin and onboarding)
 # and the approval permissions (proposed: platform_admin for sign-in codes and recovery, which stay switched off;
 # support for device_revoke_over_quota via admin.device.revoke).
+# Role matrix rule while the vendor team is three people or fewer: approval of sign-in codes and owner recovery
+# (admin.signin_code.approve, admin.recovery.approve) belongs to platform_admin only; support may still create the requests
+# (admin.approval.create) but approves only device_revoke_over_quota. Revisit when the team grows (security review H-roles).
 vendor_roles:
   platform_admin: [admin.org.read, admin.org.create, admin.owner_invite.manage, admin.registration.verify, admin.device.read, admin.device.revoke,
                    admin.support.session.start, admin.audit.read, admin.audit.read_own, admin.user.manage, admin.approval.create, admin.approval.read,

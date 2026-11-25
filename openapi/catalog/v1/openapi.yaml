@@ -542,7 +542,7 @@ paths:
     post:
       operationId: createMenuImport
       summary: Upload a CSV menu and preview it
-      description: strong_only (x-step-up). A support act-mode session may also call it, through catalog.import,
+      description: strong_only (x-step-up). A support act-mode session may also call it, through catalog.import, but a support import may only ADD items, categories and variants; any row that would change an existing item, variant or price is refused 422 owner_commit_required and needs the owner's own commit (security review),
         once security-reviewer has signed the flag and IST-43 passes (ADR-0005 A2.5 item 5, A1 BR-A1-89); until
         then act mode answers mode_not_supported at identity. Validates every row, returns the preview, writes nothing.
         Max 2,000 rows.

@@ -238,7 +238,7 @@ func run(dir string) (errs []string, count int) {
 		if e.Guarded && e.Owner != "billing" && e.Owner != "orders" {
 			fail("%s: guarded (money or tax) entities belong to billing or orders", at)
 		}
-		if e.Owner == "billing" && e.Policy == "append" && !e.Guarded && !strings.HasPrefix(name, "day_open") && !strings.HasPrefix(name, "tax_rule") {
+		if e.Owner == "billing" && e.Policy == "append" && !e.Guarded && !strings.HasPrefix(name, "day_open") && !strings.HasPrefix(name, "tax_rule") && name != "bill_reprint" {
 			fail("%s: billing append entities are guarded unless they carry no money or tax", at)
 		}
 	}

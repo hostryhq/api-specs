@@ -1945,6 +1945,10 @@ paths:
                 id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a70
                 operation_id: createMember
                 body_hash: sha256:cf03a846706f29a88ba61a212f79e7c224142fdd5df92fc1d7ed8bb1283fb8c8
+                method: POST
+                path: /v1/members
+                subject: Add member Latha (Cashier at Main Restaurant)
+                target_hash: sha256:6341349b74963991d1421fcadac42a1656c6d7028c4cc9c47c891d1aac460c1e
                 state: pending
                 created_at: '2026-11-24T13:05:11.120Z'
                 expires_at: '2026-11-24T13:10:11.120Z'
@@ -1977,6 +1981,10 @@ paths:
                 - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a70
                   operation_id: createMember
                   body_hash: sha256:cf03a846706f29a88ba61a212f79e7c224142fdd5df92fc1d7ed8bb1283fb8c8
+                  method: POST
+                  path: /v1/members
+                  subject: Add member Latha (Cashier at Main Restaurant)
+                  target_hash: sha256:6341349b74963991d1421fcadac42a1656c6d7028c4cc9c47c891d1aac460c1e
                   state: pending
                   created_at: '2026-11-24T13:05:11.120Z'
                   expires_at: '2026-11-24T13:10:11.120Z'
@@ -2009,6 +2017,10 @@ paths:
                 id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a70
                 operation_id: createMember
                 body_hash: sha256:cf03a846706f29a88ba61a212f79e7c224142fdd5df92fc1d7ed8bb1283fb8c8
+                method: POST
+                path: /v1/members
+                subject: Add member Latha (Cashier at Main Restaurant)
+                target_hash: sha256:6341349b74963991d1421fcadac42a1656c6d7028c4cc9c47c891d1aac460c1e
                 state: approved
                 created_at: '2026-11-24T13:05:11.120Z'
                 expires_at: '2026-11-24T13:10:11.120Z'
@@ -2054,6 +2066,10 @@ paths:
                 id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a70
                 operation_id: createMember
                 body_hash: sha256:cf03a846706f29a88ba61a212f79e7c224142fdd5df92fc1d7ed8bb1283fb8c8
+                method: POST
+                path: /v1/members
+                subject: Add member Latha (Cashier at Main Restaurant)
+                target_hash: sha256:6341349b74963991d1421fcadac42a1656c6d7028c4cc9c47c891d1aac460c1e
                 state: approved
                 created_at: '2026-11-24T13:05:11.120Z'
                 expires_at: '2026-11-24T13:10:11.120Z'
@@ -3726,7 +3742,11 @@ paths:
         admin.recovery.approve, admin.device.revoke, admin.org.lifecycle.approve or admin.taxrules.publish)
         and have an account older than 7 days. No single-person override exists. For the kinds executed
         by another service (org_suspend, org_reinstate, org_close, tax_rule_set_publish) the response
-        carries a single-use vendor approval grant for the admin service.
+        carries a single-use vendor approval grant for the admin service. For device_revoke_over_quota identity owns
+        both the approval and the revoke, so this call revokes the device in the same transaction (ADR-0014 A2.5 item 3),
+        no grant is issued, the revoke counts against the requester's quota, and a device already revoked marks the
+        approval executed with no quota use. Repeating the revoke with the approval_id afterwards answers 200 and changes
+        nothing.
       tags:
       - vendor
       x-permission: admin.approval.decide
@@ -4835,6 +4855,9 @@ components:
       - role_assignments
       - created_at
       properties:
+        new_device_caution:
+          type: boolean
+          description: True while the member signed in from a binding under caution (a new device, 24 hours; strong-only actions are blocked). Shown to support so the owner can be told why an action is refused.
         id:
           $ref: ../../../common/components.yaml#/components/schemas/Id
         display_name:
@@ -5186,6 +5209,17 @@ components:
           type: object
           description: The exact body that will be repeated with the approval token.
           additionalProperties: true
+        method:
+          type: string
+          description: HTTP method of the repeated request. When absent identity takes it from operation_id.
+          enum:
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+        path:
+          type: string
+          description: Path of the repeated request with its ids as it will be sent. When absent identity takes the route of operation_id, which is only possible for an operation without path parameters; otherwise the request is refused 422.
     ApprovalRequest:
       type: object
       description: A pending, approved, rejected or lapsed caution approval. The approval token is returned
@@ -5193,6 +5227,10 @@ components:
       required:
       - id
       - operation_id
+      - method
+      - path
+      - subject
+      - target_hash
       - body_hash
       - state
       - created_at
@@ -5204,6 +5242,27 @@ components:
           type: string
           description: operationId of the refused operation.
           example: createMember
+        method:
+          type: string
+          description: HTTP method of the operation the approval releases; part of the target the token binds to.
+          enum:
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+          example: POST
+        path:
+          type: string
+          description: Request path with its ids exactly as the repeated request will send it, no query string; part of the target.
+          example: /v1/members
+        subject:
+          type: string
+          description: Human-readable statement of what will happen, built by identity from the stored operation (never from requester text) and shown to the approver.
+          example: Add member Latha (Cashier at Main Restaurant)
+        target_hash:
+          type: string
+          description: 'Hash of the whole target (claim th): "sha256:" and the lower-case hex SHA-256 over the UTF-8 text METHOD, newline, path, newline, the 64 hex digits of body_hash without its prefix. The token releases only a request whose method, path and body reproduce it (security review H1).'
+          pattern: ^sha256:[0-9a-f]{64}$
         body_hash:
           type: string
           description: 'Hash the approval token is bound to (claim bh): "sha256:" followed by the 64 lower-case
@@ -5231,7 +5290,8 @@ components:
         approval_token:
           type: string
           description: 'ES256 approval token, 5 minutes, single use; present once on approval. Claims:
-            typ approval, sid, op (operationId) and bh (hash of the request body). Sent on the repeated
+            typ approval, sid, op (operationId), bh (hash of the request body) and th (target hash over method, path and bh).
+            Sent on the repeated
             request in the Hostry-Approval header.'
           example: tok_example_approval
     ApprovalRequestPage:
@@ -5519,6 +5579,12 @@ components:
           type: string
           description: Display name.
           example: Priya
+        last_sign_in_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+          description: When the user last signed in; absent before the first sign-in.
+        can_approve_from:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+          description: From when the account may approve (created_at plus 7 days, ADR-0005 A2.3); in the past once eligible.
         role:
           $ref: '#/components/schemas/VendorRole'
         permissions:
@@ -6193,6 +6259,12 @@ components:
           $ref: ../../../common/components.yaml#/components/schemas/Id
         ticket_reference:
           $ref: ../../../common/components.yaml#/components/schemas/TicketReference
+        reason:
+          $ref: ../../../common/components.yaml#/components/schemas/Reason
+          description: The requester's reason, shown to the approver (Admin A0 AC 90).
+        subject:
+          type: string
+          description: Human-readable statement of what approving will do, built from the stored fields, for example "Suspend organisation Example Hospitality". The approver is shown this, never requester text.
         verification_method:
           $ref: '#/components/schemas/RequesterVerification'
         created_at:
@@ -6456,7 +6528,8 @@ components:
                 code: owner_exists
     VendorApprovalRequired:
       description: The revoke is over the quota (2 per organisation, 10 per vendor user, rolling 24 hours);
-        a second holder of admin.device.revoke must approve first (ADR-0005 A2.5).
+        a second holder of admin.device.revoke must approve first (ADR-0005 A2.5). The device is revoked the moment the
+        second person approves (ADR-0014 A2.5 item 3); repeating the revoke with approval_id is only a retry.
       content:
         application/problem+json:
           schema:

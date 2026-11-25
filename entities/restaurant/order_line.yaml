@@ -32,12 +32,18 @@ fields:
     required: false
     policy: immutable
     description: Variant.
+  variant_name:
+    type: string
+    required: false
+    policy: immutable
+    max_length: 40
+    description: Variant name snapshot, for example Full; absent when the line has no variant. `name` is the item name alone; a display joins them as "name (variant_name)".
   name:
     type: string
     required: true
     policy: immutable
     max_length: 80
-    description: Item name snapshot, English.
+    description: Item name snapshot, English, without the variant.
   kitchen_name:
     type: string
     required: true

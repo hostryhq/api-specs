@@ -373,3 +373,26 @@ intents:
     - insert
   idempotency: The business_day row is rank-forward (open to closed); a replayed or concurrent close is a no-op on the row
     and each close fact is kept.
+- intent: bill.reprint
+  intent_v: 1
+  class: trading
+  owner: billing
+  description: Record that a finalised bill was reprinted or shown again; the paper is marked COPY and carries the original number, never a new one.
+  permission: bill.reprint
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    bill_reprint:
+    - insert
+  idempotency: Every inserted row id is a client UUIDv7 carried in the op; an op is identified by (origin, stream, seq), so a replayed op is ignored and never inserts a second row.
+  x-provisional: Audit-only reprint log (entity bill_reprint); needs product confirmation.

@@ -5,6 +5,8 @@ description: An outlet or property was created.
 x-publisher: tenancy
 x-subscribers:
 - identity
+- billing
+- catalog
 allOf:
 - $ref: urn:hostry:events:envelope:v1
 - type: object
@@ -49,6 +51,19 @@ allOf:
         tax_registration_id:
           type: string
           description: The registration the outlet bills under.
+        tax_regime:
+          type: string
+          description: Regime of that registration (billing defaults to regular when a consumer predates this field). Absent when the registration is not yet known.
+          enum:
+          - regular
+          - composition
+          - unregistered
+        series_ids:
+          type: array
+          description: Ids of the outlet's open document series, so a consumer can tell which codes to expect. Ids only; codes arrive in tenancy.series.issued.
+          items:
+            type: string
+            description: A document series id.
 examples:
 - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f9123
   type: tenancy.outlet.created
@@ -59,10 +74,12 @@ examples:
   key: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
   key_seq: 1
   occurred_at: '2026-11-24T13:05:11.120Z'
-  actor: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+  actor: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
   data:
     outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
     brand_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6a
     kind: restaurant
     status: active
     tax_registration_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+    tax_regime: regular
+    series_ids: [0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6c, 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a95]

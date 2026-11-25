@@ -2523,7 +2523,7 @@ paths:
         effective date) matches; the lead time (deployment configuration, at least 24 hours) is checked here on
         billing''s clock: 422 effective_date_too_soon. Marks published and queues one emit per organisation (op
         id UUIDv5(tenant, version)) in one transaction; also emitted to every organisation created later (BR-A1-120).
-        Publishes billing.tax_rule_set.published and billing.vendor_access.recorded (vendor log only, no tenant).'
+        Publishes billing.tax_rule_set.published and billing.vendor_access.recorded (vendor log only, no tenant). approval_id is a parameter of the admin facade only: this route takes the approval from the grant (Hostry-Vendor-Approval, common/vendor.yaml) and never answers approval_not_executable; its refusals are grant.required, grant.invalid, grant.expired, grant.subject_mismatch and grant.used.'
       tags:
       - vendor
       x-permission: admin.taxrules.publish
@@ -5138,7 +5138,7 @@ components:
             status: 412
             code: precondition_failed
     GrantRefused:
-      description: Grant missing (grant.required), used, expired or for another subject (grant.subject_mismatch).
+      description: Grant missing (grant.required), malformed or not for this operation (grant.invalid, for signature, kid, typ, realm, aud, kind, organisation or approver), expired (grant.expired), for another subject (grant.subject_mismatch) or used (grant.used).
       content:
         application/problem+json:
           schema:

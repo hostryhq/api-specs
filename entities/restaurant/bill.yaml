@@ -166,6 +166,17 @@ fields:
     policy: immutable
     minimum: 0
     description: Packing charge.
+  packing_tax_class:
+    type: string
+    required: false
+    policy: immutable
+    max_length: 30
+    description: Tax class the packing charge was taxed in when the bill was made (calc input packing.tax_class); absent when there was no packing charge. A credit note reads it from here, never from the outlet settings of today.
+  round_off:
+    type: bool
+    required: false
+    policy: immutable
+    description: True when the outlet rounded the bill total to the whole rupee when the bill was made (calc input round_off); absent means false. A credit note reads it from here, never from the outlet settings of today.
   non_gst_subtotal_paise:
     type: paise
     required: true

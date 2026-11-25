@@ -19,6 +19,7 @@ info:
     series-issued: "The registration-verified world after identity issued series for device 4a5e: tax_invoice 4a6c (code A7K) and credit_note 4a95 (code A7M), both active since 13:15:11."
     registration-spare-verified: "The base world plus a second open registration 4a93 (GSTIN 29ABCDE1234F1ZW, state 29, verified at 13:10:11) that no outlet references and that has no series."
     link-none: "The base world with LINKS_ENABLED true, organisation 4a63 (Example Restaurants, outlet 4a94, registration with verified GSTIN 33AAAAA0000A1Z9) existing, and no link."
+    link-proposed: "LINKS_ENABLED true. The caller is the proposer 4a60. Link 4a62 (template on_premises_outlet, grant 4a72 test.echo.read outbound for outlet 4a61, pending) was proposed to nobody in particular at 13:05:11 and is still proposed; its first invitation code was shown once and is not stored; a later code was never issued."
     link-proposed-to-caller: "LINKS_ENABLED true. The caller is organisation 4a63 (outlet 4a94). Organisation 4a60 proposed link 4a62 (template on_premises_outlet, grant 4a72 test.echo.read outbound from 4a60 for outlet 4a61, pending) at 13:05:11; invitation code 7QK3M9XD7QK3M9XD is unused and unexpired. 4a60 has a verified registration 4a6b."
     link-accepted: "LINKS_ENABLED true. The caller is the proposer 4a60. Link 4a62 was accepted by 4a63 at 13:10:11 and awaits confirmation; grant 4a72 is pending."
     link-active: "LINKS_ENABLED true. The caller is the proposer 4a60. Link 4a62 is active (accepted 13:10:11, confirmed 13:20:11) with grant 4a72 active; activity holds link.proposed, link.accepted and link.confirmed. The service token of getLinkDecision acts for 4a63."
@@ -378,6 +379,62 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/NotFound
         '422':
           $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/outlets/{outlet_id}/tax-registration:
+    put:
+      operationId: changeOutletTaxRegistration
+      summary: Move an outlet to another tax registration
+      description: 'ADR-0014 A2.5 item 1. The target must belong to the organisation, be open, and be verified or of regime unregistered (409 registration_not_eligible otherwise). Refused 409 open_trading_day while the outlet has a trading day in progress, so one business day has one registration. In one transaction the outlet points at the target and every series of that outlet under the old registration is closed (it then reads closed, awaiting device); tenancy.outlet.updated and tenancy.series.closed are published, ids and codes only. Identity issues codes under the new registration in the next pack. A device switches series only when it holds no day in progress; a bill an offline device makes later under the old series is flagged for the accountant, never rejected. Idempotent: the same target again returns the outlet.'
+      tags:
+      - tenancy
+      x-permission: tax_registration.manage
+      x-step-up: true
+      x-outlet-scoped: true
+      x-example-world: registration-spare-verified
+      parameters:
+      - name: outlet_id
+        in: path
+        required: true
+        description: Outlet or property ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangeOutletTaxRegistration'
+            example:
+              tax_registration_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a93
+              reason: Moved the outlet to the new GSTIN.
+      responses:
+        '200':
+          description: The outlet under the new registration.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Outlet'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                brand_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6a
+                name: Main Restaurant
+                kind: restaurant
+                status: active
+                state_code: '33'
+                tax_registration_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a93
+                timezone: Asia/Kolkata
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/StepUpRequired'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
   /v1/tax-registrations:
     get:
       operationId: listTaxRegistrations
@@ -550,11 +607,13 @@ paths:
     put:
       operationId: closeTaxRegistration
       summary: Close a tax registration and its series
-      description: 'ADR-0003 A1.1 item 6: a verified GSTIN is fixed, so a different GSTIN is a new registration
-        and the old one is closed here, together with all its series (status closed; a series with an
-        unreconciled tail is closed with the unreconciled marker instead). 409 registration_in_use while
-        an active outlet still references the registration. Closing is terminal and idempotent. Publishes
-        no event in v1.'
+      description: 'ADR-0003 A1.1 item 6, ADR-0014 A2.5 item 1: a verified GSTIN is fixed, so a different GSTIN is a new registration
+        and the old one is closed here together with all its series. Every open series becomes closed; this operation never
+        sets closed_unreconciled, because tenancy cannot know what a device still holds. The series reads "closed, awaiting
+        device" until the device states its last number (series.close) and billing publishes billing.series.reconciled, which
+        fills tail_confirmed_at and last_number. 409 registration_in_use while an outlet still references the registration:
+        move the outlet first with changeOutletTaxRegistration. Closing is terminal and idempotent. Publishes
+        tenancy.series.closed for every series it closes.'
       tags:
       - tenancy
       x-permission: tax_registration.manage
@@ -748,6 +807,7 @@ paths:
     put:
       operationId: closeDocumentSeriesUnreconciled
       summary: Close a series with an unreconciled tail
+      description: A person's terminal decision, with a reason, that the device will not come back (ADR-0003 section 1a). Offered only while tail_confirmed_at is empty (409 tail_confirmed after a device stated its tail). Numbers that arrive after either kind of closure are flagged and listed as "after closure". Publishes tenancy.series.closed with cause closed_unreconciled.
       tags:
       - tenancy
       x-permission: series.close_unreconciled
@@ -880,8 +940,7 @@ paths:
               - 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
       responses:
         '201':
-          description: Link proposed; the invitation code is shown once. Expires in 14 days. A replay
-            returns the same proposal.
+          description: Link proposed; the invitation code is shown once and never stored (ADR-0003 Note N1 R1). Expires in 14 days. A replay with the same Idempotency-Key returns the link without invitation_code; use reissueLinkInvitation for a fresh code. No one-time secret is kept in an idempotency record.
           content:
             application/json:
               schema:
@@ -964,6 +1023,59 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/Forbidden
         '404':
           $ref: ../../../common/components.yaml#/components/responses/NotFound
+  /v1/links/{link_id}/invitations:
+    post:
+      operationId: reissueLinkInvitation
+      summary: Issue a fresh invitation code for a proposed link
+      description: 'ADR-0003 Note N1 R1. Only the proposer, only while the link is proposed (409 link_not_proposed otherwise). The previous code stops working at once. The new code is shown once in this response and is never stored readable; a replay of the same Idempotency-Key returns the link without a code, never the code again.'
+      tags:
+      - links
+      x-permission: link.manage
+      x-step-up: true
+      x-feature-flag: LINKS_ENABLED
+      x-example-world: link-proposed
+      parameters:
+      - name: link_id
+        in: path
+        required: true
+        description: Link ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a62
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      responses:
+        '200':
+          description: The link and a fresh invitation code, shown once.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LinkProposal'
+              example:
+                link:
+                  id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a62
+                  template: on_premises_outlet
+                  status: proposed
+                  role: proposer
+                  grants:
+                  - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a72
+                    scope: test.echo.read
+                    direction: outbound
+                    outlet_ids:
+                    - 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                    status: pending
+                  proposed_at: '2026-11-24T13:05:11.120Z'
+                  expires_at: '2026-12-08T13:05:11.120Z'
+                invitation_code: 8WZ4TX2VH6JN3PCD
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/StepUpRequired'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '429':
+          $ref: ../../../common/components.yaml#/components/responses/TooManyRequests
   /v1/link-acceptances:
     post:
       operationId: acceptLink
@@ -4436,6 +4548,13 @@ components:
           $ref: ../../../common/components.yaml#/components/schemas/Timestamp
         closed_at:
           $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+        tail_confirmed_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+          description: When billing confirmed that its register holds every number up to last_number (billing.series.reconciled). Empty at closure; a series that is closed and has no tail_confirmed_at reads "closed, awaiting device" (ADR-0014 A2.5 item 2).
+        last_number:
+          type: integer
+          description: The last running number the device stated when it closed the series (control intent series.close, or its drain record). Empty at closure and until reconciled.
+          minimum: 0
       additionalProperties: false
     DocumentSeriesPage:
       type: object
@@ -4732,14 +4851,13 @@ components:
       description: The proposed link and its one-time invitation code.
       required:
       - link
-      - invitation_code
       properties:
         link:
           $ref: '#/components/schemas/Link'
         invitation_code:
           type: string
           description: At least 80 bits from a CSPRNG (16 characters of a 32-symbol alphabet), single
-            use, 14 days. Shown once; also the QR payload.
+            use, 14 days. Shown once; also the QR payload. Absent on an idempotent replay and never stored, so a lost code is replaced with reissueLinkInvitation.
           pattern: ^[0-9A-HJKMNP-TV-Z]{16}$
           example: 7QK3M9XD7QK3M9XD
     AcceptLink:
@@ -5186,6 +5304,18 @@ components:
       required:
       - reason
       properties:
+        reason:
+          $ref: ../../../common/components.yaml#/components/schemas/Reason
+    ChangeOutletTaxRegistration:
+      type: object
+      description: Move an outlet to another registration of the same organisation. The reason is the record for the auditor.
+      required:
+      - tax_registration_id
+      - reason
+      properties:
+        tax_registration_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+          description: The target registration.
         reason:
           $ref: ../../../common/components.yaml#/components/schemas/Reason
     CloseRegistration:
@@ -6250,7 +6380,7 @@ components:
             status: 409
             code: open_trading_day
     GrantRefused:
-      description: Grant missing (grant.required), used, expired or for another subject (grant.subject_mismatch).
+      description: Grant missing (grant.required), malformed or not for this operation (grant.invalid, for signature, kid, typ, realm, aud, kind, organisation or approver), expired (grant.expired), for another subject (grant.subject_mismatch) or used (grant.used).
       content:
         application/problem+json:
           schema:

@@ -461,6 +461,13 @@ paths:
         schema:
           $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/OrganisationStatus
         example: trial
+      - name: has_unverified_registration
+        in: query
+        required: false
+        description: When true, only organisations with at least one open tax registration that is not yet verified (the onboarding work queue, Admin A0 AC 73 and 74); when false, only those without.
+        schema:
+          type: boolean
+        example: true
       - $ref: ../../../common/components.yaml#/components/parameters/Cursor
       - $ref: ../../../common/components.yaml#/components/parameters/VendorLimit
       responses:
@@ -923,6 +930,74 @@ paths:
                   state: verified
                   method: certificate_seen
                   verified_at: '2026-11-24T13:10:11.120Z'
+                status: open
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: '#/components/responses/GstinInUse'
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+  /v1/organisations/{organisation_id}/tax-registrations/{registration_id}/rejection:
+    put:
+      operationId: rejectTaxRegistration
+      summary: Reject a tax registration
+      description: Named panel operation on tenancy rejectTaxRegistration (Admin A0 AC 73 and 74), where vendor staff reject a registration whose GSTIN could not be proven. Allowed only while it is unverified (409 otherwise). The reason is kept in the vendor and tenant audit logs, never in the registration. Idempotent.
+      tags:
+      - admin
+      x-permission: admin.registration.verify
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - name: registration_id
+        in: path
+        required: true
+        description: Tax registration ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        description: Per-session CSRF token from signIn or getSession. Required on every state-changing
+          request together with a matching Origin.
+        schema:
+          type: string
+        example: csrf_example_token
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/RejectRegistration
+            example:
+              reason: The certificate shown does not match the legal name.
+      responses:
+        '200':
+          description: Registration rejected (idempotent). No series can be issued for it; the tenant may correct the GSTIN or close the registration.
+          content:
+            application/json:
+              schema:
+                $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/TaxRegistration
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+                legal_name: Example Hospitality Pvt Ltd
+                regime: regular
+                gstin: 33ABCDE1234F1Z7
+                state_code: '33'
+                verification:
+                  state: rejected
+                  rejected_at: '2026-11-24T13:10:11.120Z'
                 status: open
                 created_at: '2026-11-24T13:05:11.120Z'
         '401':
@@ -4544,10 +4619,28 @@ components:
     ApprovalDecisionView:
       type: object
       description: Result of an approval decision as the browser sees it. The vendor approval grant of
-        the executing kinds stays in the admin service and is never included.
+        the executing kinds stays in the admin service and is never included. For the kinds executed outside identity
+        the approver's Approve call approves and executes in one request (ADR-0014 A2.5 item 4); a guard refusal keeps
+        its own code in execution and leaves the approval approved, and the named operation with approval_id is the retry.
       required:
       - approval
       properties:
+        execution:
+          type: object
+          description: What happened to the action itself. Absent for kinds identity does not hand to another service.
+          required:
+          - state
+          properties:
+            state:
+              type: string
+              description: executed, or refused when a guard (open_trading_day, lead time, not signed) stopped it and the approval stays approved.
+              enum:
+              - executed
+              - refused
+            code:
+              type: string
+              description: The guard's problem code when state is refused.
+              example: open_trading_day
         approval:
           $ref: ../../identity/v1/openapi.yaml#/components/schemas/VendorApproval
         code_half:
@@ -5057,7 +5150,7 @@ components:
                 status: 403
                 code: csrf_failed
     ExecuteConflict:
-      description: The approval is not executable by this caller (not approved, not theirs, used or expired), the organisation
+      description: The approval is not executable by this caller (409 approval_not_executable with reason not_approved, lapsed, executed, not_approver or subject_changed; only this service answers it, from identity's refusal to issue a grant), the organisation
         has a trading day in progress (suspend and close), or the state does not allow the action (rule set not signed).
         Nothing changed; the approval stays approved unless used.
       content:
@@ -5071,6 +5164,7 @@ components:
                 title: The approval cannot be executed
                 status: 409
                 code: approval_not_executable
+                reason: not_approved
             trading:
               value:
                 type: urn:hostry:problem:open_trading_day

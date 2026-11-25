@@ -113,6 +113,10 @@ components:
           type: string
           description: Stable machine-readable error code (also the suffix of `type`); doubles as the i18n key base.
           example: not_found
+        reason:
+          type: string
+          description: Optional sub-code that refines `code`, for example approval_not_executable carries not_approved, lapsed, executed, not_approver or subject_changed.
+          example: not_approved
         errors:
           type: array
           description: Field-level validation errors.
@@ -217,8 +221,11 @@ components:
       required: false
       description: >-
         Per-operation approval token (ADR-0005 A2.2). ES256, typ approval, 5 minutes, single use;
-        claims include op (the operationId) and bh (hash of the request body), so it releases only
-        that one request. Needed when the binding is under caution and the operation is blocked.
+        claims include op (the operationId), bh (hash of the request body) and th (target hash), so it releases only
+        that one request on that one target. th is the lower-case hex SHA-256 over the UTF-8 text METHOD, a newline, the
+        request path with its ids exactly as sent (no query string), a newline and the 64 hex digits of bh (no sha256:
+        prefix), for example "POST\n/v1/members\n<bh hex>"; the verifier recomputes it from the request it received
+        and refuses a token whose th differs (403 approval.target_mismatch). Needed when the binding is under caution and the operation is blocked.
       schema:
         type: string
       example: tok_example_approval
