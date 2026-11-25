@@ -18,6 +18,8 @@ info:
       counted as a live line), KOT 6021 (P1-0007, printed, carrying both lines, so line_count 2), station 5131, and one
       present record. Reason code 5161 is the wastage reason. No exception exists. The caller is a manager.
     orphan-line: Base plus an open exception 6041 (orphan_line, subject order_line 6011).
+    digest-day: Outlet 4a61, business date 2026-11-24 holds exactly the rows of examples/digests/orders-digest-day.json (check 6001, order 6051, lines 6011 and 6012, KOT 6021) and no other day-scoped orders row.
+    kitchen-times-day: Outlet 4a61, business date 2026-11-24, station 5131, 42 ticket lines reached ready (line 6011 among them), median 420 seconds, 95th percentile 980 seconds, and one line (6012) was cancelled after the kitchen had started it.
     no-open-checks: Outlet 4a61 with no open check (every check billed or cancelled). The caller is the billing
       service.
 servers:
@@ -150,6 +152,19 @@ paths:
                   tax_class: fnb_standard
                   state: sent
                   kitchen_status: ready
+                - order_line_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6012
+                  item_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5101
+                  name: Paneer Tikka
+                  qty_milli: 1000
+                  unit_price:
+                    amount_paise: 24000
+                    currency: INR
+                  modifier_delta:
+                    amount_paise: 2000
+                    currency: INR
+                  tax_class: fnb_standard
+                  state: cancelled
+                  kitchen_status: preparing
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -264,6 +279,7 @@ paths:
   /v1/projection-digests:
     get:
       operationId: getOrdersProjectionDigest
+      x-example-world: digest-day
       summary: Digest of the orders projection of a business day
       description: 'Test and reconciliation aid (ADR-0014 T9): the digest must equal the one a device computes from
         its local orders entities for the same business day.'
@@ -292,11 +308,20 @@ paths:
                 outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
                 business_date: '2026-11-24'
                 algorithm: sha256-canon-v1
-                state_hash: 2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae
+                state_hash: cd0905f0b5593bc83ef0020edaf1fb8f19ce687ebe99f6120c9b82b24617d580
                 entities:
+                - entity: check
+                  row_count: 1
+                  hash: d8bafe95ec075af7f462d3a99b90bd0e6575d49bb23ca545ddead1e01ace8ba3
+                - entity: kot
+                  row_count: 1
+                  hash: 20a802bef95d08902c72a1932164b9a9dfa1b3e80018b4c1f2c707b758978128
+                - entity: order
+                  row_count: 1
+                  hash: ed1d9cddf7e72b2d3938059cd26309dda21f1f010af355698238d1b22631657e
                 - entity: order_line
-                  row_count: 120
-                  hash: 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08
+                  row_count: 2
+                  hash: 87cf421fb2ced4e70781ed8fcd86fe0fee8253b84e48d508d3dd8a1a0afdb623
                 computed_at: '2026-11-24T13:05:11.120Z'
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
@@ -390,6 +415,7 @@ paths:
   /v1/reports/kitchen-times:
     get:
       operationId: getKitchenTimeReport
+      x-example-world: kitchen-times-day
       summary: Kitchen preparation times
       description: Median and 95th percentile preparation time per station and day. Needs the internet (RM-R5);
         offline the app shows the device's open-day version. Operational reports use business date (RM-R4). Cursor-paged;
@@ -1357,7 +1383,7 @@ components:
           example: 120
         hash:
           type: string
-          description: Lowercase hex SHA-256 of the canonical rows.
+          description: Lowercase hex SHA-256 over the canonical row texts of the entity, ascending id, each followed by a line feed.
           example: 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08
       required:
       - entity
@@ -1365,8 +1391,7 @@ components:
       - hash
     ProjectionDigest:
       type: object
-      description: 'Digest of this service''s projection of one outlet business day, to compare with a device''s
-        local state (ADR-0014 test T9). x-provisional: the canonical-row rule belongs to go-common/sync.'
+      description: 'Digest of this service''s projection of one outlet business day, to compare with a device''s local state (ADR-0014 tests T2, T9, T11). Algorithm sha256-canon-v1 (sync/protocol-v1.md, Projection digest): the rows of the entities this service owns that belong to the business day (a business_date equal to it, or a parent that has one), tombstoned rows left out. A row is the canonical JSON (RFC 8785, integers only) of an object holding id and every schema field the row has set, without pii fields and without absent fields. An entity digest is the lower-case hex SHA-256 over the row texts in ascending id order, each followed by a line feed; state_hash is the SHA-256 over the line ''<entity>, line feed, row_count, line feed, hash, line feed'' for each listed entity in ascending name order. Only entities with at least one row are listed. examples/digests holds the rows of the example world and CI recomputes the example from them.'
       properties:
         outlet_id:
           $ref: ../../../common/components.yaml#/components/schemas/Id
@@ -1383,7 +1408,7 @@ components:
           example: sha256-canon-v1
         state_hash:
           type: string
-          description: SHA-256 over the entity digests in entity-name order.
+          description: Lower-case hex SHA-256 over the entity digests in ascending entity-name order (see the schema description).
           example: 2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae
         entities:
           type: array

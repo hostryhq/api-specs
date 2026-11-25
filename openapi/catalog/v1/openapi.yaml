@@ -557,6 +557,7 @@ paths:
       x-permission-widened-by: catalog.import
       x-provisional: Act-mode access stays off until security-reviewer signs catalog.import.
       parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/OutletScope
       - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
       requestBody:
         required: true

@@ -22,6 +22,7 @@ info:
       rule set c799 (unreviewed) in force, outlet billing config at defaults (number_at settle), orders reports
       no open check. No exception, no gap, no draft rule set. The caller is an owner (strong session) or, on /internal/v1/vendor
       routes, the admin service with a vendor user holding the needed permission.
+    digest-day: Outlet 4a61, business date 2026-11-24 holds exactly the rows of examples/digests/billing-digest-day.json (bill 7001 and cash payment 7021) and no other day-scoped billing row.
     payments-exceed: Base plus an open exception 7091 (payments_exceed_total on bill 7001) after a second payment
       was taken on another device.
     gap-open: Base plus an open gap in the document register, series A7K, FY 2627, number 57 is missing (gap 70b1,
@@ -111,7 +112,7 @@ paths:
           - stale_rules
           - profile_mismatch
           - manual_entry
-        example: mismatch
+        example: verified
       - $ref: ../../../common/components.yaml#/components/parameters/Cursor
       - $ref: ../../../common/components.yaml#/components/parameters/Limit
       responses:
@@ -1148,7 +1149,7 @@ paths:
     put:
       operationId: setDiscountLimit
       summary: Set the cashier discount limit
-      description: strong_only (RM-D2). The number never travels in tokens. Emits a billing_settings config op.
+      description: strong_only (RM-D2). The number never travels in tokens. Emits a billing_settings config op, a set of discount_limit_bp, or an insert of the row with defaults when the outlet has none yet.
       tags:
       - billing
       x-permission: bill.discount.limit.edit
@@ -1251,8 +1252,9 @@ paths:
       operationId: setOutletTaxProfile
       summary: Set the GST profile of an outlet for a financial year
       description: strong_only, online only (RM-T2, RM-A5); audited. The specified-premises flag is refused 422
-        specified_premises_retroactive for a financial year that started more than the allowed days ago. Emits an
-        outlet_tax_profile config op (lww + review).
+        specified_premises_retroactive for a financial year that started more than the allowed days ago. Emits one
+        settings.tax_profile.set config op (lww + review) that carries the outlet_tax_profile row and, when price_mode
+        is sent, price_mode on the outlet's billing_settings row (set, or an insert with defaults when the row does not exist).
       tags:
       - billing
       x-permission: settings.gst_profile.edit
@@ -1377,6 +1379,7 @@ paths:
   /v1/projection-digests:
     get:
       operationId: getBillingProjectionDigest
+      x-example-world: digest-day
       summary: Digest of the billing projection of a business day
       description: 'Test and reconciliation aid (ADR-0014 T2, T9, T11): equals the digest a device computes from
         its local billing entities for the day, after late documents are included.'
@@ -1405,11 +1408,14 @@ paths:
                 outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
                 business_date: '2026-11-24'
                 algorithm: sha256-canon-v1
-                state_hash: 2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae
+                state_hash: 43f2a702dcf3df58a3cee4a98592984c64e6c8a0639ae20735a7f0689e9ecdd6
                 entities:
                 - entity: bill
                   row_count: 1
-                  hash: 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08
+                  hash: bf395d74aae34b4d748b945cf0fe4c8b6266afbbb0d6b6da3f6dc94e95bd3c4e
+                - entity: payment
+                  row_count: 1
+                  hash: 83b76619863814c9bdaea86d267e6f736a7d43df470477b9dbeca54047da5885
                 computed_at: '2026-11-24T13:05:11.120Z'
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
@@ -5091,7 +5097,7 @@ components:
           example: 12
         hash:
           type: string
-          description: Lowercase hex SHA-256 of the canonical rows.
+          description: Lowercase hex SHA-256 over the canonical row texts of the entity, ascending id, each followed by a line feed.
           example: 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08
       required:
       - entity
@@ -5099,8 +5105,7 @@ components:
       - hash
     ProjectionDigest:
       type: object
-      description: 'Digest of this service''s projection of one outlet business day, to compare with a device''s
-        local state (ADR-0014 tests T2, T9, T11). x-provisional: the canonical-row rule belongs to go-common/sync.'
+      description: 'Digest of this service''s projection of one outlet business day, to compare with a device''s local state (ADR-0014 tests T2, T9, T11). Algorithm sha256-canon-v1 (sync/protocol-v1.md, Projection digest): the rows of the entities this service owns that belong to the business day (a business_date equal to it, or a parent that has one), tombstoned rows left out. A row is the canonical JSON (RFC 8785, integers only) of an object holding id and every schema field the row has set, without pii fields and without absent fields. An entity digest is the lower-case hex SHA-256 over the row texts in ascending id order, each followed by a line feed; state_hash is the SHA-256 over the line ''<entity>, line feed, row_count, line feed, hash, line feed'' for each listed entity in ascending name order. Only entities with at least one row are listed. examples/digests holds the rows of the example world and CI recomputes the example from them.'
       properties:
         outlet_id:
           $ref: ../../../common/components.yaml#/components/schemas/Id
@@ -5117,7 +5122,7 @@ components:
           example: sha256-canon-v1
         state_hash:
           type: string
-          description: SHA-256 over the entity digests in entity-name order.
+          description: Lower-case hex SHA-256 over the entity digests in ascending entity-name order (see the schema description).
           example: 2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae
         entities:
           type: array
