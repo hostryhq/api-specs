@@ -2118,7 +2118,7 @@ paths:
               schema:
                 $ref: ../../../common/components.yaml#/components/schemas/EntitlementSnapshot
               example:
-                entitlements_v: 2
+                entitlements_v: 3
                 plan_key: table_service
                 plan_version: 1
                 features:
