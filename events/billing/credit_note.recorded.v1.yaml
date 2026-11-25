@@ -53,8 +53,9 @@ allOf:
           description: A late document.
         verification:
           type: string
-          description: Result.
+          description: Result of the recomputation; `pending` while billing has not yet verified the document.
           enum:
+          - pending
           - verified
           - mismatch
           - stale_rules

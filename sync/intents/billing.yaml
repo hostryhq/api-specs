@@ -186,7 +186,7 @@ intents:
     limit_setting: rebill_allowance_per_shift
     checked_by: device and again by billing as a detector
   above_allowance:
-    approval_permission: bill.credit_note.create
+    use_intent: bill.rebill.approved
   sessions:
   - pin
   - strong
@@ -219,8 +219,60 @@ intents:
   - customer_gstin
   idempotency: All new ids are client UUIDv7 and share one rebill_group_id; every number is allocated in the one local transaction;
     replay never allocates again.
-  x-provisional: Above the allowance the spec says "a manager's approval"; the approval is taken as one for bill.credit_note.create.
-    Confirm with security-reviewer.
+  x-provisional: Above the allowance, and for a bill with a payment, the spec says "a manager's approval"; it is taken as one for bill.credit_note.create and
+    carried by bill.rebill.approved (an action proof binding the original bill and the value change). Confirm with security-reviewer.
+- intent: bill.rebill.approved
+  intent_v: 1
+  class: trading
+  owner: billing
+  description: 'The same single op as bill.rebill (a full credit note plus the replacement bills) taken with a manager''s approval: a re-bill after
+    payment, or one past the member''s re-bill allowance per shift. The approval is the sensitive permission of the credit note; it names the original bill
+    and the value change, so it cannot be cited for another bill or a different replacement value.'
+  permission: bill.credit_note.create
+  proof:
+    kind: action
+    binds:
+    - bill_id
+    - rebill_group_id
+    - total_paise
+    - replacement_total_paise
+  override: true
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: allocated
+  documents:
+  - credit_note
+  - tax_invoice
+  - bill_of_supply
+  - plain_bill
+  entities:
+    credit_note:
+    - insert
+    credit_note_line:
+    - insert
+    credit_note_tax_line:
+    - insert
+    bill:
+    - insert
+    bill_line:
+    - insert
+    bill_tax_line:
+    - insert
+  pii_fields:
+  - customer_name
+  - customer_gstin
+  idempotency: As bill.rebill. The citing op records `bill_id` (the original bill, `credit_note.bill_id`), `rebill_group_id`, `total_paise` (the credit note total,
+    the value withdrawn) and `replacement_total_paise` (the sum of the replacement bills' `total_paise` in the group), and the approval's action hash is over those
+    values (sync/protocol-v1.md, Approval citation). A re-bill that lowers the value, or repeats a reduction, is a billing exception (rebill_value_reduced,
+    rebill_value_reduction_over_allowance, rebill_value_reduction_repeated) whether or not it was approved.
+  x-provisional: replacement_total_paise is a derived sum that both the device and the gateway compute from the group's bills; confirm with security-reviewer that
+    it is a bindable value, and that a re-bill after payment is always approved (bill.rebill is refused by the device once the bill has a payment).
 - intent: drawer.cash_move
   intent_v: 1
   class: trading

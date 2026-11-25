@@ -935,7 +935,10 @@ paths:
       summary: List billing exceptions
       description: 'Detector findings: payments_exceed_total, line_on_two_bills, two_bills_one_check, doc_type_regime_mismatch,
         tax_mismatch, stale_rules, profile_mismatch, manual_entry, manual_book_missing_number, document_gap, series_quarantined,
-        two_open_days, late_document, allowance_exceeded, handover_skipped. A bill is never altered or rejected;
+        two_open_days, late_document, allowance_exceeded, handover_skipped, and the document-integrity kinds credit_exceeds_bill (high: credit
+        notes against a bill exceed its value), duplicate_number (high: two documents with one number in a series), rebill_after_payment,
+        rebill_allowance_exceeded, rebill_value_reduced, rebill_value_reduction_over_allowance, rebill_value_reduction_repeated (high) and
+        comp_allowance_exceeded. Severity is warning unless marked high. A bill is never altered or rejected;
         the remedy is a new op (refund or credit note).'
       tags:
       - billing

@@ -51,6 +51,12 @@ allOf:
         tax_registration_id:
           type: string
           description: The registration the outlet bills under.
+        effective_from:
+          type: string
+          format: date
+          description: IST business date from which `tax_registration_id` (and `tax_regime`) apply. The outlet switches at its next trading-day open
+            (ADR-0014 A2.5), so a registration change takes effect on the date of that open, never mid-day; billing starts its registration era on it.
+            Absent on an update that does not change the registration (a consumer then keeps the current era).
         tax_regime:
           type: string
           description: Regime of that registration (billing defaults to regular when a consumer predates this field). Absent when the registration is not yet known.
@@ -81,5 +87,6 @@ examples:
     kind: restaurant
     status: active
     tax_registration_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+    effective_from: '2026-11-25'
     tax_regime: regular
     series_ids: [0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6c, 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a95]

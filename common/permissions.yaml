@@ -64,7 +64,7 @@ permissions:
   - {key: order.create, realm: tenant, service: orders, description_key: perm.order.create, flags: []}
   - {key: order.edit, realm: tenant, service: orders, description_key: perm.order.edit, flags: []}
   - {key: order.line.cancel, realm: tenant, service: orders, description_key: perm.order.line.cancel, flags: [sensitive]}  # P
-  - {key: order.line.cancel.grace, realm: tenant, service: orders, description_key: perm.order.line.cancel.grace, flags: []}  # A
+  - {key: order.line.cancel.grace, realm: tenant, service: orders, description_key: perm.order.line.cancel.grace, flags: []}  # A  Grace cancel: a line still kitchen-new, within outlet_settings.cancel_grace_seconds (default 120 s), on a check that has not been presented; counted per member per shift.
   - {key: order.items.move, realm: tenant, service: orders, description_key: perm.order.items.move, flags: []}
   - {key: order.table.move, realm: tenant, service: orders, description_key: perm.order.table.move, flags: []}
   - {key: order.table.merge, realm: tenant, service: orders, description_key: perm.order.table.merge, flags: []}

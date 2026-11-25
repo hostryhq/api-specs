@@ -125,3 +125,4 @@ detectors:
 written_by_intents:
 - creditnote.issue
 - bill.rebill
+- bill.rebill.approved

@@ -66,8 +66,9 @@ allOf:
           description: A late document of a closed business day.
         verification:
           type: string
-          description: Result of the recomputation.
+          description: Result of the recomputation; `pending` while billing has not yet verified the document (it emits the event first and the verified result follows as an exception or not at all).
           enum:
+          - pending
           - verified
           - mismatch
           - stale_rules

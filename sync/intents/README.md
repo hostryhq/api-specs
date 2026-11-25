@@ -52,7 +52,7 @@ is written by at least one intent. A guarded (money or tax) entity is never chan
 | Choice | Intent | Needs |
 |---|---|---|
 | Catalogue keys `series.activate` and `device.clock.confirm` added (the spec and ADR-0005 section 8 name the actions; the catalogue lacked them) | `series.activate`, `device.clock.confirm` | `security-reviewer`; ADR-0005 owner |
-| Above the re-bill allowance a manager's approval is for `bill.credit_note.create` | `bill.rebill` | `security-reviewer` |
+| Above the re-bill allowance, or for a bill with a payment, a manager's approval is for `bill.credit_note.create`, carried by the action-proof intent `bill.rebill.approved` that binds `bill_id`, `rebill_group_id`, `total_paise`, `replacement_total_paise` | `bill.rebill`, `bill.rebill.approved` | `security-reviewer` |
 | Internal closure and open item use `bill.line.comp` beyond their allowance; their limit setting keys are new | `check.close_internal`, `menu.open_item` | product |
 | `menu.price.outlet_set` (per-outlet override, Could) replaces `menu.price.set` in `item_outlet.written_by_intents` because an op has one stream | `menu.price.outlet_set` | product |
 | `approval.self_confirm` (own-PIN reconfirmation, requester = approver) beside the two-person `approval.grant`; action hash over `{intent, permission, requester, target, approval_id, reason, values}`; device-session lifetime re-opened each business day, at most 26 h, exempt from the 16 h PIN-session limit (sync/protocol-v1.md) | `approval.self_confirm`, `approval.grant`, `session.open` | `security-reviewer` |
