@@ -162,15 +162,20 @@ func Commit(salt []byte, value any) (string, error) {
 	return sum(append(append([]byte{}, salt...), c...)), nil
 }
 
-// RowText is the canonical text of one row in the projection digest: the JCS of an object holding "id" and every field
-// the row has set (absent and null fields omitted), without pii fields.
-func RowText(id string, fields map[string]any, pii map[string]bool) (string, error) {
+// RowText is the canonical text of one row in the projection digest (ADR-0014 A3.2): the JCS of an object holding "id", every
+// non-pii field the row has set (absent and null fields omitted) and, for each pii field the row holds a commitment for, the
+// member "~c:<field>" = that commitment (lower-case hex). A pii value or salt is never part of the text, so the text, and every hash
+// over it, is equal on a node that holds the value, a node that does not (a kds) and a node where the field was erased.
+func RowText(id string, fields map[string]any, pii map[string]bool, commitments map[string]string) (string, error) {
 	o := map[string]any{"id": id}
 	for k, v := range fields {
 		if v == nil || pii[k] {
 			continue
 		}
 		o[k] = v
+	}
+	for k, c := range commitments {
+		o["~c:"+k] = c
 	}
 	b, err := JCS(o)
 	return string(b), err

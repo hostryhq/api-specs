@@ -5,12 +5,15 @@ package syncspec
 
 import (
 	"crypto/ecdsa"
+	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
+	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -85,7 +88,46 @@ type vectors struct {
 		StatementHash string `json:"statement_hash"`
 		SigValid      bool   `json:"sig_valid"`
 	} `json:"drain_statement"`
-	ExamplePack map[string]string `json:"example_pack"`
+	ExamplePack   map[string]string `json:"example_pack"`
+	ApprovalProof struct {
+		ProofKey string `json:"proof_key"`
+		Cases    []struct {
+			Case, Kind, Message, Proof string
+			ActionHash                 string `json:"action_hash"`
+			SessionID                  string `json:"session_id"`
+			DeviceID                   string `json:"device_id"`
+			MemberID                   string `json:"member_id"`
+			PackV                      int    `json:"pack_v"`
+			PinV                       int    `json:"pin_v"`
+			OpenedAt                   string `json:"opened_at"`
+			ApprovalID                 string `json:"approval_id"`
+			Permission, Target         string
+			RequesterID                string `json:"requester_id"`
+			ApprovedAt                 string `json:"approved_at"`
+			Reason                     string
+		} `json:"cases"`
+	} `json:"approval_proof"`
+	ActionHash []struct {
+		Case, Intent string
+		Binds        map[string]any
+		JCS          string `json:"jcs"`
+		ActionHash   string `json:"action_hash"`
+	} `json:"action_hash"`
+	DigestRow []struct {
+		Case, Entity, ID string
+		PIIFields        []string          `json:"pii_fields"`
+		Fields           map[string]any    `json:"fields"`
+		PIIValues        map[string]any    `json:"pii_values"`
+		Commitments      map[string]string `json:"commitments"`
+		RowText          string            `json:"row_text"`
+		EntityHash       string            `json:"entity_hash"`
+	} `json:"digest_row"`
+	PIIPlacement struct {
+		Cases []struct {
+			Kind      string
+			PIIServed bool `json:"pii_served"`
+		} `json:"cases"`
+	} `json:"pii_placement"`
 }
 
 func load(t *testing.T) vectors {
@@ -215,6 +257,83 @@ func TestVectorsAreSelfConsistent(t *testing.T) {
 		if got := sum(string(full)); got != c.StatementHash {
 			t.Errorf("drain %q: statement_hash %s, vector says %s", c.Case, got, c.StatementHash)
 		}
+	}
+	if len(v.ApprovalProof.Cases) < 4 {
+		t.Error("approval_proof vectors are required (identity ApprovalProofMessageBound, ADR-0005 A3.1)")
+	}
+	key, err := base64.RawURLEncoding.DecodeString(v.ApprovalProof.ProofKey)
+	if err != nil {
+		t.Fatalf("approval_proof key: %v", err)
+	}
+	for _, c := range v.ApprovalProof.Cases {
+		var msg string
+		switch c.Kind {
+		case "session":
+			msg = strings.Join([]string{"session", c.SessionID, c.DeviceID, c.MemberID, strconv.Itoa(c.PackV), strconv.Itoa(c.PinV), c.OpenedAt}, "|")
+		case "approval":
+			msg = strings.Join([]string{"approval", c.ActionHash, c.DeviceID, c.MemberID, strconv.Itoa(c.PackV), strconv.Itoa(c.PinV), c.ApprovalID,
+				c.Permission, strconv.Quote(c.Target), c.RequesterID, c.ApprovedAt, strconv.Quote(c.Reason)}, "|")
+		default:
+			t.Errorf("approval_proof %q: unknown kind %q", c.Case, c.Kind)
+			continue
+		}
+		if msg != c.Message {
+			t.Errorf("approval_proof %q: message %q, vector says %q", c.Case, msg, c.Message)
+		}
+		m := hmac.New(sha256.New, key)
+		m.Write([]byte(c.Message))
+		if got := base64.RawURLEncoding.EncodeToString(m.Sum(nil)); got != c.Proof {
+			t.Errorf("approval_proof %q: proof %s, vector says %s", c.Case, got, c.Proof)
+		}
+	}
+	if len(v.ActionHash) == 0 {
+		t.Error("action_hash vectors are required (ADR-0014 A3.3 item 1)")
+	}
+	for _, c := range v.ActionHash {
+		o := map[string]any{"intent": c.Intent}
+		for k, val := range c.Binds {
+			o[k] = val
+		}
+		j, err := canon.JCS(o)
+		if err != nil || string(j) != c.JCS {
+			t.Errorf("action_hash %q: JCS %s (%v), vector says %s", c.Case, j, err, c.JCS)
+		}
+		if want := "sha256:" + sum(string(j)); want != c.ActionHash {
+			t.Errorf("action_hash %q: %s, vector says %s", c.Case, want, c.ActionHash)
+		}
+	}
+	if len(v.DigestRow) < 3 {
+		t.Error("digest_row vectors are required (ADR-0014 A3.2)")
+	}
+	for _, c := range v.DigestRow {
+		pii := map[string]bool{}
+		for _, f := range c.PIIFields {
+			pii[f] = true
+		}
+		withValues := map[string]any{}
+		for k, val := range c.Fields {
+			withValues[k] = val
+		}
+		for k, val := range c.PIIValues {
+			withValues[k] = val
+		}
+		for name, fields := range map[string]map[string]any{"holding the values": withValues, "holding none": c.Fields} {
+			text, err := canon.RowText(c.ID, fields, pii, c.Commitments)
+			if err != nil || text != c.RowText {
+				t.Errorf("digest_row %q %s: %s (%v), vector says %s", c.Case, name, text, err, c.RowText)
+			}
+		}
+		if _, h := canon.EntityHash(map[string]string{c.ID: c.RowText}); h != c.EntityHash {
+			t.Errorf("digest_row %q: entity hash %s, vector says %s", c.Case, h, c.EntityHash)
+		}
+	}
+	for _, c := range v.PIIPlacement.Cases {
+		if want := c.Kind != "kds"; c.PIIServed != want {
+			t.Errorf("pii_placement %s: served=%v, ADR-0014 A3.1 item 1 says %v", c.Kind, c.PIIServed, want)
+		}
+	}
+	if len(v.PIIPlacement.Cases) < 5 {
+		t.Error("pii_placement vectors cover pos, waiter, personal, hub and kds")
 	}
 	if len(v.SizeLimit) < 4 || len(v.EmitBatch) < 4 {
 		t.Error("size_limit and emit_batch vectors are required (ADR-0014 A2.1 item 3, A2.2 item 1)")

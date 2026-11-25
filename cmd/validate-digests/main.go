@@ -23,6 +23,9 @@ type fixture struct {
 	OutletID    string                               `json:"outlet_id"`
 	Date        string                               `json:"business_date"`
 	Rows        map[string]map[string]map[string]any `json:"rows"`
+	// Commitments holds, per entity, row id and pii field, the salted commitment the sealed body carries (ADR-0014 A3.2). The
+	// digest covers the commitment and never a value, so a fixture has no pii values.
+	Commitments map[string]map[string]map[string]string `json:"commitments"`
 }
 
 type entity struct {
@@ -120,7 +123,19 @@ func check(root, file string, printOnly bool) (errs []string) {
 					}
 				}
 			}
-			t, err := canon.RowText(id, row, pii)
+			for fn, c := range fx.Commitments[n][id] {
+				if f, ok := ent.Fields[fn]; !ok || !f.PII {
+					errs = append(errs, fmt.Sprintf("%s %s: commitment for %s, which is not a pii field", n, id, fn))
+				} else if len(c) != 64 {
+					errs = append(errs, fmt.Sprintf("%s %s: commitment for %s is not 64 hex characters", n, id, fn))
+				}
+			}
+			for fn := range row {
+				if pii[fn] {
+					errs = append(errs, fmt.Sprintf("%s %s: pii field %s carries a value; a digest fixture holds commitments only", n, id, fn))
+				}
+			}
+			t, err := canon.RowText(id, row, pii, fx.Commitments[n][id])
 			if err != nil {
 				errs = append(errs, fmt.Sprintf("%s %s: %v", n, id, err))
 				continue

@@ -104,7 +104,8 @@ defeat the seal). `KeyRing.addCloudKey(kid, pub)` is the right entry. Seals carr
 ## Verdicts and read-back
 Devices learn about their own held slots only as `held` (push) and `own_held` (pull) with one of
 `pending | held_manager | held_support`, and about refused configuration only through the `sync.void` op.
-Flags, reasons and attribution labels exist only behind member-token admin endpoints.
+Flags, reasons and attribution labels exist only behind member-token admin endpoints. `pending` also covers an op that cites an approval
+whose `approval.grant` has not arrived (Approval citation below).
 
 ## Document numbers
 `<code>/<FY>/<running>`, `code` 3 characters from `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (no I, O, 0, 1), FY as four
@@ -172,6 +173,48 @@ All inside the sealed body. `pack_v` is a JSON integer >= 1 on every device-orig
 (the approver's `pin_v`); a `proof` on any other intent is ignored and never sent to identity. On `session.open`, `at` is the
 opening time the proof binds. The gateway asks identity once per proof (`verifyProof`, `Idempotency-Key` from `(origin, stream, seq)`)
 and stores the verdict per `(tenant, origin, sid)`; identity unreachable is `pending`, never `valid`.
+
+## Proof messages (ADR-0005 sections 7 and 8, A3.1; vectors `approval_proof`, `action_hash`)
+The proof is `base64url-nopad(HMAC-SHA256(proof key, message))`, the message the fields below joined by `|`. Times are UTC with exactly three
+millisecond digits (`2026-11-24T13:05:11.120Z`). `target` and `reason` are free text and are quoted with Go's `strconv.Quote`
+(double quotes; `\"` `\\` `\a \b \f \n \r \t \v`; other control characters and invalid UTF-8 as `\xNN`; non-printable code points as `\uNNNN`;
+printable Unicode, `|` and `/` unescaped) so a separator inside them cannot move a field boundary. `svc-identity` builds and checks these
+messages (`SessionProofMessage`, `ApprovalProofMessageBound`); `client-core` must match them byte for byte.
+- **Session proof:** `session|<sid>|<device id>|<member id>|<pack_v>|<pin_v>|<opened at>`.
+- **Approval proof** (the approver's, over the record of `approval.grant`): `approval|<action hash>|<device id>|<approver member id>|<pack_v>|<pin_v>|<approval id>|<permission>|<quoted target>|<requester id>|<approved at>|<quoted reason>`;
+  `reason` is the empty quoted string `""` when the record has none. `approved at` is the op's `at`.
+- **Action hash:** `sha256:` plus the lower-case hex SHA-256 of the JCS of the object `{intent: <intent name>, <name>: <value> ...}` with one
+  member for each name the intent lists in `proof.binds`. A value is read from the first mutation of the op that sets a field of that
+  name (integers stay integers, ids stay strings). Because `intent` is in the hash, the proof binds the intent as well as the permission
+  and target. A bound name the op does not set fails the check as `mismatch`.
+
+## Approval citation (ADR-0014 A3.3; ADR-0005 section 8)
+An op of an intent with `override: true` whose actor lacks the permission cites an approval: body field `approval` = the approval id. The
+`approval.grant` op (the approver's own, same device, same `sid` or a session the same origin recorded) carries the record above. The
+gateway keeps one row per `(tenant, origin, approval id)` with the record and the `verifyProof` verdict (ADR-0005 A3.1 item 3).
+Question 6 (permission) for an op that cites an approval is answered **by the approver** when all hold: the intent is `override: true`;
+the approval verdict is `valid`; same origin and same `sid` as the `approval.grant` op; the record's `intent` and `permission` are the op's;
+`requester` = the op's `actor`, and differs from the approver unless the actor holds the permission (own sensitive action); the approver held
+the permission in the op's `pack_v`; the action hash recomputed from the op and the `target` row match; the op's `at` is 0 to 120 seconds
+after the approval's; no other op cites the approval (the lowest `hlc` keeps it). The op is then **`accepted` with no flag**, attribution
+`verified`, shown as "approved by". The actor's own lack of the permission is never a `permission_flag` on this path.
+- "Then current grants" is asked of the approver: removed since, a trading fact is accepted and flagged with the removal date; a
+  configuration change is voided.
+- **Not yet known.** The `approval.grant` op has not arrived (it is in the outlet stream, the action may be in the brand stream) or identity is
+  unreachable: the verdict is **`pending`**, judged again; never `permission_flag`.
+- **Failure.** Any condition false: `unverified`, flag **`approval_flag`** with a `reason`: `proof_invalid`, `mismatch` (intent, permission,
+  requester, target or action hash differ), `reused` (another op cites it), `expired` (outside 120 s), `approver_not_permitted`, `self`
+  (requester is the approver and lacks the permission). A trading fact is accepted at high severity; a configuration change is voided.
+  **`permission_flag` remains only** for an actor without the permission who cites no approval, or an intent that is not `override: true`.
+- **Hub.** Its structural check is the same without the proof: an approval is cited, the approver is in the pack with the permission and
+  is not the requester.
+
+## Device credential (ADR-0005 A3.2 row 1, ADR-0014 A3.4)
+`Credential` = `device_id`, `tenant_id`, `outlet_id`, **`brand_id`**, `kind` (`pos`, `waiter`, `personal`, `kds`, `hub`), `kid`, `pub`, `not_after`, and
+`recovers` for a key-loss adopter; identity signs it (`hostry-cred-v1`). **`brand_id` is always present**: identity reads it from
+tenancy when the device is activated, stores it on the device row and signs it; nothing re-asks. A hub and LAN peers therefore judge
+whether a device may write a `brand:<id>` stream offline from the credential alone. The offline pack's `device` object carries the
+same `brand_id` and the device's own credential `kid`. An outlet never changes brand (tenancy answers 409 `outlet_brand_fixed`).
 
 ## Drain statement (ADR-0005 A3.3)
 Domain tag `hostry-drain-v1`. Object `{origin, streams: [{stream, seq, h}], series: [{series_id, code, fy, last_number}], by, rec?, kid,
@@ -257,37 +300,54 @@ endpoints (`listExceptions`, `listQuarantine`) and never reach a device.
   group; a `set` mutation names only fields of `lww` or `lww_review` policy, an `insert` sets immutable and initial values.
   Conflict resolution is per field group, never per row.
 
-## Personal data beside an op (security ruling SR-2, O2-8, O2-12)
+## Personal data beside an op (security ruling SR-2, O2-8, O2-12; ADR-0014 A3.1, A3.2)
 Customer data (name, phone, GSTIN) never sits in the hashed body in the clear, and never as a plain hash (a phone number could be
 guessed back from one). It travels in `Item.pii` outside the hash so that erasure never touches the chain.
 - **Shape.** `pii` = entity name, then row id, then field name, then value (string, boolean or integer), for the entity fields
-  marked `pii: true`. At most 16384 bytes of canonical JSON.
-- **Commitments.** The sealed body carries `pii_c` with the same nesting, each field `lower-case hex SHA-256(salt || JCS(value))`.
+  marked `pii: true`. At most 16384 bytes of canonical JSON. In Phase 2 the fields are `customer_name`, `customer_phone` and
+  `customer_gstin` on `check`, and `customer_name` and `customer_gstin` on `bill` and `credit_note`.
+- **Commitments (one per field, mandatory).** The sealed body carries `pii_c` with the same nesting, each field `lower-case hex SHA-256(salt || JCS(value))`.
   `salt` is 16 fresh random bytes per field; `JCS(value)` is the canonical JSON text of the value (a string is quoted and
   escaped, a boolean is `true`/`false`, an integer is its digits), so a string and a number can never commit to the same text.
-  Vectors `pii_commit` in `sync/conformance/v1.json`.
+  A hash over the whole map is not allowed: placement and erasure are per field. Every node holds the commitments, a `kds` included,
+  because they are in the body. Vectors `pii_commit` in `sync/conformance/v1.json`.
 - **Salts on the wire.** Each field's salt travels in the same `pii` object under the key `~s:<field>` (base64url, no padding).
   A field name starting with `~s:` is reserved. The gateway, hubs and the owning services keep value and salt together.
-- **Verification.** Every node that ingests `pii` recomputes each commitment; a field with no commitment, no salt or a value that
-  does not match is dropped (never stored, never published) and the op is marked `pii_dropped`. A commitment with no value is
-  normal (erased, or not sent). The gateway publishes the verified values *with* their salts (op event above), so an owning
-  service can verify again.
-- **Erasure.** The cloud-origin op of intent `sync.pii.erase` with one mutation of the record `pii_erase` (id `stream|origin|seq`
-  of the target op, fields `origin`, `stream`, `seq`) removes the values AND the salts of the target op from every node's rows, op
-  log, caches and spool, and makes the node discard any later arrival of that op's `pii`. The commitments stay in the sealed body
+- **Who receives `pii` (A3.1 item 1).** Same-outlet devices whose credential kind is `pos`, `waiter`, `personal` (bound to the
+  outlet) or `hub`, and the cloud. A node answering a **pull or snapshot** to a puller whose credential kind is **`kds`** removes the
+  whole `pii` object (and the `~s:` salts with it); the commitments in the body stay. This is one rule on the envelope, so the hub
+  stays domain-agnostic (ADR-0002 S8); there is no per-field `pii_to` list in Phase 2 (named extension for Phase 5). A field a
+  kitchen screen must show (token, table) is not personal data and is never declared `pii`. Vectors `pii_placement`.
+- **Path.** A push to any upstream, a hub or the cloud, carries `pii` with each value and its salt. A hub stores it in its encrypted op
+  store (ADR-0002 S8) and relays it both ways. Pull and snapshot carry it to the kinds above, minus erased fields. A snapshot row
+  carries `pii_c` (field to commitment) always, and `pii` (values and salts) only where a pull would.
+- **Verification (receiver rules).** Every node of the kinds above that ingests `pii` recomputes each commitment; a field with no
+  commitment, no salt or a value that does not match is dropped (never stored, never published), refused, alerted and the op is
+  marked `pii_dropped`. A commitment with no value, not named by an erasure op, is **`pii_incomplete`**: the row applies, the
+  field shows as pending and is fetched at the next contact with any upstream. A `kds` expects no value and fetches none. A
+  commitment with no value is otherwise normal (erased, or not sent). The gateway publishes the verified values *with* their salts
+  (op event above), so an owning service can verify again.
+- **Reprint and credit note on another device (A3.1 item 6).** They use the local values and work with no internet. If a buyer
+  field is `pii_incomplete` the device fetches it when an upstream is reachable and otherwise refuses with
+  `customer_details_pending`; a B2B duplicate is never printed with the buyer block blank. An erased field prints as "erased".
+- **Erasure (unchanged, and it wins for ever).** The cloud-origin op of intent `sync.pii.erase` with one mutation of the record `pii_erase` (id `stream|origin|seq`
+  of the target op, fields `origin`, `stream`, `seq`) reaches every device and hub in the stream and removes the values AND the
+  salts of the target op from every node's rows, op log, op copies, caches, spool and exports, and makes the node discard any
+  later arrival of that op's `pii` on receipt. The commitments stay in the sealed body
   and cannot be reopened without the salt. The gateway writes the op and `sync.pii.erased` (ids only) in one transaction; erasing
   twice answers the first erasure op. **Acknowledgement:** the next direct cloud `hello` of a node carries `pii_erased` (array of
   refs of the target ops); the gateway records it per node. A node that reaches only a hub keeps the list until its next direct
   cloud hello. GST retention (72 months) means erasure is field-level; the document itself stays. **How it is requested:** the owning
   services call `erasePii` (`POST /internal/v1/pii/erase`, service token with the tenant claim, permission `sync.pii.erase`, callers
   `billing` and `orders`); the gateway writes the op and `sync.pii.erased` in one transaction, as above. Every `pii: true` field of a
-  bill or check is covered, including `customer_gstin`.
+  bill, credit note or check is covered, including `customer_gstin`.
 
 ## Control records
 Records are mutations whose `e` is not a synced entity. They are listed by the intents that carry them (`records:` in
 `sync/intents`) and have no entity schema; the shapes are:
 | Record | Intent | Origin | `id` | `f` |
 |---|---|---|---|---|
+| `approval` | `approval.grant` | device | the approval id (client UUIDv7) | `permission`, `intent` (the intent the approval is for, one with `override: true`), `target` (`<entity>:<row id>` of the row the action concerns), `action_hash`, `requester` (member id), `reason` (optional, at most 200 characters); the approver is the op's `actor`, the time its `at` |
 | `sync_void` | `sync.void` | cloud | `stream|origin|seq` of the voided op | `origin`, `stream`, `seq`, `reason` = `refused` |
 | `pii_erase` | `sync.pii.erase` | cloud only | `stream|origin|seq` of the target op | `origin`, `stream`, `seq` |
 | `series_close` | `series.close` | device | the series id | `code` (3-character series code), `fy` (four digits), `last_number` (integer >= 0, the last running number the device allocated from the series; 0 when it never allocated) |
@@ -304,13 +364,20 @@ that convergence can be tested (ADR-0014 T2, T9, T11). The **canonical row form*
    `order_line_id`, so void, cancel and grace cancel resolve the same way and `kot_id` no longer decides the day. Entities declared
    `outside_digest` and rows whose parent has not arrived (on both sides) are left out. Tombstoned rows and replicas of another
    owner's entities are left out.
-2. **Row text.** The JCS (RFC 8785, integers only) of an object holding `id` and every field of the entity schema the row has set,
-   absent and null fields omitted, `pii: true` fields omitted, nothing implicit (no `tenant_id`, `origin`, `actor`, `hlc`).
+2. **Row text (ADR-0014 A3.2).** The JCS (RFC 8785, integers only) of an object holding `id`, every **non-`pii`** field of the entity
+   schema the row has set (absent and null fields omitted) and, for each `pii: true` field the row holds a commitment for, the member
+   `~c:<field>` whose value is that field's **commitment** (lower-case hex, from `body.pii_c`), nothing implicit (no `tenant_id`,
+   `origin`, `actor`, `hlc`). **Never a `pii` value or salt.** The commitment is the one of the write that wins the field under its own
+   merge rule, so two nodes that hold different winners for `customer_name` differ in the hash. A `pii` field with no commitment (never
+   set) has no member. Hence the text and every hash over it are equal on the origin, its peers, a `kds`, the hub and the cloud, and do
+   not change when a field is erased. Vectors `digest_row`.
 3. **Entity digest.** `hash` = lower-case hex SHA-256 over the row texts in ascending `id` order (byte order), each followed by a
    line feed; `row_count` is the number of rows. Only entities with at least one row are listed, in ascending name order.
 4. **State hash.** `state_hash` = lower-case hex SHA-256 over, for each listed entity in ascending name order, the text
    `<entity>\n<row_count>\n<hash>\n`.
-`examples/digests/*.json` hold the rows of the digest example worlds and `make lint-digests` recomputes the OpenAPI examples from them.
+**One rule for every convergence hash.** The device state hash, `acceptedStateHash` and this projection digest all cover the non-`pii`
+fields and each `pii` field's commitment, never a value. `examples/digests/*.json` hold the rows of the digest example worlds (with
+the commitments of their `pii` fields, no values) and `make lint-digests` recomputes the OpenAPI examples from them.
 
 ## Events published by the gateway
 The sync gateway (service `sync`) publishes: `sync.op.<namespace>` (op applicable), `sync.op.flagged` (an op flagged at acceptance or

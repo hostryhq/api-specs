@@ -166,6 +166,9 @@ intents:
     - insert
     credit_note_tax_line:
     - insert
+  pii_fields:
+  - customer_name
+  - customer_gstin
   idempotency: The credit note id is a client UUIDv7 and its number is allocated from the device credit-note series in the
     same local transaction; replay never allocates again.
 - intent: bill.rebill

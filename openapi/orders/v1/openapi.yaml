@@ -308,11 +308,11 @@ paths:
                 outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
                 business_date: '2026-11-24'
                 algorithm: sha256-canon-v1
-                state_hash: cd0905f0b5593bc83ef0020edaf1fb8f19ce687ebe99f6120c9b82b24617d580
+                state_hash: 5c768628ec1395f9d7e8c0c38c78865c32728ec83782f879647a6dc17f62f9c2
                 entities:
                 - entity: check
                   row_count: 1
-                  hash: d8bafe95ec075af7f462d3a99b90bd0e6575d49bb23ca545ddead1e01ace8ba3
+                  hash: 4b720c8156ea3dfda477277e0395bdb9d9a46ba91d701347a4c87fd2d5bcfc78
                 - entity: kot
                   row_count: 1
                   hash: 20a802bef95d08902c72a1932164b9a9dfa1b3e80018b4c1f2c707b758978128

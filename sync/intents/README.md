@@ -18,7 +18,7 @@ Actions that need a `strong_only` permission have **no intent**: they are online
 | `owner` | The service that owns the intent's meaning and its upcasters: an owner of one of the touched entities, `identity` or `gateway` when no entity is touched, `gateway` for a generic cloud emit. Subscribers are the owners of every touched entity. |
 | `permission` | Catalogue key (`common/permissions.yaml`), tenant realm, never `strong_only`. `null` only for `control` or cloud-origin intents, with `permission_reason`. |
 | `authorised_online_by` | Cloud-origin intents only: the online permissions that authorised the emit before it was queued. |
-| `proof.kind` | `session` (the stamped session proof, ADR-0005 section 7 question 4) or `action` (the action proof of section 8; own PIN re-entry in a `pin` session, nothing extra in a strong session). `proof.binds` names the fields the action hash covers. An action proof needs a `sensitive` permission and a member, so never a `device` session. |
+| `proof.kind` | `session` (the stamped session proof, ADR-0005 section 7 question 4) or `action` (the action proof of section 8; own PIN re-entry in a `pin` session, nothing extra in a strong session). `proof.binds` names the fields the action hash covers, together with the intent name (sync/protocol-v1.md, Proof messages); an op of an `override` intent cites the approval id (Approval citation). An action proof needs a `sensitive` permission and a member, so never a `device` session. |
 | `override` | A manager who holds the permission can approve it on the same device (ADR-0005 section 8). Needs `proof.kind: action`. |
 | `allowance` | Flag A permissions (ADR-0014 A1.5 item 6): own intent, verifies without an approval record, counted per member per shift against `limit_setting` (an outlet setting), re-checked by the owning service as a detector (`checked_by`). `above_allowance` says what is used beyond the limit: another intent (`use_intent`) or an approval for a permission (`approval_permission`). |
 | `sessions` | Session types allowed to record it: `pin`, `strong`, `device` (KDS and hub roles; no member). Empty for cloud origin. |
@@ -27,7 +27,7 @@ Actions that need a `strong_only` permission have **no intent**: they are online
 | `numbering`, `documents` | `allocated` (number taken from the device series in the same local transaction), `typed` (entry-only paper-book series) or `none`; the document types it consumes. Must agree with the touched entities' `doc_number` fields. |
 | `entities` | Map entity name to the mutation kinds (`insert`, `set`, `delta`, `rank`, `del`, `undel`) the intent may use. Kinds must agree with the entity's field policies and tombstone flag. A cloud-origin-only entity appears only under a cloud intent. |
 | `records` | Protocol records that are not synced entities: `session`, `approval`, `series_activation`, `series_close`, `clock_confirmation`, `sync_void`, `pii_erase` (shapes: sync/protocol-v1.md, Control records). |
-| `pii_fields` | Touched fields that travel in the op's `pii` object, outside the hash. |
+| `pii_fields` | Touched fields that travel in the op's `pii` object, outside the hash. Served to same-outlet `pos`, `waiter`, `personal` and `hub` devices, never to a `kds`; every digest covers their commitments only (sync/protocol-v1.md, Personal data). |
 | `idempotency` | What a replay does. Offline clients retry and sync resumes, so every intent states it. |
 | `x-provisional` | A choice made by this registry that needs a ruling; listed below. |
 

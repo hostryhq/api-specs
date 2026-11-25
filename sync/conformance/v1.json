@@ -345,5 +345,198 @@
       "statement_hash": "4d7927df8c22edca9a8eb3a23028d7169c610df17cb9e27b66419fbbb28af720",
       "statement_jcs": "{\"at\":\"2026-11-24T14:00:00Z\",\"by\":\"dev-a\",\"kid\":\"dev-a-1\",\"origin\":\"dev-a\",\"series\":[{\"code\":\"A7K\",\"fy\":\"2627\",\"last_number\":123,\"series_id\":\"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6c\"},{\"code\":\"A7M\",\"fy\":\"2627\",\"last_number\":0,\"series_id\":\"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a95\"}],\"sig\":\"s8xB72YWt00tUPYlcUrf8xetVoql-N1hGOQmG5Lm4QygmdCQGnh82yWb9hy0s_W0Mb_HD1uqdVzK-XRjItriEA\",\"streams\":[{\"h\":\"2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881\",\"seq\":42,\"stream\":\"outlet:o1\"},{\"h\":\"a1fce4363854ff888cff4b8e7875d600c2682390412a8cf79b37d0b11148b0fa\",\"seq\":3,\"stream\":\"brand:b1\"}]}"
     }
-  ]
+  ],
+  "approval_proof": {
+    "note": "HMAC-SHA256 with the PIN-derived proof key, base64url without padding (ADR-0005 sections 7 and 8, A3.1). The message is the fields joined by \"|\"; times are UTC with exactly three millisecond digits; target and reason are quoted with Go strconv.Quote (protocol-v1.md, Proof messages). action_hash is sha256: plus the hex SHA-256 of the JCS of {intent, <the fields the intent binds>}.",
+    "proof_key": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+    "cases": [
+      {
+        "case": "session proof",
+        "device_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e",
+        "kind": "session",
+        "member_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64",
+        "message": "session|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5d|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64|7|1|2026-11-24T13:05:11.120Z",
+        "opened_at": "2026-11-24T13:05:11.120Z",
+        "pack_v": 7,
+        "pin_v": 1,
+        "proof": "F8Ri3zh7EW9kSitbI6vNbIbuA_rMbHHDPQXszuwgOQk",
+        "session_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5d"
+      },
+      {
+        "action_hash": "sha256:41475f44a5428beedde1ff65c1dee598f2d4043afa7a32086484a79c149f33b2",
+        "approval_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a77",
+        "approved_at": "2026-11-24T13:06:11.120Z",
+        "case": "approval proof, plain fields",
+        "device_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e",
+        "kind": "approval",
+        "member_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64",
+        "message": "approval|sha256:41475f44a5428beedde1ff65c1dee598f2d4043afa7a32086484a79c149f33b2|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64|7|1|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a77|bill.credit_note.create|\"bill:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001\"|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65|2026-11-24T13:06:11.120Z|\"guest left\"",
+        "pack_v": 7,
+        "permission": "bill.credit_note.create",
+        "pin_v": 1,
+        "proof": "M2KeNyTQfCnPY6wx0k12M1B_towZ_FzPK9vcrzSpJSQ",
+        "reason": "guest left",
+        "requester_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65",
+        "target": "bill:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001"
+      },
+      {
+        "action_hash": "sha256:41475f44a5428beedde1ff65c1dee598f2d4043afa7a32086484a79c149f33b2",
+        "approval_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a77",
+        "approved_at": "2026-11-24T13:06:11.120Z",
+        "case": "approval proof, separator, quote and newline inside the free text",
+        "device_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e",
+        "kind": "approval",
+        "member_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64",
+        "message": "approval|sha256:41475f44a5428beedde1ff65c1dee598f2d4043afa7a32086484a79c149f33b2|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64|7|1|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a77|bill.credit_note.create|\"bill:a|b\\\"c\"|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65|2026-11-24T13:06:11.120Z|\"wrong \\\"item\\\" | line\\nbreak \\\\ end\"",
+        "pack_v": 7,
+        "permission": "bill.credit_note.create",
+        "pin_v": 1,
+        "proof": "Qjr6vxzJ8Mi1aiGR3yPugZyyKSRxPLaMxY62KkV1isA",
+        "reason": "wrong \"item\" | line\nbreak \\ end",
+        "requester_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65",
+        "target": "bill:a|b\"c"
+      },
+      {
+        "action_hash": "sha256:41475f44a5428beedde1ff65c1dee598f2d4043afa7a32086484a79c149f33b2",
+        "approval_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a77",
+        "approved_at": "2026-11-24T13:06:11.120Z",
+        "case": "approval proof, non-ASCII reason and an empty one",
+        "device_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e",
+        "kind": "approval",
+        "member_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64",
+        "message": "approval|sha256:41475f44a5428beedde1ff65c1dee598f2d4043afa7a32086484a79c149f33b2|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64|7|1|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a77|bill.credit_note.create|\"bill:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001\"|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65|2026-11-24T13:06:11.120Z|\"café 中文 \\a\"",
+        "pack_v": 7,
+        "permission": "bill.credit_note.create",
+        "pin_v": 1,
+        "proof": "Gv_Zu9mM84AlCLSbpeKZOT2C07Pr1Kx8Q_IgOysDyWo",
+        "reason": "café 中文 \u0007",
+        "requester_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65",
+        "target": "bill:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001"
+      },
+      {
+        "action_hash": "sha256:41475f44a5428beedde1ff65c1dee598f2d4043afa7a32086484a79c149f33b2",
+        "approval_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a77",
+        "approved_at": "2026-11-24T13:06:11.120Z",
+        "case": "approval proof, empty reason",
+        "device_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e",
+        "kind": "approval",
+        "member_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64",
+        "message": "approval|sha256:41475f44a5428beedde1ff65c1dee598f2d4043afa7a32086484a79c149f33b2|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64|7|1|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a77|bill.credit_note.create|\"bill:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001\"|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65|2026-11-24T13:06:11.120Z|\"\"",
+        "pack_v": 7,
+        "permission": "bill.credit_note.create",
+        "pin_v": 1,
+        "proof": "o3ASv8KwoAro-W7tPj5t2j-fVE6U5Q843VZfHQ3LuxA",
+        "reason": "",
+        "requester_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65",
+        "target": "bill:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001"
+      }
+    ]
+  },
+  "action_hash": [
+    {
+      "case": "creditnote.issue binds bill_id and total_paise",
+      "intent": "creditnote.issue",
+      "binds": {
+        "bill_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001",
+        "total_paise": 50400
+      },
+      "jcs": "{\"bill_id\":\"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001\",\"intent\":\"creditnote.issue\",\"total_paise\":50400}",
+      "action_hash": "sha256:41475f44a5428beedde1ff65c1dee598f2d4043afa7a32086484a79c149f33b2"
+    }
+  ],
+  "digest_row": [
+    {
+      "case": "a bill with one committed pii field; the value, wherever held, never enters the text",
+      "entity": "bill",
+      "id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001",
+      "pii_fields": [
+        "customer_name",
+        "customer_gstin"
+      ],
+      "fields": {
+        "number": "A7K/2627/000001",
+        "total_paise": 50400,
+        "business_date": "2026-11-24"
+      },
+      "pii_values": {
+        "customer_name": "Meera"
+      },
+      "commitments": {
+        "customer_name": "fb926b59239c6d646b19799ab4f0c2196c3b9544e1901c9f6873017c570d2766"
+      },
+      "row_text": "{\"business_date\":\"2026-11-24\",\"id\":\"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001\",\"number\":\"A7K/2627/000001\",\"total_paise\":50400,\"~c:customer_name\":\"fb926b59239c6d646b19799ab4f0c2196c3b9544e1901c9f6873017c570d2766\"}",
+      "entity_hash": "1a6bb328e57e6e2359656bf238ca2a6ff3e1fa82afe443192861077a18f65782"
+    },
+    {
+      "case": "a check with two committed fields; equal on a pos with both values, a kds with none and a node where one was erased",
+      "entity": "check",
+      "id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6001",
+      "pii_fields": [
+        "customer_name",
+        "customer_phone",
+        "customer_gstin"
+      ],
+      "fields": {
+        "label": "Guest 2",
+        "status": "open"
+      },
+      "pii_values": {
+        "customer_name": "Meera",
+        "customer_phone": "+919876543210"
+      },
+      "commitments": {
+        "customer_name": "fb926b59239c6d646b19799ab4f0c2196c3b9544e1901c9f6873017c570d2766",
+        "customer_phone": "2fc77fdc9cd5852397cd7e2dff88dd1387bc4b73a173e5ea5e575e3aa9fb0335"
+      },
+      "row_text": "{\"id\":\"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6001\",\"label\":\"Guest 2\",\"status\":\"open\",\"~c:customer_name\":\"fb926b59239c6d646b19799ab4f0c2196c3b9544e1901c9f6873017c570d2766\",\"~c:customer_phone\":\"2fc77fdc9cd5852397cd7e2dff88dd1387bc4b73a173e5ea5e575e3aa9fb0335\"}",
+      "entity_hash": "f15366807ac8972c065773981976da32b7f33c88b36f89eeb571b8c74f1e3b62"
+    },
+    {
+      "case": "the same check where the phone field was never set: no member for it, so a different text and hash",
+      "entity": "check",
+      "id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6001",
+      "pii_fields": [
+        "customer_name",
+        "customer_phone",
+        "customer_gstin"
+      ],
+      "fields": {
+        "label": "Guest 2",
+        "status": "open"
+      },
+      "pii_values": {
+        "customer_name": "Meera"
+      },
+      "commitments": {
+        "customer_name": "fb926b59239c6d646b19799ab4f0c2196c3b9544e1901c9f6873017c570d2766"
+      },
+      "row_text": "{\"id\":\"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6001\",\"label\":\"Guest 2\",\"status\":\"open\",\"~c:customer_name\":\"fb926b59239c6d646b19799ab4f0c2196c3b9544e1901c9f6873017c570d2766\"}",
+      "entity_hash": "2f9493248d0a38d4cd6dc8efee4a1d41b365e7bcf8feef150ed2ed7771b2ca5b"
+    }
+  ],
+  "pii_placement": {
+    "note": "ADR-0014 A3.1 item 1: which credential kinds a node serving a puller answers with the pii object on pull and snapshot. The commitments are in the sealed body and reach every kind.",
+    "cases": [
+      {
+        "kind": "pos",
+        "pii_served": true
+      },
+      {
+        "kind": "waiter",
+        "pii_served": true
+      },
+      {
+        "kind": "personal",
+        "pii_served": true
+      },
+      {
+        "kind": "hub",
+        "pii_served": true
+      },
+      {
+        "kind": "kds",
+        "pii_served": false
+      }
+    ]
+  }
 }
