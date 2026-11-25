@@ -39,6 +39,8 @@ type entity struct {
 	Tombstone   bool   `yaml:"tombstone"`
 	Guarded     bool   `yaml:"guarded"`
 	CloudOrigin bool   `yaml:"cloud_origin_only"`
+	DayParent   string `yaml:"day_parent"`
+	OutsideDig  bool   `yaml:"outside_digest"`
 	ID          struct {
 		Rule string `yaml:"rule"`
 		Name string `yaml:"name"`
@@ -232,6 +234,7 @@ func run(dir string) (errs []string, count int) {
 				}
 			}
 		}
+		checkDayParent(ents, e, at, fail)
 		if e.Policy == "rank" && !hasRank {
 			fail("%s: rank entity without a rank field", at)
 		}
@@ -270,4 +273,51 @@ func sortedFieldKeys(m map[string]field) []string {
 	}
 	sort.Strings(k)
 	return k
+}
+
+// checkDayParent enforces the projection-digest rule (protocol-v1.md, "Projection digest"; ADR-0005 A3.5): an entity owned by
+// orders or billing either has a business_date field, or names a required id field as its day_parent (followed through
+// parents until a business_date is reached), or is declared outside_digest.
+func checkDayParent(ents map[string]entity, e entity, at string, fail func(string, ...any)) {
+	if e.Owner != "orders" && e.Owner != "billing" {
+		return
+	}
+	if _, ok := e.Fields["business_date"]; ok {
+		if e.DayParent != "" || e.OutsideDig {
+			fail("%s: has business_date; day_parent and outside_digest do not apply", at)
+		}
+		return
+	}
+	if e.OutsideDig {
+		if e.DayParent != "" {
+			fail("%s: outside_digest and day_parent are exclusive", at)
+		}
+		return
+	}
+	if e.DayParent == "" {
+		fail("%s: no business_date: name a day_parent (required id field) or declare outside_digest: true", at)
+		return
+	}
+	cur, seen := e, map[string]bool{}
+	for {
+		if seen[cur.Entity] {
+			fail("%s: day_parent chain loops at %s", at, cur.Entity)
+			return
+		}
+		seen[cur.Entity] = true
+		if _, ok := cur.Fields["business_date"]; ok {
+			return
+		}
+		f, ok := cur.Fields[cur.DayParent]
+		if cur.DayParent == "" || !ok || f.Type != "id" || f.Ref == "" || f.Required == nil || !*f.Required {
+			fail("%s: day_parent chain broken at %s (a day_parent is a required id field with a ref)", at, cur.Entity)
+			return
+		}
+		next, ok := ents[f.Ref]
+		if !ok || next.Owner != e.Owner && next.Owner != "orders" && next.Owner != "billing" {
+			fail("%s: day_parent %s.%s refers to %s outside orders and billing", at, cur.Entity, cur.DayParent, f.Ref)
+			return
+		}
+		cur = next
+	}
 }

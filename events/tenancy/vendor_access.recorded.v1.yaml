@@ -50,6 +50,12 @@ allOf:
         target_id:
           type: string
           description: Target record id, when any.
+        approval_id:
+          type: string
+          description: The vendor approval executed, for the kinds org_suspend, org_reinstate and org_close (ADR-0005 A3.4). Absent on any other entry.
+        grant_jti:
+          type: string
+          description: The jti of the grant that executed the approval (ADR-0005 A3.4). Present with approval_id. Identity sets the approval executed on the first entry with outcome `succeeded`, idempotently; `refused` and `failed` change nothing.
         ticket_reference:
           type: string
           description: Support ticket reference (fixed pattern).
@@ -88,3 +94,23 @@ examples:
     outcome: succeeded
     result_count: 1
     request_id: req_0190a1b2c3d4
+- id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f9126
+  type: tenancy.vendor_access.recorded
+  v: 1
+  source: tenancy
+  tenant_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+  key: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a9c
+  key_seq: 2
+  occurred_at: '2026-11-24T13:06:11.120Z'
+  actor: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+  data:
+    entry_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a9c
+    vendor_user_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+    token_type: vendor
+    action_key: vendor.organisation.suspended
+    target_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+    approval_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6d
+    grant_jti: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4ab2
+    ticket_reference: SUP-2041
+    outcome: succeeded
+    request_id: req_0190a1b2c3d5

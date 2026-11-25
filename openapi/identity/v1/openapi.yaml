@@ -32,6 +32,9 @@ info:
     support-session-active: "Base plus support session 4a68 (view mode) started by Priya for organisation 4a60, ticket SUP-2041, 13:05:11 to 13:35:11, active; the tenant audit holds entry 4a69 support.session.started."
     vendor-approval-pending: "Base plus vendor approval 4a6d (kind sign_in_code, organisation 4a60, +919876543210, requested by Priya, ticket SUP-2041) pending; the caller is Arun 4a78 (platform_admin)."
     vendor-approval-approved: "The vendor-approval-pending world after Arun approved it; the caller is the requester Priya, who has not claimed her code half."
+    activation-code-pending: "Base plus activation code 4a75 (kind pos, outlet 4a61, created by Asha 4a64 at 13:05:11, expires 13:10:11) unredeemed, unrevoked and unexpired; the caller is Asha in a strong session. The code itself (7QK3M9XD) is not stored in the clear."
+    device-key-recovered: "The device-revoked world after key loss: device 4a5e was revoked with reason key_lost, device 4a5f (pos, outlet 4a61) adopted it under recovery 4aa2 approved by Asha 4a64 at 13:15:11; the recovery is open (the old device's drain is not recorded)."
+    vendor-grant-approved: "Base plus vendor approval 4a6d (kind org_suspend, organisation 4a60, requested by Priya 4a66, approved by Arun 4a78, 24-hour lifetime from 13:05:11) approved and unexecuted; the grant it yielded has lapsed or was refused. The caller is Arun, the approver, who holds admin.org.lifecycle.approve."
 servers:
 - url: /
 tags:
@@ -453,6 +456,7 @@ paths:
       tags:
       - identity
       x-permission: device.activation_code.create
+      x-example-world: activation-code-pending
       x-outlet-scoped: true
       parameters:
       - $ref: ../../../common/components.yaml#/components/parameters/OutletScope
@@ -487,6 +491,7 @@ paths:
       tags:
       - identity
       x-permission: device.activation_code.create
+      x-example-world: activation-code-pending
       x-outlet-scoped: true
       parameters:
       - name: activation_code_id
@@ -2299,6 +2304,7 @@ paths:
                   subject_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
                   organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
                   revoked_at: '2026-11-24T13:15:11.120Z'
+                  reason: revoked
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -2334,9 +2340,14 @@ paths:
               drained_through:
               - stream: device-ops
                 seq: 1842
+              series:
+              - series_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6c
+                fy: '2627'
+                last_number: 123
       responses:
         '200':
-          description: Device state becomes drained; the 15-minute wipe delay starts on the server clock.
+          description: Device state becomes drained; the 15-minute wipe delay starts on the server clock. Identity verifies the
+            statement signature and the series set, then publishes identity.device.drained with the statement's numbers.
           content:
             application/json:
               schema:
@@ -2359,6 +2370,8 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/NotFound
         '409':
           $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
   /internal/v1/proof-verifications:
     post:
       operationId: verifyProof
@@ -2446,6 +2459,236 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/Forbidden
         '422':
           $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /internal/v1/devices/{device_id}/credential:
+    get:
+      operationId: getDeviceCredential
+      summary: The identity-signed credential of a device, in any state
+      description: 'Sync gateway directory question (ADR-0005 A3.2 row 1). Answers the credential as the pack carries it, whatever
+        the device state. One key per device id for life (ADR-0002 S7), so the gateway caches it without expiry; 404 is not cached.'
+      tags:
+      - internal
+      x-permission: device.directory.read
+      x-example-world: base
+      x-service-callers:
+      - sync
+      security:
+      - serviceAuth: []
+      parameters:
+      - name: device_id
+        in: path
+        required: true
+        description: Device ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+      responses:
+        '200':
+          description: The credential.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceCredential'
+              example:
+                device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                tenant_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                brand_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6a
+                kind: pos
+                kid: dev-4a5e-1
+                pub: BH2h0y2hJ3H0p0m1Yw7kP8cQxX1e0kqQb1d3Qk0YwK0c8m3B1w7V2m9R4s5T6u7V8w9X0y1Z2a3B4c5D6e7F8g9H0i
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+  /internal/v1/devices/{device_id}/packs/{pack_v}/grants:
+    get:
+      operationId: getPackGrants
+      summary: What an issued offline pack granted
+      description: 'Sync gateway directory question (ADR-0005 A3.2 row 2). Identity keeps the permission sets of each pack version
+        (stored once per digest, for the same 13 months as the pack history). Immutable, so cached without expiry; 404
+        pack_unknown is cached for 60 seconds.'
+      tags:
+      - internal
+      x-permission: device.directory.read
+      x-example-world: base
+      x-service-callers:
+      - sync
+      security:
+      - serviceAuth: []
+      parameters:
+      - name: device_id
+        in: path
+        required: true
+        description: Device ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+      - name: pack_v
+        in: path
+        required: true
+        description: Pack version.
+        schema:
+          type: integer
+          minimum: 1
+        example: 7
+      responses:
+        '200':
+          description: The grants of the pack version.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PackGrants'
+              example:
+                pack_v: 7
+                issued_at: '2026-11-24T13:05:11.120Z'
+                offline_valid_until: '2026-12-08T13:05:11.120Z'
+                members:
+                - member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
+                  permissions:
+                  - bill.void
+                  - order.create
+                series_codes:
+                - A7K
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+  /internal/v1/members/{member_id}/grants:
+    get:
+      operationId: getMemberGrants
+      summary: A member's status and effective permissions at an outlet now
+      description: 'Sync gateway directory question (ADR-0005 A3.2 row 3; section 7 question 6, "then current grants"). Cached by
+        the gateway for 60 seconds.'
+      tags:
+      - internal
+      x-permission: device.directory.read
+      x-example-world: base
+      x-service-callers:
+      - sync
+      security:
+      - serviceAuth: []
+      parameters:
+      - name: member_id
+        in: path
+        required: true
+        description: Member ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
+      - name: outlet_id
+        in: query
+        required: true
+        description: Outlet the effective permissions are computed for.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+      responses:
+        '200':
+          description: Member status and current permissions.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberGrants'
+              example:
+                member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
+                status: active
+                outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                permissions:
+                - bill.void
+                - order.create
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+  /internal/v1/devices/{device_id}/recovery:
+    get:
+      operationId: getDeviceRecovery
+      summary: The key-loss recovery record of an old device
+      description: 'Sync gateway directory question (ADR-0005 A3.2 row 4). `device_id` is the old (lost) device. Never returns the
+        recovery code. Found records are cached without expiry (single use); 404 is not cached.'
+      tags:
+      - internal
+      x-permission: device.directory.read
+      x-example-world: device-key-recovered
+      x-service-callers:
+      - sync
+      security:
+      - serviceAuth: []
+      parameters:
+      - name: device_id
+        in: path
+        required: true
+        description: The old device ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+      responses:
+        '200':
+          description: The recovery record.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeviceRecovery'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4aa2
+                old_device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                new_device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5f
+                approver_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
+                recovered_at: '2026-11-24T13:15:11.120Z'
+                state: open
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+  /internal/v1/sessions/{session_id}:
+    get:
+      operationId: getSession
+      summary: The fixed facts of a strong session
+      description: 'Sync gateway directory question (ADR-0005 A3.2 row 6; A3.1 item 5: a strong session carries no proof). The
+        fields never change, so the gateway caches them without expiry; the end of the session arrives on listRevocations
+        (`subject_type: session`).'
+      tags:
+      - internal
+      x-permission: device.directory.read
+      x-example-world: session-open
+      x-service-callers:
+      - sync
+      security:
+      - serviceAuth: []
+      parameters:
+      - name: session_id
+        in: path
+        required: true
+        description: Session ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5d
+      responses:
+        '200':
+          description: The session.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionFacts'
+              example:
+                session_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5d
+                member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
+                device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                issued_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
   /internal/v1/vendor/sessions:
     post:
       operationId: createVendorSession
@@ -3915,13 +4158,16 @@ paths:
         including the requester, is refused 409 approval_not_executable with reason not_approver. An approval
         that is not approved, has lapsed, or whose execution already succeeded is refused with the reason
         not_approved, lapsed or executed. identity recomputes the subject hash from the fields stored on the
-        approval; the issue is recorded in the vendor audit with the approval id and the new grant's jti. At
-        most one unused grant is live per approval (issuing a new one voids the previous, which then answers
-        grant.used), so a lost grant cannot be replayed after a fresh one was issued.
+        approval; the issue is recorded in the vendor audit with the approval id and the new grant's jti.
+        Identity voids no earlier grant (ADR-0005 A3.4); the executing service keeps its used-grant row unique on
+        the approval id as well as on the jti, so an approval executes once whichever grant arrives and any later
+        grant answers 403 grant.used. Identity sets the approval executed when it consumes the executor's
+        vendor_access.recorded event (tenancy or billing, carrying approval_id and grant_jti), about two seconds
+        after the execution; until then it may still issue a grant, which the executor refuses.
       tags:
       - vendor
       x-permission: admin.approval.decide
-      x-example-world: vendor-approval-approved
+      x-example-world: vendor-grant-approved
       x-service-callers:
       - admin
       x-vendor-class: approval
@@ -3946,8 +4192,9 @@ paths:
       - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
       responses:
         '201':
-          description: A new single-use grant for the approval. A replay with the same Idempotency-Key answers the
-            same grant while it has not lapsed; after that it is 409 approval_not_executable (lapsed).
+          description: A new single-use grant for the approval. The token is never stored, so a replay with the same
+            Idempotency-Key is 409 idempotency.replay_secret (ADR-0002 A2.5, ADR-0005 A3.4); the caller asks for a
+            new grant.
           content:
             application/json:
               schema:
@@ -4985,6 +5232,12 @@ components:
           description: Sequence the device is drained through, per stream.
           items:
             $ref: '#/components/schemas/StreamSequence'
+        statement_hash:
+          type: string
+          description: SHA-256 (lowercase hex) of the canonical JSON of the device-signed drain statement this order rests on
+            (ADR-0005 A3.3 item 6). The shell wipes only when it is the hash of a statement this device signed and the statement
+            covers every local op. Present on every wipe order issued from now on; a key-loss recovery has no wipe order.
+          pattern: ^[0-9a-f]{64}$
         issued_at:
           $ref: ../../../common/components.yaml#/components/schemas/Timestamp
         jws:
@@ -5002,6 +5255,34 @@ components:
           description: Sequence stored per device stream.
           items:
             $ref: '#/components/schemas/StreamSequence'
+        series:
+          type: array
+          description: The last number per series, copied from the device-signed statement (ADR-0005 A3.3 item 5). Must be exactly
+            the series identity issued to the device (422 drain.series_mismatch, vendor alert, nothing recorded). Empty only for a
+            device that never held a series (kds, hub).
+          items:
+            $ref: '#/components/schemas/DrainSeries'
+        statement:
+          $ref: ../../../common/components.yaml#/components/schemas/DrainStatement
+    DrainSeries:
+      type: object
+      description: The last document number of one series, as the device stated it.
+      required:
+      - series_id
+      - fy
+      - last_number
+      properties:
+        series_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        fy:
+          type: string
+          description: Financial year, four digits.
+          example: '2627'
+        last_number:
+          type: integer
+          description: Last running number the device allocated from the series; 0 when it never used it.
+          minimum: 0
+          example: 123
     AssignmentInput:
       type: object
       description: Assign a role at a scope.
@@ -5611,6 +5892,17 @@ components:
           $ref: ../../../common/components.yaml#/components/schemas/Id
         revoked_at:
           $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+        reason:
+          type: string
+          description: Why a device was revoked (ADR-0005 A3.2 row 5). `key_lost` is a revocation by recovery (the old device of a
+            key-loss recovery) and carries `recovery_id`; absent on a session. The gateway's only source of revocation.
+          enum:
+          - revoked
+          - key_lost
+          example: revoked
+        recovery_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+          description: The recovery record, present when reason is key_lost.
     RevocationPage:
       type: object
       description: A page of revocations in order.
@@ -5625,6 +5917,153 @@ components:
         next_cursor:
           type: string
           description: Opaque cursor for the next page; absent when there are no more results.
+    DeviceCredential:
+      type: object
+      description: The identity-signed credential of a device as the offline pack carries it (ADR-0005 A3.2 row 1). `not_after` is
+        not part of this answer; the gateway ignores it.
+      required:
+      - device_id
+      - tenant_id
+      - outlet_id
+      - kind
+      - kid
+      - pub
+      properties:
+        device_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        tenant_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+          description: Organisation.
+        outlet_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        brand_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        kind:
+          $ref: '#/components/schemas/DeviceKind'
+        kid:
+          type: string
+          description: Key id.
+          example: dev-4a5e-1
+        pub:
+          type: string
+          description: Uncompressed X9.62 P-256 point, base64url (the sync wire form of the key).
+        recovers:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+          description: Old device this one adopted by key-loss recovery (ADR-0002 A1.3).
+    PackGrants:
+      type: object
+      description: What one issued pack version granted to a device (ADR-0005 A3.2 row 2).
+      required:
+      - pack_v
+      - issued_at
+      - offline_valid_until
+      - members
+      - series_codes
+      properties:
+        pack_v:
+          type: integer
+          description: Pack version.
+          minimum: 1
+          example: 7
+        issued_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+        offline_valid_until:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+        members:
+          type: array
+          description: Each member listed in the pack with the permissions it granted.
+          items:
+            type: object
+            description: One member of the pack.
+            required:
+            - member_id
+            - permissions
+            properties:
+              member_id:
+                $ref: ../../../common/components.yaml#/components/schemas/Id
+              permissions:
+                type: array
+                description: Permission strings the pack granted the member at the device outlet.
+                items:
+                  type: string
+        series_codes:
+          type: array
+          description: Series codes of that pack version.
+          items:
+            type: string
+    MemberGrants:
+      type: object
+      description: A member's status and effective permissions at an outlet now (ADR-0005 A3.2 row 3).
+      required:
+      - member_id
+      - status
+      - outlet_id
+      - permissions
+      properties:
+        member_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        status:
+          type: string
+          description: Member state (as in a pack).
+          example: active
+        removed_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+          description: When the member was removed, when removed.
+        outlet_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        permissions:
+          type: array
+          description: Effective permission strings at the outlet now; empty for a removed member.
+          items:
+            type: string
+    DeviceRecovery:
+      type: object
+      description: A key-loss recovery record (ADR-0002 A1.3; ADR-0005 A3.2 row 4). Never carries the recovery code.
+      required:
+      - id
+      - old_device_id
+      - new_device_id
+      - approver_id
+      - recovered_at
+      - state
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        old_device_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        new_device_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        approver_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+          description: Member who approved the recovery.
+        recovered_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+        state:
+          type: string
+          description: open until the old device's drain is recorded, then closed.
+          enum:
+          - open
+          - closed
+          example: open
+    SessionFacts:
+      type: object
+      description: Fixed facts of a strong session (ADR-0005 A3.2 row 6). The end arrives on listRevocations.
+      required:
+      - session_id
+      - member_id
+      - issued_at
+      properties:
+        session_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        member_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        device_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        issued_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+        ended_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+          description: When the session ended or was revoked, when it has.
     ProofVerification:
       type: object
       description: Ask identity to verify a session or approval proof (sync gateway, ADR-0005 section
@@ -5670,6 +6109,26 @@ components:
           type: string
           description: Action hash, for approval proofs.
           example: sha256:cf03a846706f29a88ba61a212f79e7c224142fdd5df92fc1d7ed8bb1283fb8c8
+        approval_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+          description: Approval record id (kind approval). Taken, with the fields below, from the approval record of the
+            `approval.grant` op (ADR-0005 section 8, A3.1 item 2); all are bound by the action proof.
+        permission:
+          type: string
+          description: Permission the approval cites (kind approval).
+          example: bill.void
+        target:
+          type: string
+          description: Target record the approval is for (kind approval).
+        requester_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+          description: Member who asked for the approval; equal to member_id for an own sensitive action (kind approval).
+        approved_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+          description: Time of the approval record (kind approval).
+        reason:
+          type: string
+          description: Reason on the approval record (kind approval).
     ProofVerdict:
       type: object
       description: Verdict of a proof check. Never reveals key material.
@@ -5701,13 +6160,12 @@ components:
       description: Was the member and/or series code issued to the device in the given pack?
       required:
       - device_id
-      - pack_v
       properties:
         device_id:
           $ref: ../../../common/components.yaml#/components/schemas/Id
         pack_v:
           type: integer
-          description: Pack version.
+          description: Pack version. Absent means any pack issued to the device (ADR-0005 A3.2 row 7; the quarantine case).
           minimum: 1
           example: 7
         member_id:
@@ -5787,10 +6245,10 @@ components:
           example: Priya
         last_sign_in_at:
           $ref: ../../../common/components.yaml#/components/schemas/Timestamp
-          description: When the user last signed in; absent before the first sign-in.
+          description: When the user last signed in; absent before the first sign-in. Carried by VendorPrincipal only; VendorUser does not have it.
         can_approve_from:
           $ref: ../../../common/components.yaml#/components/schemas/Timestamp
-          description: From when the account may approve (created_at plus 7 days, ADR-0005 A2.3); in the past once eligible.
+          description: From when the account may approve (the date its first credential was set plus 7 days, ADR-0005 A2.3); in the past once eligible. Carried by VendorPrincipal only; VendorUser does not have it.
         role:
           $ref: '#/components/schemas/VendorRole'
         permissions:
@@ -6481,7 +6939,7 @@ components:
           description: The requester's reason, shown to the approver (Admin A0 AC 90).
         subject:
           type: string
-          description: Human-readable statement of what approving will do, built from the stored fields, for example "Suspend organisation Example Hospitality". The approver is shown this, never requester text.
+          description: Human-readable statement of what approving will do, built from the stored fields, for example "Suspend organisation 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60". Identity holds no organisation name, so an organisation is named by its id here; the admin panel shows the name beside it from tenancy. The approver is shown this, never requester text.
         verification_method:
           $ref: '#/components/schemas/RequesterVerification'
         created_at:
@@ -6817,6 +7275,8 @@ components:
     ApprovalNotExecutable:
       description: The approval cannot yield a grant now (409 approval_not_executable). reason is one of
         not_approved, lapsed, executed, not_approver, subject_changed or not_grantable (a kind identity executes itself).
+        The same status carries 409 idempotency.replay_secret when the Idempotency-Key was used before (the token is never stored,
+        ADR-0005 A3.4).
       content:
         application/problem+json:
           schema:
@@ -6829,6 +7289,12 @@ components:
                 status: 409
                 code: approval_not_executable
                 reason: lapsed
+            replay_secret:
+              value:
+                type: urn:hostry:problem:idempotency.replay_secret
+                title: The result of this request is a secret and is not stored
+                status: 409
+                code: idempotency.replay_secret
     SwitchOwnerRole:
       description: The owner role is assigned only through assignOwnerRole.
       content:

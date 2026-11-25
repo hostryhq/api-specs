@@ -127,6 +127,11 @@ the example is not a valid code (the stub registry issues `AAA`, `AAB`, ...). Th
   `unsealed`), `body` and `pii`. **`body` is the JSON string holding the exact bytes the origin sent and `h` was computed
   over**, never a re-serialised or upcast form; no op field is repeated beside it. Consumers read an op only through the
   shared parser (`go-common/sync.ParseOp`), which runs the upcasters (ADR-0002 S13).
+- **Subscribing (go-common `bus`, 9d9cf03).** `sync.op` is the one two-segment event type; the namespace is appended at publish time.
+  The registry file `events/sync/op.v1.yaml` carries `x-subscribers-by-namespace` (namespace to the services that own or read an
+  entity of it); the subject set of a service's consumer is `evt.sync.op.<namespace>.v1` for exactly the namespaces that list it, and
+  every service named there must also be in `x-subscribers`. The key is refused on any other type. `make lint-intents` checks the map
+  against the entity and intent registries; regenerate it when an intent or entity changes.
 - Envelope `key` = `<stream>|<origin>`, `key_seq` = `seq`, `outlet_id` set for an outlet stream. **A consumer does not wait
   for gaps and does not need order**: `seq` is sparse for a service (it sees only its namespaces) and the apply engine gives
   the same rows for any arrival order (a row whose parent is missing is parked, ADR-0002 S11).
@@ -150,10 +155,35 @@ tenant and the size limit. Idempotency is `(tenant_id, caller, key)` per op: sam
 has a UUIDv5 id derived from its key. When the gateway is down an interactive caller answers 503 `emit.unavailable`; a
 queued emission waits in the caller's `emit_queue`.
 
-## Open wire details (ADR-0002 A2.8, left to the implementers; to be added here by the change that builds them)
-The `stale_seals` list beside `placeholders`, the `unbound` list in `hello` and the `chain_conflict` refusal reason are rules
-(A2.8 items 1 and 2) without a settled field name; the OpenAPI document does not carry them yet. KR1 and PH1 to PH3 are
-the checks.
+## Wire fields of ADR-0002 A2.8 (as both engines implement them)
+KR1 and PH1 to PH3 are the checks. All fields are additive and optional; a node that sends none behaves as before.
+| Where | Field | Shape | Meaning |
+|---|---|---|---|
+| `HelloRequest` | `unbound` | `[{origin, stream, seq}]` | Slots the node took by hash with no binding yet. Only the cloud answers; listed at every direct cloud hello. |
+| `HelloRequest` | `chain_conflicts` | `[{origin, stream, seq, held, seen?}]` | Chain conflicts the node recorded and has not reported: `held` is the hash the node holds, `seen` the hash that contradicted it. |
+| `HelloResponse` | `unbound_h` | `[{origin, stream, seq, h}]` | The cloud's own hash for each slot named in `unbound` that it holds. |
+| `PullRequest` | `stale_seals` | `[{origin, stream, seq}]` | Stored cloud-origin seals under an op-signing key the caller no longer accepts. |
+| `PullResponse` | `seal_refresh` | `[Seal]` | The current seal for each `stale_seals` entry. |
+| `Refusal.reason` | `chain_conflict` | enum value | A body or link contradicts what the node holds or what a seal states. Beside `fork_evidence_kept`. |
+
+## Proof fields of an op body (ADR-0005 A3.1)
+All inside the sealed body. `pack_v` is a JSON integer >= 1 on every device-origin op (cloud-origin ops carry none). `proof` and
+`pin_v` (integer >= 1) appear together and only on `session.open` of a `pin` session (the actor's `pin_v`) and on `approval.grant`
+(the approver's `pin_v`); a `proof` on any other intent is ignored and never sent to identity. On `session.open`, `at` is the
+opening time the proof binds. The gateway asks identity once per proof (`verifyProof`, `Idempotency-Key` from `(origin, stream, seq)`)
+and stores the verdict per `(tenant, origin, sid)`; identity unreachable is `pending`, never `valid`.
+
+## Drain statement (ADR-0005 A3.3)
+Domain tag `hostry-drain-v1`. Object `{origin, streams: [{stream, seq, h}], series: [{series_id, code, fy, last_number}], by, rec?, kid,
+at, sig}`; `sig` = ES256 over `"hostry-drain-v1\n"` + the canonical JSON (RFC 8785) of the object without `sig`. `streams` lists every
+stream in which the device's log holds an own-origin op with its head; `series` every series in its pack in the fields of a
+`series_close` record (0 when never used). Ordinary drain: `by` = `origin`, signed with the revoked device's key. Key loss: `by` = the
+adopting device, `rec` = the recovery id, signed with the new key. It travels as `PushRequest.drain_statement` on the last, empty
+`quarantine-upload`, once the answered `vector` covers every own head. The gateway reports `recordDeviceDrained` only when the device is
+revoked, the signature verifies against its credential, it holds every `seq` up to each stated head with a matching `h`, holds no op
+of that origin in an unstated stream or above a stated head, and its register holds no number above a stated `last_number`; any mismatch
+is stored as fork evidence and reports nothing. The hash of the statement (SHA-256 of the canonical JSON including `sig`) is quoted by
+the wipe order.
 
 ## Hold codes, verdicts
 `pending`, `held_manager`, `held_support` only (see Verdicts above). Flags and reasons exist behind member-token admin
@@ -211,8 +241,11 @@ replay is ignored and a second statement with another `last_number` is refused a
 The digests of `getOrdersProjectionDigest` and `getBillingProjectionDigest` equal what a device computes from its local entities, so
 that convergence can be tested (ADR-0014 T2, T9, T11). The **canonical row form**:
 1. **Rows.** The rows of the entities the service owns that belong to the business day: the entity has a `business_date` equal to
-   it, or no `business_date` and a parent row (through `order_id`, `check_id`, `kot_id`, `bill_id` or `credit_note_id`, the first the
-   entity has) that does. Tombstoned rows and replicas of another owner's entities are left out.
+   it, or no `business_date` and a `day_parent` (a required id field of the entity file) whose row belongs to the day, **followed
+   until a row with `business_date` is reached** (line, then order, then date; ADR-0005 A3.5). `order_line_cancel` names
+   `order_line_id`, so void, cancel and grace cancel resolve the same way and `kot_id` no longer decides the day. Entities declared
+   `outside_digest` and rows whose parent has not arrived (on both sides) are left out. Tombstoned rows and replicas of another
+   owner's entities are left out.
 2. **Row text.** The JCS (RFC 8785, integers only) of an object holding `id` and every field of the entity schema the row has set,
    absent and null fields omitted, `pii: true` fields omitted, nothing implicit (no `tenant_id`, `origin`, `actor`, `hlc`).
 3. **Entity digest.** `hash` = lower-case hex SHA-256 over the row texts in ascending `id` order (byte order), each followed by a

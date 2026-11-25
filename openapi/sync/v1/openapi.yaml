@@ -254,7 +254,7 @@ paths:
       - sync
       x-permission: sync.drain
       summary: Cloud only. The single endpoint a drain token may call (ADR-0005 section 4, ADR-0002 A1.3).
-      description: 'Drain token of a revoked device: its own-origin ops only. Recovery drain token (subject `recovers:<old
+      description: 'Drain token of a revoked device: its own-origin ops only; the last upload has no items and carries the signed `drain_statement` (ADR-0005 A3.3). Recovery drain token (subject `recovers:<old
         device id>`, held by the new device): the old origin''s unconfirmed ops with stored seals and one attestation per
         stream. Everything uploaded is stored in quarantine without judging its content. Any other token, endpoint or origin:
         401/403, nothing stored.'
@@ -843,14 +843,22 @@ components:
           type: string
           description: Session id.
         pack_v:
-          type: string
-          description: Offline pack version.
+          type: integer
+          description: Offline pack version, an integer of at least 1 (ADR-0005 A3.1; it was text in an earlier draft of the unreleased
+            v1). On every device-origin op; cloud-origin ops carry none.
+          minimum: 1
+        pin_v:
+          type: integer
+          description: PIN version of the member the proof belongs to (the actor on `session.open`, the approver on `approval.grant`).
+            Present exactly where `proof` is (ADR-0005 A3.1).
+          minimum: 1
         approval:
           type: string
           description: Approval id.
         proof:
           type: string
-          description: Opaque PIN-derived proof; only the cloud checks it.
+          description: Opaque PIN-derived proof; only the cloud checks it. Only on `session.open` of a `pin` session and on
+            `approval.grant`; ignored on any other intent (ADR-0005 A3.1).
         intent:
           type: string
           description: Intent name from the registry (sync/intents).
@@ -1190,6 +1198,7 @@ components:
           - relay_not_allowed
           - fork_evidence_kept
           - op_too_large
+          - chain_conflict
       required:
       - origin
       - stream
@@ -1223,8 +1232,44 @@ components:
             Only the cloud reads it.
           items:
             $ref: '#/components/schemas/Ref'
+        unbound:
+          type: array
+          description: Slots the node took by hash with no binding yet (ADR-0002 A2.8). Only the cloud answers; listed at every
+            direct cloud hello.
+          items:
+            $ref: '#/components/schemas/Ref'
+        chain_conflicts:
+          type: array
+          description: Chain conflicts the node recorded and has not reported (ADR-0002 A2.8).
+          items:
+            $ref: '#/components/schemas/ChainConflict'
       required:
       - protocol
+    ChainConflict:
+      type: object
+      description: A chain conflict a node recorded, for the cloud to judge.
+      properties:
+        origin:
+          type: string
+          description: Origin.
+        stream:
+          type: string
+          description: Stream.
+        seq:
+          type: integer
+          description: Sequence.
+          format: int64
+        held:
+          type: string
+          description: Hash the node holds for the slot.
+        seen:
+          type: string
+          description: The hash that contradicted it, when one was seen.
+      required:
+      - origin
+      - stream
+      - seq
+      - held
     HelloResponse:
       type: object
       description: Handshake response.
@@ -1262,6 +1307,11 @@ components:
           description: Streams the caller is bound to.
           items:
             type: string
+        unbound_h:
+          type: array
+          description: The cloud's own hash for each slot named in `unbound` that it holds (ADR-0002 A2.8).
+          items:
+            $ref: '#/components/schemas/SlotHash'
       required:
       - protocol
       - role
@@ -1271,6 +1321,28 @@ components:
       - min_supported_version
       - snapshot_required
       - streams
+    SlotHash:
+      type: object
+      description: A slot with the cloud's hash.
+      properties:
+        origin:
+          type: string
+          description: Origin.
+        stream:
+          type: string
+          description: Stream.
+        seq:
+          type: integer
+          description: Sequence.
+          format: int64
+        h:
+          type: string
+          description: Lowercase hex SHA-256 the cloud holds for the slot.
+      required:
+      - origin
+      - stream
+      - seq
+      - h
     PushRequest:
       type: object
       description: Ops in per-origin order.
@@ -1295,6 +1367,8 @@ components:
           description: Re-offer of released unsealed-tail ops (ADR-0002 A2.1 item 5), independent of `items`.
           items:
             $ref: '#/components/schemas/Endorsement'
+        drain_statement:
+          $ref: ../../../common/components.yaml#/components/schemas/DrainStatement
       required:
       - items
     PushResponse:
@@ -1335,6 +1409,11 @@ components:
         placeholders:
           type: array
           description: Slots held only as placeholders, to receive them once released.
+          items:
+            $ref: '#/components/schemas/Ref'
+        stale_seals:
+          type: array
+          description: Stored cloud-origin seals under an op-signing key the caller no longer accepts (ADR-0002 A2.8).
           items:
             $ref: '#/components/schemas/Ref'
         limit:
@@ -1390,6 +1469,11 @@ components:
           description: For role hub only.
           items:
             $ref: '#/components/schemas/HeldSlot'
+        seal_refresh:
+          type: array
+          description: The current seal for each `stale_seals` entry (ADR-0002 A2.8).
+          items:
+            $ref: '#/components/schemas/Seal'
       required:
       - items
       - more

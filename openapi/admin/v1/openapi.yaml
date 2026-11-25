@@ -5151,7 +5151,7 @@ components:
                 status: 403
                 code: csrf_failed
     ExecuteConflict:
-      description: The approval is not executable by this caller (409 approval_not_executable with reason not_approved, lapsed, executed, not_approver or subject_changed; only this service answers it, from identity's refusal to issue a grant), the organisation
+      description: The approval is not executable by this caller (409 approval_not_executable with reason not_approved, lapsed, executed, not_approver or subject_changed; this service answers it from identity's refusal to issue a grant, and also maps the executor's 403 grant.used to reason executed (the executor's used-grant row is unique per approval, so an approval executes once whichever grant arrives, ADR-0005 A3.4)), the organisation
         has a trading day in progress (suspend and close), or the state does not allow the action (rule set not signed).
         Nothing changed; the approval stays approved unless used.
       content:

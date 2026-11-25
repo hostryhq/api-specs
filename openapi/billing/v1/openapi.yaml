@@ -2108,7 +2108,7 @@ paths:
                   effective_date: '2026-04-01'
                   calc_v: 1
                   review_status: unreviewed
-                  content_hash: a3f5c0de9d1b7e44c2f9a8b6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6
+                  content_hash: 17a8ae58b11bd6a005a39c800ce8cbd44f7a1ff5ea213dbd25ecb7bf3e2aaf74
                   published_at: '2026-11-24T13:05:11.120Z'
                   rules:
                   - tax_class: fnb_standard
@@ -2155,7 +2155,7 @@ paths:
                 effective_date: '2026-04-01'
                 calc_v: 1
                 review_status: unreviewed
-                content_hash: a3f5c0de9d1b7e44c2f9a8b6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6
+                content_hash: 17a8ae58b11bd6a005a39c800ce8cbd44f7a1ff5ea213dbd25ecb7bf3e2aaf74
                 published_at: '2026-11-24T13:05:11.120Z'
                 rules:
                 - tax_class: fnb_standard
@@ -2581,7 +2581,7 @@ paths:
                 calc_v: 1
                 state: published
                 review_status: reviewed
-                content_hash: a3f5c0de9d1b7e44c2f9a8b6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6
+                content_hash: 17a8ae58b11bd6a005a39c800ce8cbd44f7a1ff5ea213dbd25ecb7bf3e2aaf74
                 rules:
                 - tax_class: fnb_standard
                   regime: regular
@@ -2663,7 +2663,7 @@ paths:
                 calc_v: 1
                 state: signed
                 review_status: reviewed
-                content_hash: a3f5c0de9d1b7e44c2f9a8b6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6
+                content_hash: 17a8ae58b11bd6a005a39c800ce8cbd44f7a1ff5ea213dbd25ecb7bf3e2aaf74
                 rules:
                 - tax_class: fnb_standard
                   regime: regular
@@ -4843,8 +4843,8 @@ components:
           example: unreviewed
         content_hash:
           type: string
-          description: SHA-256 of the canonical rules, lowercase hex.
-          example: a3f5c0de9d1b7e44c2f9a8b6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6
+          description: "Lowercase hex SHA-256 over the rules in canonical form (provisional): the RFC 8785 (JCS) text of each rule, with every TaxRule field the rule has set, ordered ascending by tax_class, regime, specified_premises, order_channel and doc_type, each text followed by a line feed. The same construction as an entity digest row list (sync/protocol-v1.md)."
+          example: 17a8ae58b11bd6a005a39c800ce8cbd44f7a1ff5ea213dbd25ecb7bf3e2aaf74
         published_at:
           $ref: ../../../common/components.yaml#/components/schemas/Timestamp
         rules:
@@ -4952,7 +4952,7 @@ components:
         content_hash:
           type: string
           description: Hash stored at signing.
-          example: a3f5c0de9d1b7e44c2f9a8b6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6
+          example: 17a8ae58b11bd6a005a39c800ce8cbd44f7a1ff5ea213dbd25ecb7bf3e2aaf74
         rules:
           type: array
           description: Mappings.

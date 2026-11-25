@@ -11,7 +11,7 @@ intents:
   class: control
   owner: identity
   description: Open a session on a device (ADR-0005 section 7). The op carries the session proof (an HMAC made while the PIN
-    was typed) for a pin session; a strong session names identity's own session id; a device session names no member.
+    was typed) and the actor's `pin_v` for a pin session, and its `at` is the opening time the proof binds (ADR-0005 A3.1); a strong session names identity's own session id; a device session names no member.
   permission: null
   permission_reason: A session is the proof for every later op; the actor must be in the pack issued to the device (ADR-0005
     section 7 question 3).
@@ -40,7 +40,8 @@ intents:
   class: control
   owner: identity
   description: 'Manager override at the counter (ADR-0005 section 8): approval id, permission, target, action hash over the
-    fields the registry names, requester, approver, pin_v and the action proof. One action, 2 minutes.'
+    fields the registry names, requester, approver, pin_v and the action proof. One action, 2 minutes. The op body carries the approver''s `pin_v` beside
+    the proof (ADR-0005 A3.1).'
   permission: null
   permission_reason: The approver must hold the cited permission and differ from the requester; the gateway checks this against
     the pack.

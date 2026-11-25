@@ -33,6 +33,9 @@ allOf:
           description: What was done.
           enum:
           - tax_rule_set_publish
+        grant_jti:
+          type: string
+          description: The jti of the grant that executed (ADR-0005 A3.4). Identity sets the approval executed on the first `success`, idempotently; `refused` changes nothing.
         vendor_user_id:
           type: string
           description: The acting vendor user.
@@ -60,5 +63,6 @@ examples:
     approval_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6d
     action: tax_rule_set_publish
     vendor_user_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+    grant_jti: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4ab2
     ticket: SUP-2041
     result: success

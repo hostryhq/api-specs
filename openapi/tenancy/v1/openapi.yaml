@@ -28,6 +28,8 @@ info:
     link-amendment-pending: "LINKS_ENABLED true. The caller is the acceptor 4a63. Link 4a62 is active; proposer 4a60 proposed amendment 4a73 (add grant test.echo.post outbound) at 13:05:11 and it is pending."
     plan-seeded: "The base world's organisation 4a60 (trial, no subscription) and, platform-wide, plan table_service with draft version 1 (feature keys restaurant.core, restaurant.kds, restaurant.captain, restaurant.reports.core; one outlet; monthly list price 129900) and Hostry billing configuration 8041 effective 2026-12-01 (state 33, SAC 997331, 1800 bp, registered, tolerance 99, terms 7 days). The caller is a platform admin."
     plan-active: "The plan-seeded world with version 1 of table_service active; organisation 4a60 has no subscription."
+    subscribed-uncharged: "The plan-active world after subscription 8011 (table_service v1, monthly, 129900, start 2026-12-01, active) was assigned to 4a60; no charge has been raised yet (the billing configuration 8041 applies). The caller is a platform admin."
+    subscribed-annual-listed: "The subscribed world in which table_service version 1 also lists an annual price of 1299000 (excluding GST); charge 8021 is open for 2026-12-01 to 2026-12-31 and no change is pending. The caller is a platform admin."
     subscribed: "The plan-active world after subscription 8011 (table_service v1, monthly, 129900, start 2026-12-01, active) was assigned to 4a60, with open charge 8021 for 2026-12-01 to 2026-12-31 (taxable 129900, CGST 11691, SGST 11691, total 153282, due 2026-12-08), no payment, no invoice reference."
     charge-overdue: "The subscribed world on 2026-12-11: charge 8021 is open and three days past due."
     payment-recorded: "The subscribed world after payment 8031 (153282, upi, UTR1234567890, received 2026-12-02) was recorded against charge 8021, which is paid."
@@ -1762,6 +1764,7 @@ paths:
       tags:
       - tenancy
       x-permission: series.manual_book.register
+      x-example-world: registration-verified
       x-step-up: true
       x-provisional: Parallel paper-book series under one GSTIN awaits CA confirmation.
       parameters:
@@ -1957,6 +1960,101 @@ paths:
                 $ref: '#/components/schemas/SeriesClosure'
               example:
                 closed: 2
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+  /internal/v1/devices/{device_id}/series:
+    get:
+      operationId: listDeviceSeries
+      summary: Every series ever issued to a device
+      description: 'Sync gateway directory question (ADR-0005 A3.2 row 8). By device, not by code: a code is unique per tax
+        registration and an organisation may hold several. Series id, code, document type, state and registration of every
+        series ever issued to the device, closed ones included. The service token names the tenant. The gateway caches it for 60
+        seconds and drops it on tenancy.series.issued and tenancy.series.closed.'
+      tags:
+      - internal
+      x-permission: series.directory.read
+      x-example-world: series-issued
+      x-service-callers:
+      - sync
+      security:
+      - serviceAuth: []
+      parameters:
+      - name: device_id
+        in: path
+        required: true
+        description: Device ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+      responses:
+        '200':
+          description: The series of the device.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SeriesIssuance'
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6c
+                  tax_registration_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+                  code: A7K
+                  doc_type: tax_invoice
+                  outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                  status: active
+                  issued_at: '2026-11-24T13:15:11.120Z'
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a95
+                  tax_registration_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+                  code: A7M
+                  doc_type: credit_note
+                  outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                  status: active
+                  issued_at: '2026-11-24T13:15:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+  /internal/v1/stream-owners/{stream_id}:
+    get:
+      operationId: getStreamOwner
+      summary: Which organisation owns an outlet or brand stream
+      description: 'Sync gateway directory question (ADR-0005 A3.2 row 8): whether an outlet or brand id belongs to the
+        token''s tenant. 404 when it does not exist or belongs to another tenant. Found answers are cached without expiry.'
+      tags:
+      - internal
+      x-permission: series.directory.read
+      x-example-world: base
+      x-service-callers:
+      - sync
+      security:
+      - serviceAuth: []
+      parameters:
+      - name: stream_id
+        in: path
+        required: true
+        description: Outlet or brand id (the id part of the stream `outlet:<id>` or `brand:<id>`).
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+      responses:
+        '200':
+          description: The owner.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StreamOwner'
+              example:
+                stream_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                kind: outlet
+                organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                brand_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6a
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -2655,7 +2753,8 @@ paths:
       summary: Raise a charge
       description: A second charge for a period that already has an open or paid charge is refused 409 duplicate_period
         unless it is an extra charge with a reason (BR-A1-31). GST is taken from the billing configuration at this
-        moment and stored.
+        moment and stored. The due date is the period start plus payment_terms_days of the billing configuration in effect at
+        the period start (provisional; the plan-seeded examples and the charge-overdue world follow this rule).
       tags:
       - commercial
       x-permission: admin.subscription.manage
@@ -2731,7 +2830,7 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/Conflict
         '422':
           $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
-      x-example-world: plan-active
+      x-example-world: subscribed-uncharged
   /internal/v1/vendor/organisations/{organisation_id}/charges/{charge_id}:
     get:
       operationId: getCharge
@@ -3472,7 +3571,6 @@ paths:
       x-permission: admin.subscription.start
       x-service-callers:
       - admin
-      x-permission-widened-by: admin.subscription.manage
       x-vendor-class: operational
       x-vendor-audit: recorded
       security:
@@ -3582,7 +3680,7 @@ paths:
                 plan_version: 1
                 cycle: annual
                 agreed_price:
-                  amount_paise: 129900
+                  amount_paise: 1299000
                   currency: INR
                 addons: []
                 start_date: '2026-12-01'
@@ -3602,7 +3700,7 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/Conflict
         '422':
           $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
-      x-example-world: subscribed
+      x-example-world: subscribed-annual-listed
   /internal/v1/vendor/organisations/{organisation_id}/subscription/cancellation:
     post:
       operationId: cancelSubscription
@@ -4692,6 +4790,28 @@ components:
           - restored
           - revoked
           example: reinstalled
+    StreamOwner:
+      type: object
+      description: The owner of an outlet or brand stream (ADR-0005 A3.2 row 8).
+      required:
+      - stream_id
+      - kind
+      - organisation_id
+      properties:
+        stream_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        kind:
+          type: string
+          description: Which stream the id names.
+          enum:
+          - outlet
+          - brand
+          example: outlet
+        organisation_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        brand_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+          description: The brand of the outlet (equal to stream_id for a brand stream).
     SeriesClosure:
       type: object
       description: Result of closing a device's series.
@@ -5565,7 +5685,7 @@ components:
           example: 99
         payment_terms_days:
           type: integer
-          description: Days from the first charge to its due date (default 7).
+          description: Days from the start of a charge's period to its due date (default 7).
           minimum: 0
           example: 7
         created_at:
@@ -5625,7 +5745,7 @@ components:
           example: 99
         payment_terms_days:
           type: integer
-          description: Days from the first charge to its due date (default 7).
+          description: Days from the start of a charge's period to its due date (default 7).
           minimum: 0
           example: 7
       required:

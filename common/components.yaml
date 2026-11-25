@@ -71,6 +71,85 @@ components:
       minLength: 10
       maxLength: 500
       example: Owner phoned to report a lost tablet.
+    DrainStatement:
+      type: object
+      description: 'The device-signed list of everything a revoked device holds and its last document numbers (ADR-0005 A3.3,
+        domain tag `hostry-drain-v1`). Ordinary drain: `by` = `origin`, signed with the revoked device''s key. Key loss: `by` = the
+        adopting device, `rec` = the recovery id, signed with the new key.'
+      properties:
+        origin:
+          type: string
+          description: The drained device.
+        streams:
+          type: array
+          description: Every stream in which the device's log holds an own-origin op, with its head.
+          items:
+            type: object
+            description: Head of one stream.
+            properties:
+              stream:
+                type: string
+                description: Stream.
+              seq:
+                type: integer
+                description: Last own-origin seq in the stream.
+                format: int64
+              h:
+                type: string
+                description: Hash of that op.
+            required:
+            - stream
+            - seq
+            - h
+        series:
+          type: array
+          description: Every series in the device's pack, in the fields of a `series_close` record; 0 when never used.
+          items:
+            type: object
+            description: Last number of one series.
+            properties:
+              series_id:
+                type: string
+                description: Series id.
+              code:
+                type: string
+                description: Three-character series code.
+              fy:
+                type: string
+                description: Financial year, four digits.
+              last_number:
+                type: integer
+                description: Last running number allocated from the series, 0 when never used.
+                format: int64
+                minimum: 0
+            required:
+            - series_id
+            - code
+            - fy
+            - last_number
+        by:
+          type: string
+          description: Signing device id.
+        rec:
+          type: string
+          description: Recovery record id (key loss only).
+        kid:
+          type: string
+          description: Signing key id.
+        at:
+          type: string
+          description: Signing time, RFC 3339 UTC.
+        sig:
+          type: string
+          description: ES256 of "hostry-drain-v1\n" + canonical JSON of the statement without `sig`.
+      required:
+      - origin
+      - streams
+      - series
+      - by
+      - kid
+      - at
+      - sig
     PageCursor:
       type: object
       description: Cursor pagination field shared by every list response (compose with allOf).
