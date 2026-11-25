@@ -119,11 +119,17 @@ func run(root string) (errs, notes []string) {
 			continue
 		}
 		var doc struct {
+			Info struct {
+				Worlds map[string]string `yaml:"x-example-worlds"`
+			} `yaml:"info"`
 			Paths map[string]map[string]any `yaml:"paths"`
 		}
 		if err := yaml.Unmarshal(raw, &doc); err != nil {
 			fail("%s: %v", f, err)
 			continue
+		}
+		if _, ok := doc.Info.Worlds["base"]; !ok {
+			fail("%s: info.x-example-worlds must declare the base world", svc)
 		}
 		for path, item := range doc.Paths {
 			for _, m := range methods {
@@ -134,6 +140,11 @@ func run(root string) (errs, notes []string) {
 				op, _ := v.(map[string]any)
 				id := fmt.Sprintf("%s %s %s", svc, strings.ToUpper(m), path)
 				perm, _ := op["x-permission"].(string)
+				if w, ok := op["x-example-world"].(string); ok {
+					if _, declared := doc.Info.Worlds[w]; !declared {
+						fail("%s: x-example-world %q is not declared in info.x-example-worlds", id, w)
+					}
+				}
 				internal := strings.HasPrefix(path, "/internal/v1/")
 				vendorPath := strings.HasPrefix(path, "/internal/v1/vendor/")
 

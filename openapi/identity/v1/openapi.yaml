@@ -12,6 +12,26 @@ info:
     vendor user (`vendor bootstrap`, `vendor recover`) is a command of the identity binary and has no
     API.
   x-status: stable
+  x-example-worlds:
+    base: "Organisation 4a60 with outlet 4a61 (tenancy). Owner Asha 4a64 (active, +919876543210, PIN set, pin_v 2; assignments 4a6f to built-in role Owner 4a9a and 4a8b to Cashier 4a65 at outlet 4a61). Staff member Ravi 4a9e (active, +919876543211, no PIN, assignment 4a9f to Cashier 4a65). Roles: Owner 4a9a (built-in), Cashier 4a65, Waiter 4a9b (unassigned). Device 4a5e (pos, Counter 1, outlet 4a61, active, hardware key, billing active, registered 13:05:11, last contact 13:10:11) with binding 4a6e (active, caution until 2026-12-08), offline pack_v 7 (issued 13:05:11, valid until 2026-12-08), series A7K active for it. Permission catalogue version 1 (common/permissions.yaml). Vendor users Priya 4a66 (support, active, TOTP enrolled) and Arun 4a78 (platform_admin, active). Device nonce nonce_example_01 valid. No session, challenge, approval, support session or invitation exists. The caller of tenant operations is Asha in a strong session; the caller of vendor operations is Priya."
+    otp-challenge-pending: "Base plus OTP challenge 4a5b outstanding for +919876543210 from device 4a5e, code 482915."
+    session-open: "Base plus Asha session 4a5d opened at 13:05:11 on device 4a5e with refresh token tok_example_refresh, PIN session proof valid (pack_v 7, pin_v 2)."
+    device-unregistered: "Base without device 4a5e, binding 4a6e and series; nonce nonce_example_01 valid; activation code 7QK3M9XD (id 4a75, pos, outlet 4a61) unused and unexpired."
+    device-revoked: "Base after device 4a5e was revoked at 13:15:11 by vendor user Priya for ticket SUP-2041 (revocation 4a77; vendor audit entry 4a8a vendor.device.revoked); the drain is not recorded yet."
+    device-drained: "The device-revoked world after the device drained through device-ops seq 1842; a wipe order was issued at 13:20:11."
+    pin-reset-authorised: "Base plus PIN reset authorisation 4a76 for Asha on device 4a5e, unused and unexpired."
+    pin-locked: "Base with Asha locked out after repeated wrong PINs."
+    co-owner: "Base plus owner-role assignment 4a8d on Ravi 4a9e (built-in role Owner 4a9a)."
+    approval-pending: "Base plus approval request 4a70 (operation createMember, body hash as in the example) filed by Ravi on binding 4a6e and pending; the caller is Asha, who may decide it."
+    approval-approved: "The approval-pending world after the request was approved; the caller is the requester Ravi and the token is still unclaimed."
+    owner-recovery-pending: "Base plus owner recovery 4a8d pending for the organisation; the caller is Asha, who did not request it."
+    org-no-owner: "Organisation 4a60 exists with no members and no owner invitation; the caller is a vendor user with admin.owner_invite.manage."
+    owner-invited: "Organisation 4a60 exists with no members and a pending owner invitation 4a67 for +919876543210 (owner name Asha) created at 13:05:11."
+    vendor-session-active: "Base plus an active vendor session for Priya with renewal handle renew_example."
+    vendor-setup-pending: "Priya 4a66 in status setup_pending with setup token setup_example valid and no TOTP enrolled."
+    support-session-active: "Base plus support session 4a68 (view mode) started by Priya for organisation 4a60, ticket SUP-2041, 13:05:11 to 13:35:11, active; the tenant audit holds entry 4a69 support.session.started."
+    vendor-approval-pending: "Base plus vendor approval 4a6d (kind sign_in_code, organisation 4a60, +919876543210, requested by Priya, ticket SUP-2041) pending; the caller is Arun 4a78 (platform_admin)."
+    vendor-approval-approved: "The vendor-approval-pending world after Arun approved it; the caller is the requester Priya, who has not claimed her code half."
 servers:
 - url: /
 tags:
@@ -31,7 +51,7 @@ paths:
       summary: Start an owner or manager OTP sign-in
       description: 'Limits: 30 s resend cooldown, 3 sends per 15 minutes and 6 per day per number, plus
         per-device and per-IP limits and a global daily budget (429 with Retry-After). Counters advance
-        identically for unknown numbers. Indian numbers only.'
+        identically for unknown numbers, so 429 does not reveal whether a number is known. Indian numbers only.'
       tags:
       - identity
       x-permission: public
@@ -54,9 +74,10 @@ paths:
                 y: x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0
       responses:
         '202':
-          description: Challenge created. Identical status, body and timing band for known, unknown and
-            rate-blocked numbers; an OTP is sent only to a number with an account or a pending invitation
-            (ADR-0005 section 3, IC-03).
+          description: Challenge created. Identical status, body and timing band for known and unknown
+            numbers; an OTP is sent only to a number with an account or a pending invitation (ADR-0005
+            section 3, IC-03). A number over a limit gets the 429 below, identically whether or not the
+            number is known.
           content:
             application/json:
               schema:
@@ -76,6 +97,7 @@ paths:
       tags:
       - identity
       x-permission: public
+      x-example-world: otp-challenge-pending
       security: []
       parameters:
       - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
@@ -128,6 +150,7 @@ paths:
       tags:
       - identity
       x-permission: authenticated
+      x-example-world: session-open
       parameters:
       - name: session_id
         in: path
@@ -151,6 +174,7 @@ paths:
       tags:
       - identity
       x-permission: public
+      x-example-world: session-open
       security: []
       parameters:
       - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
@@ -190,6 +214,7 @@ paths:
       tags:
       - identity
       x-permission: authenticated
+      x-example-world: session-open
       parameters:
       - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
       requestBody:
@@ -229,6 +254,7 @@ paths:
       tags:
       - identity
       x-permission: public
+      x-example-world: session-open
       security: []
       parameters:
       - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
@@ -427,6 +453,7 @@ paths:
       tags:
       - identity
       x-permission: public
+      x-example-world: device-unregistered
       security: []
       parameters:
       - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
@@ -494,15 +521,25 @@ paths:
                       vbits: 12
                       pin_v: 2
                       permissions:
-                      - order.create
+                      - organisation.read
+                      - brand.read
+                      - outlet.read
+                      - tax_registration.read
+                      - settings.read
+                      - series.read
+                      - link.read
+                      - device.read
+                      - member.read
+                      - role.read
+                      - audit.read
                     series:
-                    - code: A7
+                    - code: A7K
                       doc_type: tax_invoice
                       state: active
                       tax_registration_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
                     revoked_device_ids: []
                     intent_table_version: 3
-                    catalogue_version: 12
+                    catalogue_version: 1
                     issued_at: '2026-11-24T13:05:11.120Z'
                     offline_valid_until: '2026-12-08T13:05:11.120Z'
                     idle_lock_minutes: 5
@@ -537,6 +574,7 @@ paths:
       tags:
       - identity
       x-permission: device.register
+      x-example-world: device-unregistered
       x-outlet-scoped: true
       parameters:
       - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
@@ -774,15 +812,25 @@ paths:
                     vbits: 12
                     pin_v: 2
                     permissions:
-                    - order.create
+                    - organisation.read
+                    - brand.read
+                    - outlet.read
+                    - tax_registration.read
+                    - settings.read
+                    - series.read
+                    - link.read
+                    - device.read
+                    - member.read
+                    - role.read
+                    - audit.read
                   series:
-                  - code: A7
+                  - code: A7K
                     doc_type: tax_invoice
                     state: active
                     tax_registration_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
                   revoked_device_ids: []
                   intent_table_version: 3
-                  catalogue_version: 12
+                  catalogue_version: 1
                   issued_at: '2026-11-24T13:05:11.120Z'
                   offline_valid_until: '2026-12-08T13:05:11.120Z'
                   idle_lock_minutes: 5
@@ -817,6 +865,7 @@ paths:
       tags:
       - identity
       x-permission: authenticated
+      x-example-world: device-drained
       parameters:
       - name: device_id
         in: path
@@ -837,7 +886,7 @@ paths:
                 drained_through:
                 - stream: device-ops
                   seq: 1842
-                issued_at: '2026-11-24T13:10:11.120Z'
+                issued_at: '2026-11-24T13:20:11.120Z'
                 jws: wipe.jws.example
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
@@ -879,6 +928,17 @@ paths:
                   has_pin: true
                   role_assignments:
                   - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6f
+                    role_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a9a
+                  - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a8b
+                    role_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65
+                  created_at: '2026-11-24T13:05:11.120Z'
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a9e
+                  display_name: Ravi
+                  status: active
+                  mobile_masked: +91*******211
+                  has_pin: false
+                  role_assignments:
+                  - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a9f
                     role_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65
                   created_at: '2026-11-24T13:05:11.120Z'
         '401':
@@ -902,11 +962,11 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateMember'
             example:
-              id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
-              display_name: Asha
-              mobile_e164: '+919876543210'
+              id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a9d
+              display_name: Latha
+              mobile_e164: '+919876543212'
               role_assignments:
-              - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6f
+              - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a8e
                 role_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65
       responses:
         '201':
@@ -917,13 +977,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/Member'
               example:
-                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
-                display_name: Asha
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a9d
+                display_name: Latha
                 status: invited
-                mobile_masked: +91*******210
+                mobile_masked: +91*******212
                 has_pin: false
                 role_assignments:
-                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6f
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a8e
                   role_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65
                 created_at: '2026-11-24T13:05:11.120Z'
         '401':
@@ -965,6 +1025,8 @@ paths:
                 has_pin: true
                 role_assignments:
                 - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6f
+                  role_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a9a
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a8b
                   role_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65
                 created_at: '2026-11-24T13:05:11.120Z'
         '401':
@@ -988,7 +1050,7 @@ paths:
         description: Member ID.
         schema:
           $ref: ../../../common/components.yaml#/components/schemas/Id
-        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a9e
       - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
       - $ref: ../../../common/components.yaml#/components/parameters/ApprovalToken
       requestBody:
@@ -1007,13 +1069,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/Member'
               example:
-                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
-                display_name: Asha
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a9e
+                display_name: Ravi
                 status: suspended
-                mobile_masked: +91*******210
-                has_pin: true
+                mobile_masked: +91*******211
+                has_pin: false
                 role_assignments:
-                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6f
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a9f
                   role_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65
                 created_at: '2026-11-24T13:05:11.120Z'
         '401':
@@ -1031,6 +1093,7 @@ paths:
       tags:
       - identity
       x-permission: member.manage
+      x-example-world: pin-locked
       parameters:
       - name: member_id
         in: path
@@ -1090,6 +1153,7 @@ paths:
       tags:
       - identity
       x-permission: authenticated
+      x-example-world: pin-reset-authorised
       parameters:
       - name: member_id
         in: path
@@ -1142,7 +1206,7 @@ paths:
         description: Member ID.
         schema:
           $ref: ../../../common/components.yaml#/components/schemas/Id
-        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a9e
       - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
       - $ref: ../../../common/components.yaml#/components/parameters/ApprovalToken
       requestBody:
@@ -1152,8 +1216,8 @@ paths:
             schema:
               $ref: '#/components/schemas/AssignmentInput'
             example:
-              id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6f
-              role_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65
+              id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a8c
+              role_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a9b
               outlet_ids:
               - 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
       responses:
@@ -1164,8 +1228,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/RoleAssignment'
               example:
-                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6f
-                role_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a8c
+                role_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a9b
                 outlet_ids:
                 - 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
         '401':
@@ -1197,7 +1261,7 @@ paths:
         description: Assignment ID.
         schema:
           $ref: ../../../common/components.yaml#/components/schemas/Id
-        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6f
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a8b
       - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
       - $ref: ../../../common/components.yaml#/components/parameters/ApprovalToken
       responses:
@@ -1225,7 +1289,7 @@ paths:
         description: Member ID.
         schema:
           $ref: ../../../common/components.yaml#/components/schemas/Id
-        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a9e
       - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
       - $ref: ../../../common/components.yaml#/components/parameters/ApprovalToken
       requestBody:
@@ -1235,7 +1299,7 @@ paths:
             schema:
               $ref: '#/components/schemas/OwnerRoleAssignment'
             example:
-              id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6f
+              id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a8d
       responses:
         '200':
           description: The member holds the owner role.
@@ -1244,14 +1308,16 @@ paths:
               schema:
                 $ref: '#/components/schemas/Member'
               example:
-                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
-                display_name: Asha
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a9e
+                display_name: Ravi
                 status: active
-                mobile_masked: +91*******210
-                has_pin: true
+                mobile_masked: +91*******211
+                has_pin: false
                 role_assignments:
-                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6f
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a9f
                   role_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a8d
+                  role_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a9a
                 created_at: '2026-11-24T13:05:11.120Z'
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
@@ -1265,6 +1331,7 @@ paths:
       tags:
       - identity
       x-permission: member.owner.assign
+      x-example-world: co-owner
       x-step-up: true
       parameters:
       - name: member_id
@@ -1273,7 +1340,7 @@ paths:
         description: Member ID.
         schema:
           $ref: ../../../common/components.yaml#/components/schemas/Id
-        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a9e
       - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
       - $ref: ../../../common/components.yaml#/components/parameters/ApprovalToken
       responses:
@@ -1307,11 +1374,53 @@ paths:
                 $ref: '#/components/schemas/RolePage'
               example:
                 items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a9a
+                  name: Owner
+                  permissions:
+                  - organisation.read
+                  - organisation.manage
+                  - brand.read
+                  - brand.manage
+                  - outlet.read
+                  - outlet.create
+                  - outlet.manage
+                  - tax_registration.read
+                  - tax_registration.manage
+                  - settings.read
+                  - settings.manage
+                  - series.read
+                  - series.close_unreconciled
+                  - link.read
+                  - link.manage
+                  - link.revoke
+                  - device.read
+                  - device.register
+                  - device.activation_code.create
+                  - device.revoke
+                  - member.read
+                  - member.manage
+                  - member.pin.authorise
+                  - member.role.assign
+                  - member.owner.assign
+                  - role.read
+                  - role.manage
+                  - audit.read
+                  - support.code.create
+                  built_in: true
+                  created_at: '2026-11-24T13:05:11.120Z'
+                  updated_at: '2026-11-24T13:05:11.120Z'
                 - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65
                   name: Cashier
                   permissions:
-                  - order.create
-                  - bill.create
+                  - outlet.read
+                  - device.read
+                  built_in: false
+                  created_at: '2026-11-24T13:05:11.120Z'
+                  updated_at: '2026-11-24T13:05:11.120Z'
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a9b
+                  name: Waiter
+                  permissions:
+                  - outlet.read
                   built_in: false
                   created_at: '2026-11-24T13:05:11.120Z'
                   updated_at: '2026-11-24T13:05:11.120Z'
@@ -1336,11 +1445,10 @@ paths:
             schema:
               $ref: '#/components/schemas/RoleInput'
             example:
-              id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65
-              name: Cashier
+              id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a8f
+              name: Kitchen
               permissions:
-              - order.create
-              - bill.create
+              - outlet.read
       responses:
         '201':
           description: Role created.
@@ -1349,11 +1457,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/Role'
               example:
-                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65
-                name: Cashier
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a8f
+                name: Kitchen
                 permissions:
-                - order.create
-                - bill.create
+                - outlet.read
                 built_in: false
                 created_at: '2026-11-24T13:05:11.120Z'
                 updated_at: '2026-11-24T13:05:11.120Z'
@@ -1389,8 +1496,8 @@ paths:
                 id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65
                 name: Cashier
                 permissions:
-                - order.create
-                - bill.create
+                - outlet.read
+                - device.read
                 built_in: false
                 created_at: '2026-11-24T13:05:11.120Z'
                 updated_at: '2026-11-24T13:05:11.120Z'
@@ -1425,8 +1532,8 @@ paths:
             example:
               name: Cashier
               permissions:
-              - order.create
-              - bill.create
+              - outlet.read
+              - device.read
       responses:
         '200':
           description: The updated role. Effective for members within 15 minutes (next token).
@@ -1438,8 +1545,8 @@ paths:
                 id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65
                 name: Cashier
                 permissions:
-                - order.create
-                - bill.create
+                - outlet.read
+                - device.read
                 built_in: false
                 created_at: '2026-11-24T13:05:11.120Z'
                 updated_at: '2026-11-24T13:05:11.120Z'
@@ -1464,7 +1571,7 @@ paths:
         description: Role ID.
         schema:
           $ref: ../../../common/components.yaml#/components/schemas/Id
-        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a9b
       - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
       - $ref: ../../../common/components.yaml#/components/parameters/ApprovalToken
       responses:
@@ -1493,14 +1600,238 @@ paths:
               schema:
                 $ref: '#/components/schemas/PermissionList'
               example:
-                catalogue_version: 12
+                catalogue_version: 1
                 items:
-                - key: order.create
-                  service: restaurant
-                  description_key: perm.order.create
+                - key: organisation.read
+                  service: tenancy
+                  description_key: perm.organisation.read
                   sensitive: false
                   strong_only: false
                   owner_grant: false
+                  support_viewable: true
+                  support_actable: false
+                - key: organisation.manage
+                  service: tenancy
+                  description_key: perm.organisation.manage
+                  sensitive: false
+                  strong_only: true
+                  owner_grant: true
+                  support_viewable: false
+                  support_actable: false
+                - key: brand.read
+                  service: tenancy
+                  description_key: perm.brand.read
+                  sensitive: false
+                  strong_only: false
+                  owner_grant: false
+                  support_viewable: true
+                  support_actable: false
+                - key: brand.manage
+                  service: tenancy
+                  description_key: perm.brand.manage
+                  sensitive: false
+                  strong_only: true
+                  owner_grant: true
+                  support_viewable: false
+                  support_actable: false
+                - key: outlet.read
+                  service: tenancy
+                  description_key: perm.outlet.read
+                  sensitive: false
+                  strong_only: false
+                  owner_grant: false
+                  support_viewable: true
+                  support_actable: false
+                - key: outlet.create
+                  service: tenancy
+                  description_key: perm.outlet.create
+                  sensitive: false
+                  strong_only: true
+                  owner_grant: true
+                  support_viewable: false
+                  support_actable: false
+                - key: outlet.manage
+                  service: tenancy
+                  description_key: perm.outlet.manage
+                  sensitive: false
+                  strong_only: true
+                  owner_grant: true
+                  support_viewable: false
+                  support_actable: false
+                - key: tax_registration.read
+                  service: tenancy
+                  description_key: perm.tax_registration.read
+                  sensitive: false
+                  strong_only: false
+                  owner_grant: false
+                  support_viewable: true
+                  support_actable: false
+                - key: tax_registration.manage
+                  service: tenancy
+                  description_key: perm.tax_registration.manage
+                  sensitive: true
+                  strong_only: true
+                  owner_grant: true
+                  support_viewable: false
+                  support_actable: false
+                - key: settings.read
+                  service: tenancy
+                  description_key: perm.settings.read
+                  sensitive: false
+                  strong_only: false
+                  owner_grant: false
+                  support_viewable: true
+                  support_actable: false
+                - key: settings.manage
+                  service: tenancy
+                  description_key: perm.settings.manage
+                  sensitive: false
+                  strong_only: true
+                  owner_grant: true
+                  support_viewable: false
+                  support_actable: false
+                - key: series.read
+                  service: tenancy
+                  description_key: perm.series.read
+                  sensitive: false
+                  strong_only: false
+                  owner_grant: false
+                  support_viewable: true
+                  support_actable: false
+                - key: series.close_unreconciled
+                  service: tenancy
+                  description_key: perm.series.close_unreconciled
+                  sensitive: true
+                  strong_only: true
+                  owner_grant: true
+                  support_viewable: false
+                  support_actable: false
+                - key: link.read
+                  service: tenancy
+                  description_key: perm.link.read
+                  sensitive: false
+                  strong_only: false
+                  owner_grant: false
+                  support_viewable: false
+                  support_actable: false
+                - key: link.manage
+                  service: tenancy
+                  description_key: perm.link.manage
+                  sensitive: true
+                  strong_only: true
+                  owner_grant: true
+                  support_viewable: false
+                  support_actable: false
+                - key: link.revoke
+                  service: tenancy
+                  description_key: perm.link.revoke
+                  sensitive: true
+                  strong_only: true
+                  owner_grant: true
+                  support_viewable: false
+                  support_actable: false
+                - key: device.read
+                  service: identity
+                  description_key: perm.device.read
+                  sensitive: false
+                  strong_only: false
+                  owner_grant: false
+                  support_viewable: true
+                  support_actable: false
+                - key: device.register
+                  service: identity
+                  description_key: perm.device.register
+                  sensitive: false
+                  strong_only: true
+                  owner_grant: true
+                  support_viewable: false
+                  support_actable: false
+                - key: device.activation_code.create
+                  service: identity
+                  description_key: perm.device.activation_code.create
+                  sensitive: false
+                  strong_only: true
+                  owner_grant: true
+                  support_viewable: false
+                  support_actable: false
+                - key: device.revoke
+                  service: identity
+                  description_key: perm.device.revoke
+                  sensitive: true
+                  strong_only: true
+                  owner_grant: true
+                  support_viewable: false
+                  support_actable: false
+                - key: member.read
+                  service: identity
+                  description_key: perm.member.read
+                  sensitive: false
+                  strong_only: false
+                  owner_grant: false
+                  support_viewable: true
+                  support_actable: false
+                - key: member.manage
+                  service: identity
+                  description_key: perm.member.manage
+                  sensitive: true
+                  strong_only: true
+                  owner_grant: true
+                  support_viewable: false
+                  support_actable: false
+                - key: member.pin.authorise
+                  service: identity
+                  description_key: perm.member.pin.authorise
+                  sensitive: false
+                  strong_only: true
+                  owner_grant: true
+                  support_viewable: false
+                  support_actable: false
+                - key: member.role.assign
+                  service: identity
+                  description_key: perm.member.role.assign
+                  sensitive: true
+                  strong_only: true
+                  owner_grant: true
+                  support_viewable: false
+                  support_actable: false
+                - key: member.owner.assign
+                  service: identity
+                  description_key: perm.member.owner.assign
+                  sensitive: true
+                  strong_only: true
+                  owner_grant: true
+                  support_viewable: false
+                  support_actable: false
+                - key: role.read
+                  service: identity
+                  description_key: perm.role.read
+                  sensitive: false
+                  strong_only: false
+                  owner_grant: false
+                  support_viewable: true
+                  support_actable: false
+                - key: role.manage
+                  service: identity
+                  description_key: perm.role.manage
+                  sensitive: false
+                  strong_only: true
+                  owner_grant: true
+                  support_viewable: false
+                  support_actable: false
+                - key: audit.read
+                  service: identity
+                  description_key: perm.audit.read
+                  sensitive: false
+                  strong_only: false
+                  owner_grant: false
+                  support_viewable: false
+                  support_actable: false
+                - key: support.code.create
+                  service: identity
+                  description_key: perm.support.code.create
+                  sensitive: false
+                  strong_only: true
+                  owner_grant: true
                   support_viewable: false
                   support_actable: false
         '401':
@@ -1515,6 +1846,7 @@ paths:
       tags:
       - identity
       x-permission: audit.read
+      x-example-world: support-session-active
       parameters:
       - name: from
         in: query
@@ -1596,8 +1928,12 @@ paths:
             example:
               operation_id: createMember
               request_body:
-                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
-                display_name: Asha
+                display_name: Latha
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a9d
+                mobile_e164: '+919876543212'
+                role_assignments:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a8e
+                  role_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65
       responses:
         '201':
           description: Request filed; lapses after 10 minutes.
@@ -1608,7 +1944,7 @@ paths:
               example:
                 id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a70
                 operation_id: createMember
-                body_hash: sha256:3f2a
+                body_hash: sha256:cf03a846706f29a88ba61a212f79e7c224142fdd5df92fc1d7ed8bb1283fb8c8
                 state: pending
                 created_at: '2026-11-24T13:05:11.120Z'
                 expires_at: '2026-11-24T13:10:11.120Z'
@@ -1624,6 +1960,7 @@ paths:
       tags:
       - identity
       x-permission: authenticated
+      x-example-world: approval-pending
       parameters:
       - $ref: ../../../common/components.yaml#/components/parameters/Cursor
       - $ref: ../../../common/components.yaml#/components/parameters/Limit
@@ -1639,7 +1976,7 @@ paths:
                 items:
                 - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a70
                   operation_id: createMember
-                  body_hash: sha256:3f2a
+                  body_hash: sha256:cf03a846706f29a88ba61a212f79e7c224142fdd5df92fc1d7ed8bb1283fb8c8
                   state: pending
                   created_at: '2026-11-24T13:05:11.120Z'
                   expires_at: '2026-11-24T13:10:11.120Z'
@@ -1652,6 +1989,7 @@ paths:
       tags:
       - identity
       x-permission: authenticated
+      x-example-world: approval-approved
       parameters:
       - name: request_id
         in: path
@@ -1670,7 +2008,7 @@ paths:
               example:
                 id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a70
                 operation_id: createMember
-                body_hash: sha256:3f2a
+                body_hash: sha256:cf03a846706f29a88ba61a212f79e7c224142fdd5df92fc1d7ed8bb1283fb8c8
                 state: approved
                 created_at: '2026-11-24T13:05:11.120Z'
                 expires_at: '2026-11-24T13:10:11.120Z'
@@ -1686,6 +2024,7 @@ paths:
       tags:
       - identity
       x-permission: authenticated
+      x-example-world: approval-pending
       parameters:
       - name: request_id
         in: path
@@ -1714,7 +2053,7 @@ paths:
               example:
                 id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a70
                 operation_id: createMember
-                body_hash: sha256:3f2a
+                body_hash: sha256:cf03a846706f29a88ba61a212f79e7c224142fdd5df92fc1d7ed8bb1283fb8c8
                 state: approved
                 created_at: '2026-11-24T13:05:11.120Z'
                 expires_at: '2026-11-24T13:10:11.120Z'
@@ -1794,6 +2133,7 @@ paths:
       tags:
       - identity
       x-permission: authenticated
+      x-example-world: owner-recovery-pending
       parameters:
       - name: recovery_id
         in: path
@@ -1801,7 +2141,7 @@ paths:
         description: Recovery ID (the vendor approval id).
         schema:
           $ref: ../../../common/components.yaml#/components/schemas/Id
-        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6d
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a8d
       - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
       requestBody:
         required: true
@@ -1820,7 +2160,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/OwnerRecovery'
               example:
-                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6d
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a8d
                 state: cancelled
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
@@ -1837,6 +2177,7 @@ paths:
       tags:
       - internal
       x-permission: revocation.read
+      x-example-world: device-revoked
       x-service-callers:
       - sync
       security:
@@ -1858,7 +2199,7 @@ paths:
                   subject_type: device
                   subject_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
                   organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
-                  revoked_at: '2026-11-24T13:05:11.120Z'
+                  revoked_at: '2026-11-24T13:15:11.120Z'
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -1870,6 +2211,7 @@ paths:
       tags:
       - internal
       x-permission: device.drain.record
+      x-example-world: device-revoked
       x-service-callers:
       - sync
       security:
@@ -1925,6 +2267,7 @@ paths:
       tags:
       - internal
       x-permission: proof.verify
+      x-example-world: session-open
       x-service-callers:
       - sync
       security:
@@ -1986,7 +2329,7 @@ paths:
               device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
               pack_v: 7
               member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
-              series_code: A7
+              series_code: A7K
       responses:
         '200':
           description: Judged against the pack held, not against today (ADR-0005 section 7).
@@ -2054,8 +2397,13 @@ paths:
                   - admin.device.revoke
                   - admin.support.session.start
                   - admin.audit.read_own
+                  - admin.approval.create
+                  - admin.approval.read
+                  - admin.approval.decide
         '401':
           $ref: '#/components/responses/VendorSignInFailed'
+        '429':
+          $ref: ../../../common/components.yaml#/components/responses/TooManyRequests
   /internal/v1/vendor/session-renewals:
     post:
       operationId: renewVendorSession
@@ -2063,6 +2411,7 @@ paths:
       tags:
       - vendor
       x-permission: public
+      x-example-world: vendor-session-active
       x-service-callers:
       - admin
       x-vendor-class: session
@@ -2099,8 +2448,17 @@ paths:
                   role: support
                   permissions:
                   - admin.org.read
+                  - admin.device.read
+                  - admin.device.revoke
+                  - admin.support.session.start
+                  - admin.audit.read_own
+                  - admin.approval.create
+                  - admin.approval.read
+                  - admin.approval.decide
         '401':
           $ref: '#/components/responses/VendorSignInFailed'
+        '429':
+          $ref: ../../../common/components.yaml#/components/responses/TooManyRequests
   /internal/v1/vendor/sessions/current:
     delete:
       operationId: endVendorSession
@@ -2108,6 +2466,7 @@ paths:
       tags:
       - vendor
       x-permission: authenticated
+      x-example-world: vendor-session-active
       x-service-callers:
       - admin
       x-vendor-class: session
@@ -2131,6 +2490,7 @@ paths:
       tags:
       - vendor
       x-permission: public
+      x-example-world: vendor-setup-pending
       x-service-callers:
       - admin
       x-vendor-class: session
@@ -2171,6 +2531,7 @@ paths:
       tags:
       - vendor
       x-permission: public
+      x-example-world: vendor-setup-pending
       x-service-callers:
       - admin
       x-vendor-class: session
@@ -2243,6 +2604,13 @@ paths:
                   status: active
                   totp_enrolled: true
                   created_at: '2026-11-24T13:05:11.120Z'
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a78
+                  email: admin@example.invalid
+                  display_name: Arun
+                  role: platform_admin
+                  status: active
+                  totp_enrolled: true
+                  created_at: '2026-11-24T13:05:11.120Z'
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -2270,9 +2638,9 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateVendorUser'
             example:
-              id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
-              email: staff@example.invalid
-              display_name: Priya
+              id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a88
+              email: new.staff@example.invalid
+              display_name: Karthik
               role: support
       responses:
         '201':
@@ -2283,9 +2651,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/VendorUser'
               example:
-                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
-                email: staff@example.invalid
-                display_name: Priya
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a88
+                email: new.staff@example.invalid
+                display_name: Karthik
                 role: support
                 status: setup_pending
                 totp_enrolled: false
@@ -2409,6 +2777,7 @@ paths:
       tags:
       - vendor
       x-permission: admin.audit.read_own
+      x-example-world: device-revoked
       x-service-callers:
       - admin
       x-vendor-class: audit
@@ -2474,8 +2843,8 @@ paths:
                 $ref: '#/components/schemas/VendorAuditPage'
               example:
                 items:
-                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a69
-                  occurred_at: '2026-11-24T13:05:11.120Z'
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a8a
+                  occurred_at: '2026-11-24T13:15:11.120Z'
                   actor_vendor_user_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
                   action: vendor.device.revoked
                   organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
@@ -2496,6 +2865,7 @@ paths:
       tags:
       - vendor
       x-permission: admin.org.read
+      x-example-world: owner-invited
       x-service-callers:
       - admin
       x-vendor-class: directory_lookup
@@ -2540,6 +2910,7 @@ paths:
       tags:
       - vendor
       x-permission: admin.org.read
+      x-example-world: owner-invited
       x-service-callers:
       - admin
       x-vendor-class: directory
@@ -2583,6 +2954,7 @@ paths:
       tags:
       - vendor
       x-permission: admin.owner_invite.manage
+      x-example-world: org-no-owner
       x-service-callers:
       - admin
       x-vendor-class: operational
@@ -2642,6 +3014,7 @@ paths:
       tags:
       - vendor
       x-permission: admin.org.read
+      x-example-world: owner-invited
       x-service-callers:
       - admin
       x-vendor-class: directory
@@ -2687,6 +3060,7 @@ paths:
       tags:
       - vendor
       x-permission: admin.owner_invite.manage
+      x-example-world: owner-invited
       x-service-callers:
       - admin
       x-vendor-class: operational
@@ -2724,7 +3098,7 @@ paths:
                 status: pending
                 mobile_masked: +91*******210
                 owner_name: Asha
-                expires_at: '2026-12-08T13:05:11.120Z'
+                expires_at: '2026-12-08T13:10:11.120Z'
                 created_at: '2026-11-24T13:05:11.120Z'
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
@@ -2741,6 +3115,7 @@ paths:
       tags:
       - vendor
       x-permission: admin.owner_invite.manage
+      x-example-world: owner-invited
       x-service-callers:
       - admin
       x-vendor-class: operational
@@ -3035,6 +3410,7 @@ paths:
       tags:
       - vendor
       x-permission: admin.support.session.start
+      x-example-world: support-session-active
       x-service-callers:
       - admin
       x-vendor-class: support_view
@@ -3080,6 +3456,7 @@ paths:
       tags:
       - vendor
       x-permission: admin.support.session.start
+      x-example-world: support-session-active
       x-service-callers:
       - admin
       x-vendor-class: support_view
@@ -3122,6 +3499,7 @@ paths:
       tags:
       - vendor
       x-permission: admin.support.session.start
+      x-example-world: support-session-active
       x-service-callers:
       - admin
       x-vendor-class: support_view
@@ -3168,7 +3546,9 @@ paths:
       operationId: createVendorApproval
       summary: File a two-person vendor approval
       description: The gate permission is admin.approval.create; the service then checks the kind-specific
-        permission (x-permission-by-kind).
+        permission (x-permission-by-kind). The four kinds of ADR-0014 A1.3 (org_suspend, org_reinstate,
+        org_close, tax_rule_set_publish) lapse after 24 hours; with fewer than two eligible users the
+        request is refused second_approver_unavailable in every environment.
       tags:
       - vendor
       x-permission: admin.approval.create
@@ -3180,6 +3560,10 @@ paths:
         sign_in_code: admin.signin_code.create
         owner_recovery: admin.recovery.create
         device_revoke_over_quota: admin.device.revoke
+        org_suspend: admin.org.lifecycle.request
+        org_reinstate: admin.org.lifecycle.request
+        org_close: admin.org.lifecycle.request
+        tax_rule_set_publish: admin.taxrules.publish
       security:
       - vendorBearerAuth: []
         serviceAuth: []
@@ -3235,6 +3619,7 @@ paths:
       tags:
       - vendor
       x-permission: admin.approval.read
+      x-example-world: vendor-approval-pending
       x-service-callers:
       - admin
       x-vendor-class: approval
@@ -3285,16 +3670,67 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
           $ref: ../../../common/components.yaml#/components/responses/Forbidden
+  /internal/v1/vendor/approvals/{approval_id}:
+    get:
+      operationId: getVendorApproval
+      summary: Get a vendor approval
+      tags:
+      - vendor
+      x-permission: admin.approval.read
+      x-example-world: vendor-approval-pending
+      x-service-callers:
+      - admin
+      x-vendor-class: approval
+      x-vendor-audit: recorded
+      security:
+      - vendorBearerAuth: []
+        serviceAuth: []
+      parameters:
+      - name: approval_id
+        in: path
+        required: true
+        description: Vendor approval ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6d
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
+      responses:
+        '200':
+          description: The approval, if the caller requested it or may approve it; otherwise 404.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VendorApproval'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6d
+                kind: sign_in_code
+                state: pending
+                organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                mobile_masked: +91*******210
+                requested_by: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+                ticket_reference: SUP-2041
+                verification_method: callback_to_registered_number
+                created_at: '2026-11-24T13:05:11.120Z'
+                expires_at: '2026-11-24T13:10:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
   /internal/v1/vendor/approvals/{approval_id}/decision:
     put:
       operationId: approveVendorApproval
       summary: Approve with a fresh TOTP
       description: The approver must differ from the requester, hold the kind's approve permission (admin.signin_code.approve,
-        admin.recovery.approve or admin.device.revoke) and have an account older than 7 days. No single-person
-        override exists.
+        admin.recovery.approve, admin.device.revoke, admin.org.lifecycle.approve or admin.taxrules.publish)
+        and have an account older than 7 days. No single-person override exists. For the kinds executed
+        by another service (org_suspend, org_reinstate, org_close, tax_rule_set_publish) the response
+        carries a single-use vendor approval grant for the admin service.
       tags:
       - vendor
       x-permission: admin.approval.decide
+      x-example-world: vendor-approval-pending
       x-service-callers:
       - admin
       x-vendor-class: approval
@@ -3303,6 +3739,10 @@ paths:
         sign_in_code: admin.signin_code.approve
         owner_recovery: admin.recovery.approve
         device_revoke_over_quota: admin.device.revoke
+        org_suspend: admin.org.lifecycle.approve
+        org_reinstate: admin.org.lifecycle.approve
+        org_close: admin.org.lifecycle.approve
+        tax_rule_set_publish: admin.taxrules.publish
       security:
       - vendorBearerAuth: []
         serviceAuth: []
@@ -3366,6 +3806,7 @@ paths:
       tags:
       - vendor
       x-permission: admin.approval.create
+      x-example-world: vendor-approval-approved
       x-service-callers:
       - admin
       x-vendor-class: approval
@@ -3408,6 +3849,7 @@ paths:
       tags:
       - vendor
       x-permission: admin.approval.decide
+      x-example-world: vendor-approval-pending
       x-service-callers:
       - admin
       x-vendor-class: approval
@@ -3443,9 +3885,10 @@ paths:
                 $ref: '#/components/schemas/VendorApproval'
               example:
                 id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6d
-                kind: owner_recovery
+                kind: sign_in_code
                 state: cancelled
                 organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                mobile_masked: +91*******210
                 requested_by: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
                 ticket_reference: SUP-2041
                 verification_method: callback_to_registered_number
@@ -4145,7 +4588,7 @@ components:
         code:
           type: string
           description: Series code, unique per tax registration.
-          example: A7
+          example: A7K
         doc_type:
           type: string
           description: Document type.
@@ -4230,7 +4673,7 @@ components:
           type: integer
           description: Permission catalogue version.
           minimum: 1
-          example: 12
+          example: 1
         issued_at:
           $ref: ../../../common/components.yaml#/components/schemas/Timestamp
         offline_valid_until:
@@ -4646,7 +5089,7 @@ components:
           type: integer
           description: Catalogue version.
           minimum: 1
-          example: 12
+          example: 1
     OwnerRoleAssignment:
       type: object
       description: Assign the built-in owner role (step-up, owners only).
@@ -4763,8 +5206,14 @@ components:
           example: createMember
         body_hash:
           type: string
-          description: Hash the approval token is bound to.
-          example: sha256:3f2a
+          description: 'Hash the approval token is bound to (claim bh): "sha256:" followed by the 64 lower-case
+            hex digits of the SHA-256 over the exact bytes of the request body as sent, with no parsing,
+            re-serialisation or whitespace change. For this filing request those are the bytes of the
+            request_body member exactly as received; the repeated operation must send a body that is
+            byte-identical to them, and the verifier hashes the bytes it received. An empty body hashes
+            the empty string. go-auth provides the helper that computes and checks it.'
+          pattern: ^sha256:[0-9a-f]{64}$
+          example: sha256:cf03a846706f29a88ba61a212f79e7c224142fdd5df92fc1d7ed8bb1283fb8c8
         state:
           type: string
           description: Request state.
@@ -4962,7 +5411,7 @@ components:
         action_hash:
           type: string
           description: Action hash, for approval proofs.
-          example: sha256:3f2a
+          example: sha256:cf03a846706f29a88ba61a212f79e7c224142fdd5df92fc1d7ed8bb1283fb8c8
     ProofVerdict:
       type: object
       description: Verdict of a proof check. Never reveals key material.
@@ -5000,7 +5449,7 @@ components:
         series_code:
           type: string
           description: Series code to look up.
-          example: A7
+          example: A7K
     PackHistoryVerdict:
       type: object
       description: Result of a pack-history check.
@@ -5357,8 +5806,9 @@ components:
       example: pending
     OwnerStatus:
       type: string
-      description: 'Owner state of an organisation: none (no invitation), or the latest invitation state,
-        or owner (an owner member exists).'
+      description: 'Owner state of an organisation: none (no invitation and no owner member), or the state
+        of the latest owner invitation. An organisation whose owner member exists reports accepted (the
+        invitation was consumed); there is no separate owner value.'
       enum:
       - none
       - pending
@@ -5650,11 +6100,18 @@ components:
           $ref: '#/components/schemas/SupportToken'
     ApprovalKind:
       type: string
-      description: What the two-person approval authorises.
+      description: 'What the two-person approval authorises. org_suspend, org_reinstate and org_close
+        are executed by tenancy and tax_rule_set_publish by billing, with a vendor approval grant from
+        the approval decision (ADR-0014 A1.3); they lapse after 24 hours, and tax_rule_set_publish
+        concerns no organisation.'
       enum:
       - sign_in_code
       - owner_recovery
       - device_revoke_over_quota
+      - org_suspend
+      - org_reinstate
+      - org_close
+      - tax_rule_set_publish
       example: sign_in_code
     CreateVendorApproval:
       type: object
@@ -5662,7 +6119,6 @@ components:
         eligible users it is refused (second_approver_unavailable); no single-person override exists.
       required:
       - kind
-      - organisation_id
       - ticket_reference
       - reason
       - verification_method
@@ -5673,6 +6129,20 @@ components:
           $ref: ../../../common/components.yaml#/components/schemas/Id
         subject_id:
           $ref: ../../../common/components.yaml#/components/schemas/Id
+        rule_set_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        rule_set_content_hash:
+          type: string
+          description: Content hash of the signed tax rule set (tax_rule_set_publish only), part of the
+            subject hash the grant binds.
+          pattern: ^sha256:[0-9a-f]{64}$
+          example: sha256:cf03a846706f29a88ba61a212f79e7c224142fdd5df92fc1d7ed8bb1283fb8c8
+        effective_date:
+          type: string
+          format: date
+          description: Business date the rule set takes effect (tax_rule_set_publish only), part of the
+            subject hash.
+          example: '2026-12-01'
         mobile_e164:
           $ref: ../../../common/components.yaml#/components/schemas/MobileE164
         new_mobile_e164:
@@ -5690,7 +6160,6 @@ components:
       - id
       - kind
       - state
-      - organisation_id
       - requested_by
       - ticket_reference
       - verification_method
@@ -5790,6 +6259,27 @@ components:
           $ref: '#/components/schemas/VendorApproval'
         code_half:
           $ref: '#/components/schemas/CodeHalf'
+        grant:
+          $ref: '#/components/schemas/VendorApprovalGrant'
+    VendorApprovalGrant:
+      type: object
+      description: 'Signed, single-use grant (vendor realm, type vendor_approval, 5 minutes) for the
+        kinds executed by another service (ADR-0014 A1.3). Its claims are the approval id, kind,
+        organisation or none, requester, approver and a subject hash over the fields named per kind:
+        organisation id and target status for org_suspend, org_reinstate and org_close; rule-set id,
+        content hash and effective date for tax_rule_set_publish. The admin service passes it to the
+        executing service and never to the browser. If the executor refuses, the approval stays approved
+        and a fresh grant can be issued until it lapses.'
+      required:
+      - token
+      - expires_at
+      properties:
+        token:
+          type: string
+          description: The signed grant.
+          example: grant.example
+        expires_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
     RejectVendorApproval:
       type: object
       description: Reject or cancel an approval.

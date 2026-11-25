@@ -19,7 +19,8 @@ Tenant-facing paths are under `/v1`; operations for other services and for the a
 (ADR-0005 section 9) and declare `x-service-callers`. Wire details fixed with go-auth: user, vendor and support tokens in
 `Authorization: Bearer`, service token in `Hostry-Service-Token`, approval token in `Hostry-Approval`, any refused token is
 401 `auth.invalid_token`. Extensions: `x-permission`, `x-step-up`, `x-outlet-scoped`, `x-service-callers`, `x-vendor-class`,
-`x-vendor-audit` (`none` only on directory-class reads), `x-feature-flag: LINKS_ENABLED`.
+`x-vendor-audit` (`none` only on directory-class reads), `x-feature-flag: LINKS_ENABLED`, `x-example-world` (see
+`docs/conventions.md`).
 
 ## Conventions the lint enforces (`.spectral.yaml`)
 `/v1` kebab-case plural paths; `operationId` lowerCamelCase; `x-permission` on every operation (`public`
@@ -52,4 +53,7 @@ contracttest.Run(t, contracttest.Options{
 })
 ```
 It checks status, media type, schema validity, idempotent replay and the unknown-route problem response.
-Requests are built from spec examples, so the target must be seeded to match them.
+Requests are built from spec examples, so the target must be seeded to match them. Examples hold in named
+worlds (`info.x-example-worlds`, per-operation `x-example-world`); set `SeedWorld` to put a stateful target
+into each operation's world before it is called (`docs/conventions.md`). The harness sends a distinct
+`Idempotency-Key` per operation (`<operationId>:<example key>`).

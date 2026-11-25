@@ -74,6 +74,10 @@ permissions:
   - {key: admin.signin_code.approve, realm: vendor, service: admin, description_key: perm.admin.signin_code.approve, flags: []}
   - {key: admin.recovery.create, realm: vendor, service: admin, description_key: perm.admin.recovery.create, flags: []}
   - {key: admin.recovery.approve, realm: vendor, service: admin, description_key: perm.admin.recovery.approve, flags: []}
+  # Approval kinds of ADR-0014 A1.3 (executed by tenancy and billing); the rest of Admin A1 arrives with the Phase 2 specs.
+  - {key: admin.taxrules.publish, realm: vendor, service: admin, description_key: perm.admin.taxrules.publish, flags: []}
+  - {key: admin.org.lifecycle.request, realm: vendor, service: admin, description_key: perm.admin.org.lifecycle.request, flags: []}
+  - {key: admin.org.lifecycle.approve, realm: vendor, service: admin, description_key: perm.admin.org.lifecycle.approve, flags: []}
 
 # Vendor roles are sets of permissions (checks are on permissions, never role names). A0 table of
 # docs/product/admin-a0-spec.md section 2, plus admin.registration.verify (ADR-0003 A1.1: platform admin and onboarding)
@@ -82,7 +86,8 @@ permissions:
 vendor_roles:
   platform_admin: [admin.org.read, admin.org.create, admin.owner_invite.manage, admin.registration.verify, admin.device.read, admin.device.revoke,
                    admin.support.session.start, admin.audit.read, admin.audit.read_own, admin.user.manage, admin.approval.create, admin.approval.read,
-                   admin.approval.decide, admin.signin_code.create, admin.signin_code.approve, admin.recovery.create, admin.recovery.approve]
+                   admin.approval.decide, admin.signin_code.create, admin.signin_code.approve, admin.recovery.create, admin.recovery.approve,
+                   admin.taxrules.publish, admin.org.lifecycle.request, admin.org.lifecycle.approve]
   onboarding: [admin.org.read, admin.org.create, admin.owner_invite.manage, admin.registration.verify, admin.device.read, admin.audit.read_own]
   support: [admin.org.read, admin.device.read, admin.device.revoke, admin.support.session.start, admin.audit.read_own,
             admin.approval.create, admin.approval.read, admin.approval.decide]

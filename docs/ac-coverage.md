@@ -49,6 +49,8 @@ contract content; they are listed as gaps at the end.
 | TEN-10 vendor token, no session | vendor realm vs tenant realm permissions; A support-view operations answer 403 `support_session_required` | |
 | TEN-12 no lifecycle change | none exists; `OrganisationStatus` is read-only in every schema | |
 | TEN-15 double passes suite | `contract-tests/tenancy` | Double lives in `svc-tenancy` |
+| TEN-20 reject a registration | `rejectTaxRegistration` (T, vendor; only while unverified) | Added in the fix pass after Phase 1 implementation |
+| ADR-0003 A1.1 item 6 close registration and series | `closeTaxRegistration` (T; step-up; 409 while an active outlet references it) | Added in the fix pass |
 
 ## 8.1 Admin panel criteria on the admin API (selected [E2E])
 
@@ -60,6 +62,7 @@ contract content; they are listed as gaps at the end.
 | 13 role matrix | `x-permission` on every operation against `vendor_roles` in `common/permissions.yaml` |
 | 14-20 directory | `listOrganisations` (`owner_status_available`), `getOrganisation` |
 | 21-30 create | `createOrganisation` (`state: complete|incomplete`), `createOwnerInvitation` (retry), 409 `gstin_in_use`, 422 |
+| two-person approvals (ADR-0005 A2.3, ADR-0014 A1.3) | `fileVendorApproval`, `listVendorApprovals`, `getVendorApproval`, `approveVendorApproval`, `claimCodeHalf`, `cancelVendorApproval`; kinds `sign_in_code`, `owner_recovery`, `device_revoke_over_quota`, `org_suspend`, `org_reinstate`, `org_close`, `tax_rule_set_publish`; the 409 `vendor_approval_required` of `revokeOrganisationDevice` is resolved here |
 | 31-34 invitations | `renewOwnerInvitation`, `cancelOwnerInvitation`, `createOwnerInvitation` (re-issue after expiry), `getOrganisation` |
 | 35-42 devices | `listOrganisationDevices`, `getOrganisationDevice`, `revokeOrganisationDevice` |
 | 43-50 audit | `listAuditEntries` (filters, `support_session_id`); no update or delete operation exists |
