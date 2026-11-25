@@ -24,6 +24,8 @@ tags:
   description: Vendor directory and onboarding operations (admin service only).
 - name: internal
   description: Operations for other Hostry services.
+- name: commercial
+  description: Admin A1 plans, subscriptions, charges and payments - the ledger Hostry keeps for its own customers (ADR-0008 S2). Vendor routes for the admin service, one tenant read for the owner.
 security:
 - bearerAuth: []
 paths:
@@ -1431,6 +1433,136 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/Forbidden
         '404':
           $ref: ../../../common/components.yaml#/components/responses/NotFound
+  /v1/manual-book-series:
+    get:
+      operationId: listManualBookSeries
+      summary: List registered bill books
+      tags:
+      - tenancy
+      x-permission: series.read
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: A page.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManualBookSeriesPage'
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8051
+                  tax_registration_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+                  code: BK1
+                  outlet_ids:
+                  - 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  status: active
+                  created_at: '2026-11-24T13:05:11.120Z'
+                next_cursor: eyJhZnRlciI6IjAxOTBhMWIyIn0
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+    post:
+      operationId: registerManualBookSeries
+      summary: Register a paper bill book as an entry-only series
+      description: strong_only (owner). The series is issued, so the foreign-series rule of ADR-0003 A1.5 holds unchanged;
+        billing devices of the named outlets receive it entry-only in the offline pack. The code must be unique per
+        GSTIN against device series codes; the control stays off until a book is registered. x-provisional pending
+        the CA answer on a parallel series (P2B-6).
+      tags:
+      - tenancy
+      x-permission: series.manual_book.register
+      x-step-up: true
+      x-provisional: Parallel paper-book series under one GSTIN awaits CA confirmation.
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterManualBook'
+            example:
+              tax_registration_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+              code: BK1
+              outlet_ids:
+              - 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+      responses:
+        '201':
+          description: The registered book. A replay returns the same book.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManualBookSeries'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8051
+                tax_registration_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+                code: BK1
+                outlet_ids:
+                - 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                status: active
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/StrongSessionRequired'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/subscription:
+    get:
+      operationId: getMyPlan
+      summary: Owner's read-only "My plan"
+      description: Could (BR-A1-90). Returns only the caller's own organisation; no vendor user ids, no notes. Overdue
+        is a label and gates nothing (ADR-0008 S5).
+      tags:
+      - tenancy
+      x-permission: subscription.read
+      responses:
+        '200':
+          description: The plan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MyPlan'
+              example:
+                plan_key: table_service
+                plan_name_key: plan.table_service
+                plan_version: 1
+                cycle: monthly
+                agreed_price:
+                  amount_paise: 129900
+                  currency: INR
+                start_date: '2026-12-01'
+                paid_through: '2026-12-31'
+                state: active
+                overdue: false
+                charges:
+                - period_start: '2026-12-01'
+                  period_end: '2026-12-31'
+                  total:
+                    amount_paise: 153282
+                    currency: INR
+                  due_date: '2026-12-08'
+                  invoice_number: HQ/2627/0042
+                  status: paid
+                payments:
+                - received_on: '2026-12-02'
+                  amount:
+                    amount_paise: 153282
+                    currency: INR
+                  method: upi
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
   /internal/v1/document-series-issuances:
     post:
       operationId: issueDocumentSeries
@@ -1857,6 +1989,1747 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/NotFound
         '409':
           $ref: '#/components/responses/GstinInUse'
+  /internal/v1/vendor/billing-configurations:
+    get:
+      operationId: listBillingConfigurations
+      summary: List Hostry GST configuration versions
+      tags:
+      - commercial
+      x-permission: admin.subscription.read
+      x-service-callers:
+      - admin
+      x-vendor-class: directory
+      x-vendor-audit: none
+      security:
+      - vendorBearerAuth: []
+        serviceAuth: []
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorLimit
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
+      responses:
+        '200':
+          description: A page, newest first.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BillingConfigurationPage'
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8041
+                  effective_from: '2026-12-01'
+                  hostry_state_code: '33'
+                  sac: '997331'
+                  gst_rate_bp: 1800
+                  gst_registered: true
+                  payment_tolerance_paise: 99
+                  payment_terms_days: 7
+                  created_at: '2026-11-24T13:05:11.120Z'
+                next_cursor: eyJhZnRlciI6IjAxOTBhMWIyIn0
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+    post:
+      operationId: createBillingConfiguration
+      summary: Add a GST configuration version
+      tags:
+      - commercial
+      x-permission: admin.plan.manage
+      x-service-callers:
+      - admin
+      x-vendor-class: operational
+      x-vendor-audit: recorded
+      security:
+      - vendorBearerAuth: []
+        serviceAuth: []
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBillingConfiguration'
+            example:
+              effective_from: '2026-12-01'
+              hostry_state_code: '33'
+              sac: '997331'
+              gst_rate_bp: 1800
+              gst_registered: true
+              payment_tolerance_paise: 99
+              payment_terms_days: 7
+      responses:
+        '201':
+          description: The configuration.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BillingConfiguration'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8041
+                effective_from: '2026-12-01'
+                hostry_state_code: '33'
+                sac: '997331'
+                gst_rate_bp: 1800
+                gst_registered: true
+                payment_tolerance_paise: 99
+                payment_terms_days: 7
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /internal/v1/vendor/ledger-exports:
+    get:
+      operationId: exportLedger
+      summary: Export the ledger as CSV
+      description: 'Should (A1-Q12): organisation ids and names only, no GSTIN, phone or email (BR-A1-38). Audited
+        per export.'
+      tags:
+      - commercial
+      x-permission: admin.report.ledger
+      x-service-callers:
+      - admin
+      x-vendor-class: operational
+      x-vendor-audit: recorded
+      security:
+      - vendorBearerAuth: []
+        serviceAuth: []
+      parameters:
+      - name: from
+        in: query
+        required: false
+        description: First charge due date.
+        schema:
+          type: string
+          format: date
+        example: '2026-11-24'
+      - name: to
+        in: query
+        required: false
+        description: Last charge due date.
+        schema:
+          type: string
+          format: date
+        example: '2026-11-24'
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
+      responses:
+        '200':
+          description: CSV text.
+          content:
+            text/csv:
+              schema:
+                type: string
+                description: 'CSV with a header row: organisation_id, organisation_name, period_start, period_end,
+                  taxable_paise, total_paise, due_date, invoice_number, status, outstanding_paise.'
+              example: 'organisation_id,organisation_name,period_start,period_end,taxable_paise,total_paise,due_date,invoice_number,status,outstanding_paise
+
+                '
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /internal/v1/vendor/ledger-lists/{list_kind}:
+    get:
+      operationId: listLedgerEntries
+      summary: Work lists for billing staff
+      description: overdue_charges (outstanding above tolerance and due before today IST), charges_to_raise (paid_through
+        within 7 days or passed, no charge for the next period), charges_without_invoice_reference, pilots_ending
+        (review date within 14 days), retired_version_subscriptions, outlets_over_limit. Derived on read; no scheduled
+        tasks, nothing is sent.
+      tags:
+      - commercial
+      x-permission: admin.subscription.read
+      x-service-callers:
+      - admin
+      x-vendor-class: directory
+      x-vendor-audit: none
+      security:
+      - vendorBearerAuth: []
+        serviceAuth: []
+      parameters:
+      - name: list_kind
+        in: path
+        required: true
+        description: Which list.
+        schema:
+          $ref: '#/components/schemas/LedgerListKind'
+        example: overdue_charges
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorLimit
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
+      responses:
+        '200':
+          description: A page, oldest first.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LedgerListRowPage'
+              example:
+                items:
+                - organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                  organisation_name: Example Hospitality
+                  subject_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8021
+                  due_date: '2026-12-08'
+                  age_days: 3
+                  amount:
+                    amount_paise: 153282
+                    currency: INR
+                next_cursor: eyJhZnRlciI6IjAxOTBhMWIyIn0
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /internal/v1/vendor/organisations/{organisation_id}/charges:
+    get:
+      operationId: listCharges
+      summary: List an organisation's charges
+      tags:
+      - commercial
+      x-permission: admin.subscription.read
+      x-service-callers:
+      - admin
+      x-vendor-class: directory
+      x-vendor-audit: none
+      security:
+      - vendorBearerAuth: []
+        serviceAuth: []
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - name: status
+        in: query
+        required: false
+        description: Filter by status.
+        schema:
+          type: string
+          enum:
+          - open
+          - paid
+          - waived
+          - cancelled
+        example: open
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorLimit
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
+      responses:
+        '200':
+          description: A page, newest period first.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChargePage'
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8021
+                  organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                  subscription_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8011
+                  kind: period
+                  period_start: '2026-12-01'
+                  period_end: '2026-12-31'
+                  taxable:
+                    amount_paise: 129900
+                    currency: INR
+                  cgst:
+                    amount_paise: 11691
+                    currency: INR
+                  sgst:
+                    amount_paise: 11691
+                    currency: INR
+                  igst:
+                    amount_paise: 0
+                    currency: INR
+                  total:
+                    amount_paise: 153282
+                    currency: INR
+                  due_date: '2026-12-08'
+                  status: open
+                  outstanding:
+                    amount_paise: 153282
+                    currency: INR
+                  created_at: '2026-11-24T13:05:11.120Z'
+                next_cursor: eyJhZnRlciI6IjAxOTBhMWIyIn0
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+    post:
+      operationId: raiseCharge
+      summary: Raise a charge
+      description: A second charge for a period that already has an open or paid charge is refused 409 duplicate_period
+        unless it is an extra charge with a reason (BR-A1-31). GST is taken from the billing configuration at this
+        moment and stored.
+      tags:
+      - commercial
+      x-permission: admin.subscription.manage
+      x-service-callers:
+      - admin
+      x-vendor-class: operational
+      x-vendor-audit: recorded
+      security:
+      - vendorBearerAuth: []
+        serviceAuth: []
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RaiseCharge'
+            example:
+              kind: period
+              period_start: '2026-12-01'
+              period_end: '2026-12-31'
+      responses:
+        '201':
+          description: The charge.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Charge'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8021
+                organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                subscription_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8011
+                kind: period
+                period_start: '2026-12-01'
+                period_end: '2026-12-31'
+                taxable:
+                  amount_paise: 129900
+                  currency: INR
+                cgst:
+                  amount_paise: 11691
+                  currency: INR
+                sgst:
+                  amount_paise: 11691
+                  currency: INR
+                igst:
+                  amount_paise: 0
+                  currency: INR
+                total:
+                  amount_paise: 153282
+                  currency: INR
+                due_date: '2026-12-08'
+                status: open
+                outstanding:
+                  amount_paise: 153282
+                  currency: INR
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /internal/v1/vendor/organisations/{organisation_id}/charges/{charge_id}:
+    get:
+      operationId: getCharge
+      summary: Read a charge (audited per read)
+      tags:
+      - commercial
+      x-permission: admin.subscription.read
+      x-service-callers:
+      - admin
+      x-vendor-class: operational
+      x-vendor-audit: recorded
+      security:
+      - vendorBearerAuth: []
+        serviceAuth: []
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - name: charge_id
+        in: path
+        required: true
+        description: Charge id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8021
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
+      responses:
+        '200':
+          description: The charge.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Charge'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8021
+                organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                subscription_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8011
+                kind: period
+                period_start: '2026-12-01'
+                period_end: '2026-12-31'
+                taxable:
+                  amount_paise: 129900
+                  currency: INR
+                cgst:
+                  amount_paise: 11691
+                  currency: INR
+                sgst:
+                  amount_paise: 11691
+                  currency: INR
+                igst:
+                  amount_paise: 0
+                  currency: INR
+                total:
+                  amount_paise: 153282
+                  currency: INR
+                due_date: '2026-12-08'
+                status: open
+                outstanding:
+                  amount_paise: 153282
+                  currency: INR
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+  /internal/v1/vendor/organisations/{organisation_id}/charges/{charge_id}/cancellation:
+    post:
+      operationId: cancelCharge
+      summary: Cancel a charge
+      tags:
+      - commercial
+      x-permission: admin.subscription.adjust
+      x-service-callers:
+      - admin
+      x-vendor-class: operational
+      x-vendor-audit: recorded
+      security:
+      - vendorBearerAuth: []
+        serviceAuth: []
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - name: charge_id
+        in: path
+        required: true
+        description: Charge id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8021
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReasonBody'
+            example:
+              reason: Duplicate period raised by mistake.
+      responses:
+        '200':
+          description: The charge, cancelled.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Charge'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8021
+                organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                subscription_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8011
+                kind: period
+                period_start: '2026-12-01'
+                period_end: '2026-12-31'
+                taxable:
+                  amount_paise: 129900
+                  currency: INR
+                cgst:
+                  amount_paise: 11691
+                  currency: INR
+                sgst:
+                  amount_paise: 11691
+                  currency: INR
+                igst:
+                  amount_paise: 0
+                  currency: INR
+                total:
+                  amount_paise: 153282
+                  currency: INR
+                due_date: '2026-12-08'
+                status: cancelled
+                outstanding:
+                  amount_paise: 0
+                  currency: INR
+                created_at: '2026-11-24T13:05:11.120Z'
+                reason: Duplicate period raised by mistake.
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /internal/v1/vendor/organisations/{organisation_id}/charges/{charge_id}/invoice-reference:
+    put:
+      operationId: setChargeInvoiceReference
+      summary: Set the invoice reference once
+      description: 'Set once; a second reference on the same charge is refused 409 invoice_reference_set. A mistyped
+        reference cannot be edited: an admin cancels the charge and raises it again (A1-Q8).'
+      tags:
+      - commercial
+      x-permission: admin.subscription.manage
+      x-service-callers:
+      - admin
+      x-vendor-class: operational
+      x-vendor-audit: recorded
+      security:
+      - vendorBearerAuth: []
+        serviceAuth: []
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - name: charge_id
+        in: path
+        required: true
+        description: Charge id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8021
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetInvoiceReference'
+            example:
+              invoice_reference:
+                number: HQ/2627/0042
+                date: '2026-12-01'
+      responses:
+        '200':
+          description: The charge.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Charge'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8021
+                organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                subscription_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8011
+                kind: period
+                period_start: '2026-12-01'
+                period_end: '2026-12-31'
+                taxable:
+                  amount_paise: 129900
+                  currency: INR
+                cgst:
+                  amount_paise: 11691
+                  currency: INR
+                sgst:
+                  amount_paise: 11691
+                  currency: INR
+                igst:
+                  amount_paise: 0
+                  currency: INR
+                total:
+                  amount_paise: 153282
+                  currency: INR
+                due_date: '2026-12-08'
+                status: open
+                outstanding:
+                  amount_paise: 153282
+                  currency: INR
+                created_at: '2026-11-24T13:05:11.120Z'
+                invoice_reference:
+                  number: HQ/2627/0042
+                  date: '2026-12-01'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /internal/v1/vendor/organisations/{organisation_id}/charges/{charge_id}/payments:
+    get:
+      operationId: listChargePayments
+      summary: List payments of a charge
+      tags:
+      - commercial
+      x-permission: admin.subscription.read
+      x-service-callers:
+      - admin
+      x-vendor-class: directory
+      x-vendor-audit: none
+      security:
+      - vendorBearerAuth: []
+        serviceAuth: []
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - name: charge_id
+        in: path
+        required: true
+        description: Charge id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8021
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorLimit
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
+      responses:
+        '200':
+          description: A page.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LedgerPaymentPage'
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8031
+                  charge_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8021
+                  amount:
+                    amount_paise: 153282
+                    currency: INR
+                  method: upi
+                  reference: UTR1234567890
+                  received_on: '2026-12-02'
+                  recorded_by: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a90
+                  created_at: '2026-11-24T13:05:11.120Z'
+                next_cursor: eyJhZnRlciI6IjAxOTBhMWIyIn0
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+    post:
+      operationId: recordPayment
+      summary: Record a payment received by hand
+      description: Partial payments are allowed; a payment above the outstanding amount is refused 422 overpayment;
+        a duplicate reference on a different payment is a warning only (BR-A1-45).
+      tags:
+      - commercial
+      x-permission: admin.subscription.manage
+      x-service-callers:
+      - admin
+      x-vendor-class: operational
+      x-vendor-audit: recorded
+      security:
+      - vendorBearerAuth: []
+        serviceAuth: []
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - name: charge_id
+        in: path
+        required: true
+        description: Charge id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8021
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordPayment'
+            example:
+              amount:
+                amount_paise: 153282
+                currency: INR
+              method: upi
+              reference: UTR1234567890
+              received_on: '2026-12-02'
+      responses:
+        '201':
+          description: The payment.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LedgerPayment'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8031
+                charge_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8021
+                amount:
+                  amount_paise: 153282
+                  currency: INR
+                method: upi
+                reference: UTR1234567890
+                received_on: '2026-12-02'
+                recorded_by: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a90
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '422':
+          $ref: '#/components/responses/Overpayment'
+  /internal/v1/vendor/organisations/{organisation_id}/charges/{charge_id}/payments/{payment_id}/reversal:
+    post:
+      operationId: reversePayment
+      summary: Reverse a payment
+      tags:
+      - commercial
+      x-permission: admin.subscription.adjust
+      x-service-callers:
+      - admin
+      x-vendor-class: operational
+      x-vendor-audit: recorded
+      security:
+      - vendorBearerAuth: []
+        serviceAuth: []
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - name: charge_id
+        in: path
+        required: true
+        description: Charge id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8021
+      - name: payment_id
+        in: path
+        required: true
+        description: Payment id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8031
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReasonBody'
+            example:
+              reason: Duplicate period raised by mistake.
+      responses:
+        '201':
+          description: The reversing row.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LedgerPayment'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8032
+                charge_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8021
+                amount:
+                  amount_paise: 153282
+                  currency: INR
+                method: upi
+                reference: UTR1234567890
+                received_on: '2026-12-02'
+                recorded_by: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a90
+                created_at: '2026-11-24T13:05:11.120Z'
+                reversal_of: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8031
+                reason: Duplicate period raised by mistake.
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /internal/v1/vendor/organisations/{organisation_id}/charges/{charge_id}/waiver:
+    post:
+      operationId: waiveCharge
+      summary: Waive a charge
+      tags:
+      - commercial
+      x-permission: admin.subscription.adjust
+      x-service-callers:
+      - admin
+      x-vendor-class: operational
+      x-vendor-audit: recorded
+      security:
+      - vendorBearerAuth: []
+        serviceAuth: []
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - name: charge_id
+        in: path
+        required: true
+        description: Charge id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8021
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReasonBody'
+            example:
+              reason: Duplicate period raised by mistake.
+      responses:
+        '200':
+          description: The charge, waived.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Charge'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8021
+                organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                subscription_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8011
+                kind: period
+                period_start: '2026-12-01'
+                period_end: '2026-12-31'
+                taxable:
+                  amount_paise: 129900
+                  currency: INR
+                cgst:
+                  amount_paise: 11691
+                  currency: INR
+                sgst:
+                  amount_paise: 11691
+                  currency: INR
+                igst:
+                  amount_paise: 0
+                  currency: INR
+                total:
+                  amount_paise: 153282
+                  currency: INR
+                due_date: '2026-12-08'
+                status: waived
+                outstanding:
+                  amount_paise: 0
+                  currency: INR
+                created_at: '2026-11-24T13:05:11.120Z'
+                reason: Duplicate period raised by mistake.
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /internal/v1/vendor/organisations/{organisation_id}/closure:
+    post:
+      operationId: closeOrganisation
+      summary: Execute an approved closure
+      description: 'Executed with the approver''s token, the admin service token and a vendor approval grant of kind
+        org_close (ADR-0014 A1.3): the grant is verified, its subject hash (organisation and target status) recomputed,
+        its id recorded as used in this transaction, and the audit row written with the "show to owner" marker (V7).
+        Refused 409 open_trading_day while any outlet has a day in progress (open, dated today or yesterday IST);
+        the approval stays approved and a fresh grant may be issued until the request lapses.  Suspended means read
+        and export only after the grace period; it never wipes devices and never blocks a trading day in progress;
+        the device rule is the guarantee (A1.2 item 5).'
+      tags:
+      - commercial
+      x-permission: admin.org.lifecycle.approve
+      x-service-callers:
+      - admin
+      x-vendor-class: operational
+      x-vendor-audit: recorded
+      security:
+      - vendorBearerAuth: []
+        serviceAuth: []
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - $ref: ../../../common/vendor.yaml#/components/parameters/VendorApprovalGrant
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LifecycleRequest'
+            example:
+              ticket: SUP-2041
+              reason: Owner asked to close the outlet group.
+              owner_export_offered: true
+      responses:
+        '200':
+          description: The organisation after the action.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LifecycleResult'
+              example:
+                organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                status: closed
+                changed_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/GrantRefused'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: '#/components/responses/OpenTradingDay'
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /internal/v1/vendor/organisations/{organisation_id}/reinstatement:
+    post:
+      operationId: reinstateOrganisation
+      summary: Execute an approved reinstatement
+      description: 'Executed with the approver''s token, the admin service token and a vendor approval grant of kind
+        org_reinstate (ADR-0014 A1.3): the grant is verified, its subject hash (organisation and target status) recomputed,
+        its id recorded as used in this transaction, and the audit row written with the "show to owner" marker (V7).
+        Reinstatement is not guarded.  Suspended means read and export only after the grace period; it never wipes
+        devices and never blocks a trading day in progress; the device rule is the guarantee (A1.2 item 5).'
+      tags:
+      - commercial
+      x-permission: admin.org.lifecycle.approve
+      x-service-callers:
+      - admin
+      x-vendor-class: operational
+      x-vendor-audit: recorded
+      security:
+      - vendorBearerAuth: []
+        serviceAuth: []
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - $ref: ../../../common/vendor.yaml#/components/parameters/VendorApprovalGrant
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LifecycleRequest'
+            example:
+              ticket: SUP-2041
+              reason: Owner asked to close the outlet group.
+              owner_export_offered: true
+      responses:
+        '200':
+          description: The organisation after the action.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LifecycleResult'
+              example:
+                organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                status: active
+                changed_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/GrantRefused'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /internal/v1/vendor/organisations/{organisation_id}/subscription:
+    get:
+      operationId: getOrganisationSubscription
+      summary: Get the current subscription and history
+      tags:
+      - commercial
+      x-permission: admin.subscription.read
+      x-service-callers:
+      - admin
+      x-vendor-class: directory
+      x-vendor-audit: none
+      security:
+      - vendorBearerAuth: []
+        serviceAuth: []
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
+      responses:
+        '200':
+          description: The subscription.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionHistory'
+              example:
+                current:
+                  id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8011
+                  organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                  plan_key: table_service
+                  plan_version: 1
+                  cycle: monthly
+                  agreed_price:
+                    amount_paise: 129900
+                    currency: INR
+                  addons: []
+                  start_date: '2026-12-01'
+                  paid_through: '2026-12-31'
+                  state: active
+                  overdue: false
+                  cancel_at_period_end: false
+                  outlets_over_limit: false
+                  created_at: '2026-11-24T13:05:11.120Z'
+                history: []
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+    post:
+      operationId: startSubscription
+      summary: Assign a plan version or a pilot
+      description: Changes the subscription row and the organisation's entitlement rows in one transaction (BR-A1-14,
+        CB1). Entitlements carry no expiry. A price below list needs admin.subscription.adjust and a reason; a replay
+        with the same key returns the same row. The first plan moves organisation status trial to active (BR-A1-74).
+      tags:
+      - commercial
+      x-permission: admin.subscription.start
+      x-service-callers:
+      - admin
+      x-permission-widened-by: admin.subscription.manage
+      x-vendor-class: operational
+      x-vendor-audit: recorded
+      security:
+      - vendorBearerAuth: []
+        serviceAuth: []
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartSubscription'
+            example:
+              plan_key: table_service
+              plan_version: 1
+              cycle: monthly
+              start_date: '2026-12-01'
+      responses:
+        '201':
+          description: The subscription.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8011
+                organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                plan_key: table_service
+                plan_version: 1
+                cycle: monthly
+                agreed_price:
+                  amount_paise: 129900
+                  currency: INR
+                addons: []
+                start_date: '2026-12-01'
+                paid_through: '2026-12-31'
+                state: active
+                overdue: false
+                cancel_at_period_end: false
+                outlets_over_limit: false
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+    put:
+      operationId: changeSubscription
+      summary: Change plan, price or add-ons from the next charge
+      tags:
+      - commercial
+      x-permission: admin.subscription.manage
+      x-service-callers:
+      - admin
+      x-vendor-class: operational
+      x-vendor-audit: recorded
+      security:
+      - vendorBearerAuth: []
+        serviceAuth: []
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangeSubscription'
+            example:
+              plan_key: table_service
+              plan_version: 1
+              cycle: annual
+              effective_from: '2027-01-01'
+      responses:
+        '200':
+          description: The new subscription row.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8011
+                organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                plan_key: table_service
+                plan_version: 1
+                cycle: annual
+                agreed_price:
+                  amount_paise: 129900
+                  currency: INR
+                addons: []
+                start_date: '2026-12-01'
+                paid_through: '2026-12-31'
+                state: active
+                overdue: false
+                cancel_at_period_end: false
+                outlets_over_limit: false
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /internal/v1/vendor/organisations/{organisation_id}/subscription/cancellation:
+    post:
+      operationId: cancelSubscription
+      summary: Record a cancellation at period end
+      description: No further charge is raised after paid_through; no refund is modelled; closing the organisation
+        is a separate lifecycle action.
+      tags:
+      - commercial
+      x-permission: admin.subscription.manage
+      x-service-callers:
+      - admin
+      x-vendor-class: operational
+      x-vendor-audit: recorded
+      security:
+      - vendorBearerAuth: []
+        serviceAuth: []
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelSubscription'
+            example:
+              reason: Owner asked to stop after the current period.
+      responses:
+        '200':
+          description: The subscription.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8011
+                organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                plan_key: table_service
+                plan_version: 1
+                cycle: monthly
+                agreed_price:
+                  amount_paise: 129900
+                  currency: INR
+                addons: []
+                start_date: '2026-12-01'
+                paid_through: '2026-12-31'
+                state: active
+                overdue: false
+                cancel_at_period_end: true
+                outlets_over_limit: false
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /internal/v1/vendor/organisations/{organisation_id}/suspension:
+    post:
+      operationId: suspendOrganisation
+      summary: Execute an approved suspension
+      description: 'Executed with the approver''s token, the admin service token and a vendor approval grant of kind
+        org_suspend (ADR-0014 A1.3): the grant is verified, its subject hash (organisation and target status) recomputed,
+        its id recorded as used in this transaction, and the audit row written with the "show to owner" marker (V7).
+        Refused 409 open_trading_day while any outlet has a day in progress (open, dated today or yesterday IST);
+        the approval stays approved and a fresh grant may be issued until the request lapses.  Suspended means read
+        and export only after the grace period; it never wipes devices and never blocks a trading day in progress;
+        the device rule is the guarantee (A1.2 item 5).'
+      tags:
+      - commercial
+      x-permission: admin.org.lifecycle.approve
+      x-service-callers:
+      - admin
+      x-vendor-class: operational
+      x-vendor-audit: recorded
+      security:
+      - vendorBearerAuth: []
+        serviceAuth: []
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - $ref: ../../../common/vendor.yaml#/components/parameters/VendorApprovalGrant
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LifecycleRequest'
+            example:
+              ticket: SUP-2041
+              reason: Owner asked to close the outlet group.
+              owner_export_offered: true
+      responses:
+        '200':
+          description: The organisation after the action.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LifecycleResult'
+              example:
+                organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                status: suspended
+                changed_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/GrantRefused'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: '#/components/responses/OpenTradingDay'
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /internal/v1/vendor/plans:
+    get:
+      operationId: listPlans
+      summary: List plans with their versions
+      tags:
+      - commercial
+      x-permission: admin.subscription.read
+      x-service-callers:
+      - admin
+      x-vendor-class: directory
+      x-vendor-audit: none
+      security:
+      - vendorBearerAuth: []
+        serviceAuth: []
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorLimit
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
+      responses:
+        '200':
+          description: A page.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanPage'
+              example:
+                items:
+                - key: table_service
+                  name_key: plan.table_service
+                  versions:
+                  - feature_keys:
+                    - restaurant.core
+                    - restaurant.kds
+                    - restaurant.captain
+                    - restaurant.reports.core
+                    included_outlets: 1
+                    prices:
+                    - cycle: monthly
+                      list_price:
+                        amount_paise: 129900
+                        currency: INR
+                    version: 1
+                    state: draft
+                    created_at: '2026-11-24T13:05:11.120Z'
+                  created_at: '2026-11-24T13:05:11.120Z'
+                next_cursor: eyJhZnRlciI6IjAxOTBhMWIyIn0
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+    post:
+      operationId: createPlan
+      summary: Create a plan with a draft first version
+      tags:
+      - commercial
+      x-permission: admin.plan.manage
+      x-service-callers:
+      - admin
+      x-vendor-class: operational
+      x-vendor-audit: recorded
+      security:
+      - vendorBearerAuth: []
+        serviceAuth: []
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePlan'
+            example:
+              key: table_service
+              name_key: plan.table_service
+              version:
+                feature_keys:
+                - restaurant.core
+                - restaurant.kds
+                - restaurant.captain
+                - restaurant.reports.core
+                included_outlets: 1
+                prices:
+                - cycle: monthly
+                  list_price:
+                    amount_paise: 129900
+                    currency: INR
+      responses:
+        '201':
+          description: The plan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Plan'
+              example:
+                key: table_service
+                name_key: plan.table_service
+                versions:
+                - feature_keys:
+                  - restaurant.core
+                  - restaurant.kds
+                  - restaurant.captain
+                  - restaurant.reports.core
+                  included_outlets: 1
+                  prices:
+                  - cycle: monthly
+                    list_price:
+                      amount_paise: 129900
+                      currency: INR
+                  version: 1
+                  state: draft
+                  created_at: '2026-11-24T13:05:11.120Z'
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /internal/v1/vendor/plans/{plan_key}:
+    get:
+      operationId: getPlan
+      summary: Get a plan
+      tags:
+      - commercial
+      x-permission: admin.subscription.read
+      x-service-callers:
+      - admin
+      x-vendor-class: directory
+      x-vendor-audit: none
+      security:
+      - vendorBearerAuth: []
+        serviceAuth: []
+      parameters:
+      - name: plan_key
+        in: path
+        required: true
+        description: Plan key.
+        schema:
+          type: string
+          pattern: ^[a-z][a-z0-9_]{1,31}$
+        example: table_service
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
+      responses:
+        '200':
+          description: The plan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Plan'
+              example:
+                key: table_service
+                name_key: plan.table_service
+                versions:
+                - feature_keys:
+                  - restaurant.core
+                  - restaurant.kds
+                  - restaurant.captain
+                  - restaurant.reports.core
+                  included_outlets: 1
+                  prices:
+                  - cycle: monthly
+                    list_price:
+                      amount_paise: 129900
+                      currency: INR
+                  version: 1
+                  state: draft
+                  created_at: '2026-11-24T13:05:11.120Z'
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+  /internal/v1/vendor/plans/{plan_key}/versions:
+    post:
+      operationId: createPlanVersion
+      summary: Create a draft version (a price or content change is a new version)
+      tags:
+      - commercial
+      x-permission: admin.plan.manage
+      x-service-callers:
+      - admin
+      x-vendor-class: operational
+      x-vendor-audit: recorded
+      security:
+      - vendorBearerAuth: []
+        serviceAuth: []
+      parameters:
+      - name: plan_key
+        in: path
+        required: true
+        description: Plan key.
+        schema:
+          type: string
+          pattern: ^[a-z][a-z0-9_]{1,31}$
+        example: table_service
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanVersionDraft'
+            example:
+              feature_keys:
+              - restaurant.core
+              - restaurant.kds
+              - restaurant.captain
+              - restaurant.reports.core
+              included_outlets: 1
+              prices:
+              - cycle: monthly
+                list_price:
+                  amount_paise: 129900
+                  currency: INR
+      responses:
+        '201':
+          description: The new draft.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanVersion'
+              example:
+                feature_keys:
+                - restaurant.core
+                - restaurant.kds
+                - restaurant.captain
+                - restaurant.reports.core
+                included_outlets: 1
+                prices:
+                - cycle: monthly
+                  list_price:
+                    amount_paise: 129900
+                    currency: INR
+                version: 2
+                state: draft
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /internal/v1/vendor/plans/{plan_key}/versions/{version}/activation:
+    post:
+      operationId: activatePlanVersion
+      summary: Activate a draft version (immutable from here)
+      tags:
+      - commercial
+      x-permission: admin.plan.manage
+      x-service-callers:
+      - admin
+      x-vendor-class: operational
+      x-vendor-audit: recorded
+      security:
+      - vendorBearerAuth: []
+        serviceAuth: []
+      parameters:
+      - name: plan_key
+        in: path
+        required: true
+        description: Plan key.
+        schema:
+          type: string
+          pattern: ^[a-z][a-z0-9_]{1,31}$
+        example: table_service
+      - name: version
+        in: path
+        required: true
+        description: Version number.
+        schema:
+          type: integer
+          minimum: 1
+        example: 1
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      responses:
+        '200':
+          description: The active version.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanVersion'
+              example:
+                feature_keys:
+                - restaurant.core
+                - restaurant.kds
+                - restaurant.captain
+                - restaurant.reports.core
+                included_outlets: 1
+                prices:
+                - cycle: monthly
+                  list_price:
+                    amount_paise: 129900
+                    currency: INR
+                version: 1
+                state: active
+                created_at: '2026-11-24T13:05:11.120Z'
+                activated_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+  /internal/v1/vendor/plans/{plan_key}/versions/{version}/retirement:
+    post:
+      operationId: retirePlanVersion
+      summary: Retire an active version
+      tags:
+      - commercial
+      x-permission: admin.plan.manage
+      x-service-callers:
+      - admin
+      x-vendor-class: operational
+      x-vendor-audit: recorded
+      security:
+      - vendorBearerAuth: []
+        serviceAuth: []
+      parameters:
+      - name: plan_key
+        in: path
+        required: true
+        description: Plan key.
+        schema:
+          type: string
+          pattern: ^[a-z][a-z0-9_]{1,31}$
+        example: table_service
+      - name: version
+        in: path
+        required: true
+        description: Version number.
+        schema:
+          type: integer
+          minimum: 1
+        example: 1
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      responses:
+        '200':
+          description: The retired version; existing subscriptions keep it.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanVersion'
+              example:
+                feature_keys:
+                - restaurant.core
+                - restaurant.kds
+                - restaurant.captain
+                - restaurant.reports.core
+                included_outlets: 1
+                prices:
+                - cycle: monthly
+                  list_price:
+                    amount_paise: 129900
+                    currency: INR
+                version: 1
+                state: retired
+                created_at: '2026-11-24T13:05:11.120Z'
+                retired_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
 components:
   securitySchemes:
     bearerAuth:
@@ -3083,6 +4956,939 @@ components:
           description: Required when the method is other.
           maxLength: 500
           example: Certificate seen on the onboarding call.
+    PlanVersionState:
+      type: string
+      description: draft is editable; active is immutable and sellable; retired stays on existing subscriptions (BR-A1-10,
+        BR-A1-15).
+      enum:
+      - draft
+      - active
+      - retired
+      example: draft
+    Cycle:
+      type: string
+      description: Billing cycle; none is the pilot.
+      enum:
+      - none
+      - monthly
+      - annual
+      example: monthly
+    PlanPrice:
+      type: object
+      description: A list price for one cycle, in paise excluding GST.
+      properties:
+        cycle:
+          $ref: '#/components/schemas/Cycle'
+        list_price:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+      required:
+      - cycle
+      - list_price
+    PlanVersionDraft:
+      type: object
+      description: Content of a plan version. Plans, versions, prices and feature keys are data, never code (BR-A1-11).
+      properties:
+        feature_keys:
+          type: array
+          description: Feature keys granted; an app ignores a key it does not know.
+          items:
+            type: string
+            description: Feature key, lower_snake with dots.
+            pattern: ^[a-z][a-z0-9_.]{1,48}$
+            example: restaurant.core
+          maxItems: 40
+        included_outlets:
+          type: integer
+          description: Outlets included; the only metered quantity (BR-A1-13).
+          minimum: 0
+          example: 1
+        prices:
+          type: array
+          description: List price per cycle.
+          items:
+            $ref: '#/components/schemas/PlanPrice'
+          maxItems: 3
+      required:
+      - feature_keys
+      - included_outlets
+      - prices
+    PlanVersion:
+      allOf:
+      - $ref: '#/components/schemas/PlanVersionDraft'
+      - type: object
+        description: A numbered version with its state.
+        properties:
+          version:
+            type: integer
+            description: Version number within the plan, from 1.
+            minimum: 1
+            example: 1
+          state:
+            $ref: '#/components/schemas/PlanVersionState'
+          created_at:
+            $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+          activated_at:
+            $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+          retired_at:
+            $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+        required:
+        - version
+        - state
+        - created_at
+    Plan:
+      type: object
+      description: 'A plan: a key and its versions. Seeded drafts: pilot, table_service and an extra-outlet add-on become
+        sellable only after the founder activates them (A1-Q1, A1-Q2).'
+      properties:
+        key:
+          type: string
+          description: Unique lower_snake key.
+          pattern: ^[a-z][a-z0-9_]{1,31}$
+          example: table_service
+        name_key:
+          type: string
+          description: i18n key of the plan name.
+          example: plan.table_service
+        versions:
+          type: array
+          description: Versions, newest first.
+          items:
+            $ref: '#/components/schemas/PlanVersion'
+        created_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+      required:
+      - key
+      - name_key
+      - versions
+      - created_at
+    PlanPage:
+      allOf:
+      - $ref: ../../../common/components.yaml#/components/schemas/PageCursor
+      - type: object
+        description: A page of Plan items.
+        required:
+        - items
+        properties:
+          items:
+            type: array
+            description: Items, in the order stated by the operation.
+            items:
+              $ref: '#/components/schemas/Plan'
+    CreatePlan:
+      type: object
+      description: A new plan with its first draft version.
+      properties:
+        key:
+          type: string
+          description: Unique lower_snake key.
+          pattern: ^[a-z][a-z0-9_]{1,31}$
+          example: table_service
+        name_key:
+          type: string
+          description: i18n key of the plan name.
+          example: plan.table_service
+        version:
+          $ref: '#/components/schemas/PlanVersionDraft'
+      required:
+      - key
+      - name_key
+      - version
+    BillingConfiguration:
+      type: object
+      description: 'Hostry''s own GST configuration for charges, versioned and effective-dated (BR-A1-30). Hostry''s
+        GST invoices are issued from the founder''s books; this only drives the GST shown on a charge. x-provisional:
+        SAC and registration facts are CA-pending (A1-Q3).'
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        effective_from:
+          type: string
+          description: First date the configuration applies to charges raised.
+          format: date
+          example: '2026-11-24'
+        hostry_state_code:
+          $ref: ../../../common/components.yaml#/components/schemas/StateCode
+        sac:
+          type: string
+          description: SAC code; seeded 997331 as a placeholder until the CA answers.
+          pattern: ^[0-9]{4,8}$
+          example: '997331'
+        gst_rate_bp:
+          type: integer
+          description: GST rate in basis points (default 1800).
+          minimum: 0
+          maximum: 2800
+          example: 1800
+        gst_registered:
+          type: boolean
+          description: When false no GST is added to a charge.
+        payment_tolerance_paise:
+          type: integer
+          description: A charge counts as paid within this many paise of the total (default 99).
+          minimum: 0
+          example: 99
+        payment_terms_days:
+          type: integer
+          description: Days from the first charge to its due date (default 7).
+          minimum: 0
+          example: 7
+        created_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+      required:
+      - id
+      - effective_from
+      - hostry_state_code
+      - sac
+      - gst_rate_bp
+      - gst_registered
+      - payment_tolerance_paise
+      - payment_terms_days
+      - created_at
+    BillingConfigurationPage:
+      allOf:
+      - $ref: ../../../common/components.yaml#/components/schemas/PageCursor
+      - type: object
+        description: A page of BillingConfiguration items.
+        required:
+        - items
+        properties:
+          items:
+            type: array
+            description: Items, in the order stated by the operation.
+            items:
+              $ref: '#/components/schemas/BillingConfiguration'
+    CreateBillingConfiguration:
+      type: object
+      description: A new configuration version.
+      properties:
+        effective_from:
+          type: string
+          description: First date the configuration applies to charges raised.
+          format: date
+          example: '2026-11-24'
+        hostry_state_code:
+          $ref: ../../../common/components.yaml#/components/schemas/StateCode
+        sac:
+          type: string
+          description: SAC code; seeded 997331 as a placeholder until the CA answers.
+          pattern: ^[0-9]{4,8}$
+          example: '997331'
+        gst_rate_bp:
+          type: integer
+          description: GST rate in basis points (default 1800).
+          minimum: 0
+          maximum: 2800
+          example: 1800
+        gst_registered:
+          type: boolean
+          description: When false no GST is added to a charge.
+        payment_tolerance_paise:
+          type: integer
+          description: A charge counts as paid within this many paise of the total (default 99).
+          minimum: 0
+          example: 99
+        payment_terms_days:
+          type: integer
+          description: Days from the first charge to its due date (default 7).
+          minimum: 0
+          example: 7
+      required:
+      - effective_from
+      - hostry_state_code
+      - sac
+      - gst_rate_bp
+      - gst_registered
+      - payment_tolerance_paise
+      - payment_terms_days
+    Addon:
+      type: object
+      description: An add-on line, for example an extra outlet.
+      properties:
+        name:
+          type: string
+          description: Add-on key.
+          pattern: ^[a-z][a-z0-9_]{1,31}$
+          example: extra_outlet
+        quantity:
+          type: integer
+          description: Quantity.
+          minimum: 1
+          example: 1
+        agreed_price:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+      required:
+      - name
+      - quantity
+      - agreed_price
+    SubscriptionState:
+      type: string
+      description: 'Stored state: pilot, active or cancelled. overdue is derived and shown separately (BR-A1-26).'
+      enum:
+      - pilot
+      - active
+      - cancelled
+      example: active
+    Subscription:
+      type: object
+      description: A subscription row. One is current per organisation; earlier rows are history. The ledger holds no
+        personal data (BR-A1-27).
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        organisation_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        plan_key:
+          type: string
+          description: Plan key.
+          example: table_service
+        plan_version:
+          type: integer
+          description: Plan version.
+          minimum: 1
+          example: 1
+        cycle:
+          $ref: '#/components/schemas/Cycle'
+        agreed_price:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        addons:
+          type: array
+          description: Add-on lines.
+          items:
+            $ref: '#/components/schemas/Addon'
+        start_date:
+          type: string
+          description: Start date.
+          format: date
+          example: '2026-11-24'
+        paid_through:
+          type: string
+          description: Paid-through date; for a pilot the review date.
+          format: date
+          example: '2026-11-24'
+        state:
+          $ref: '#/components/schemas/SubscriptionState'
+        overdue:
+          type: boolean
+          description: 'Derived: an open charge past its due date.'
+        cancel_at_period_end:
+          type: boolean
+          description: Cancellation requested; no charge after paid_through.
+        outlets_over_limit:
+          type: boolean
+          description: Soft limit notice in Phase 2 (A1-Q9).
+        created_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+        superseded_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+      required:
+      - id
+      - organisation_id
+      - plan_key
+      - plan_version
+      - cycle
+      - agreed_price
+      - addons
+      - start_date
+      - state
+      - overdue
+      - cancel_at_period_end
+      - created_at
+    SubscriptionHistory:
+      type: object
+      description: The current subscription and the earlier rows.
+      properties:
+        current:
+          $ref: '#/components/schemas/Subscription'
+        history:
+          type: array
+          description: Earlier rows, newest first.
+          items:
+            $ref: '#/components/schemas/Subscription'
+      required:
+      - history
+    StartSubscription:
+      type: object
+      description: Assign a plan version or a pilot. Below-list price needs admin.subscription.adjust and a reason;
+        a pilot has no charge and a review date (default 90 days).
+      properties:
+        plan_key:
+          type: string
+          description: Plan key.
+          example: table_service
+        plan_version:
+          type: integer
+          description: Active version to assign.
+          minimum: 1
+          example: 1
+        cycle:
+          $ref: '#/components/schemas/Cycle'
+        start_date:
+          type: string
+          description: Start date.
+          format: date
+          example: '2026-11-24'
+        agreed_price:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        addons:
+          type: array
+          description: Add-on lines.
+          items:
+            $ref: '#/components/schemas/Addon'
+        review_date:
+          type: string
+          description: Pilot review date.
+          format: date
+          example: '2026-11-24'
+        reason:
+          $ref: ../../../common/components.yaml#/components/schemas/Reason
+      required:
+      - plan_key
+      - plan_version
+      - cycle
+      - start_date
+    ChangeSubscription:
+      type: object
+      description: A plan or price change; takes effect from the next charge as a new row, no proration (BR-A1-23).
+      properties:
+        plan_key:
+          type: string
+          description: Plan key.
+          example: table_service
+        plan_version:
+          type: integer
+          description: Active version.
+          minimum: 1
+          example: 1
+        cycle:
+          $ref: '#/components/schemas/Cycle'
+        effective_from:
+          type: string
+          description: First day of the next charge period.
+          format: date
+          example: '2026-11-24'
+        agreed_price:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        addons:
+          type: array
+          description: Add-on lines.
+          items:
+            $ref: '#/components/schemas/Addon'
+        reason:
+          $ref: ../../../common/components.yaml#/components/schemas/Reason
+      required:
+      - plan_key
+      - plan_version
+      - cycle
+      - effective_from
+    CancelSubscription:
+      type: object
+      description: Record the owner's cancellation request.
+      properties:
+        reason:
+          $ref: ../../../common/components.yaml#/components/schemas/Reason
+    ChargeStatus:
+      type: string
+      description: open, paid (derived from payments within tolerance), waived or cancelled (reversing rows).
+      enum:
+      - open
+      - paid
+      - waived
+      - cancelled
+      example: open
+    InvoiceReference:
+      type: object
+      description: Number and date of the invoice raised in the founder's books; set once, never edited; the panel does
+        not check it (BR-A1-34).
+      properties:
+        number:
+          type: string
+          description: Invoice number as in the books.
+          pattern: ^[A-Za-z0-9][A-Za-z0-9/._-]{0,39}$
+          example: HQ/2627/0042
+        date:
+          type: string
+          description: Invoice date.
+          format: date
+          example: '2026-11-24'
+      required:
+      - number
+      - date
+    Charge:
+      type: object
+      description: A charge, append-only (BR-A1-31). GST comes from the billing configuration at the moment it is raised
+        and is stored here; there is no round-off and no invoice rendering.
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        organisation_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        subscription_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        kind:
+          type: string
+          description: period or extra (an extra charge carries a reason).
+          enum:
+          - period
+          - extra
+          example: period
+        period_start:
+          type: string
+          description: First day covered.
+          format: date
+          example: '2026-11-24'
+        period_end:
+          type: string
+          description: Last day covered.
+          format: date
+          example: '2026-11-24'
+        taxable:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        cgst:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        sgst:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        igst:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        total:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        due_date:
+          type: string
+          description: Due date (BR-A1-33).
+          format: date
+          example: '2026-11-24'
+        invoice_reference:
+          $ref: '#/components/schemas/InvoiceReference'
+        status:
+          $ref: '#/components/schemas/ChargeStatus'
+        outstanding:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        note:
+          type: string
+          description: Free-text note for staff, at most 200 characters, no personal data.
+          maxLength: 200
+        reason:
+          type: string
+          description: Reason for an extra, waived or cancelled charge.
+          maxLength: 500
+        created_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+      required:
+      - id
+      - organisation_id
+      - subscription_id
+      - kind
+      - period_start
+      - period_end
+      - taxable
+      - cgst
+      - sgst
+      - igst
+      - total
+      - due_date
+      - status
+      - outstanding
+      - created_at
+    ChargePage:
+      allOf:
+      - $ref: ../../../common/components.yaml#/components/schemas/PageCursor
+      - type: object
+        description: A page of Charge items.
+        required:
+        - items
+        properties:
+          items:
+            type: array
+            description: Items, in the order stated by the operation.
+            items:
+              $ref: '#/components/schemas/Charge'
+    RaiseCharge:
+      type: object
+      description: Raise a charge for the next period, or an extra charge.
+      properties:
+        kind:
+          type: string
+          description: period or extra.
+          enum:
+          - period
+          - extra
+          example: period
+        period_start:
+          type: string
+          description: First day covered.
+          format: date
+          example: '2026-11-24'
+        period_end:
+          type: string
+          description: Last day covered.
+          format: date
+          example: '2026-11-24'
+        taxable:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        reason:
+          $ref: ../../../common/components.yaml#/components/schemas/Reason
+        note:
+          type: string
+          description: Staff note.
+          maxLength: 200
+      required:
+      - kind
+      - period_start
+      - period_end
+    SetInvoiceReference:
+      type: object
+      description: The invoice reference from the books.
+      properties:
+        invoice_reference:
+          $ref: '#/components/schemas/InvoiceReference'
+      required:
+      - invoice_reference
+    ReasonBody:
+      type: object
+      description: A reason for an adjustment.
+      properties:
+        reason:
+          $ref: ../../../common/components.yaml#/components/schemas/Reason
+      required:
+      - reason
+    PaymentMethod:
+      type: string
+      description: Payment method; gateway_link is reserved and not available in A1.
+      enum:
+      - upi
+      - bank_transfer
+      - cash
+      - cheque
+      example: upi
+    LedgerPayment:
+      type: object
+      description: A recorded payment, append-only and idempotent by key (BR-A1-43). A correction is a reversing row.
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        charge_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        amount:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        method:
+          $ref: '#/components/schemas/PaymentMethod'
+        reference:
+          type: string
+          description: UTR or cheque number, up to 40 characters.
+          maxLength: 40
+          example: UTR1234567890
+        received_on:
+          type: string
+          description: Date received, not in the future.
+          format: date
+          example: '2026-11-24'
+        recorded_by:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        reversal_of:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        reason:
+          type: string
+          description: Reason, for a reversing row.
+          maxLength: 500
+        created_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+      required:
+      - id
+      - charge_id
+      - amount
+      - method
+      - received_on
+      - recorded_by
+      - created_at
+    LedgerPaymentPage:
+      allOf:
+      - $ref: ../../../common/components.yaml#/components/schemas/PageCursor
+      - type: object
+        description: A page of LedgerPayment items.
+        required:
+        - items
+        properties:
+          items:
+            type: array
+            description: Items, in the order stated by the operation.
+            items:
+              $ref: '#/components/schemas/LedgerPayment'
+    RecordPayment:
+      type: object
+      description: Record a payment by hand. A payment above the outstanding amount is refused 422 overpayment.
+      properties:
+        amount:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        method:
+          $ref: '#/components/schemas/PaymentMethod'
+        reference:
+          type: string
+          description: UTR or cheque number.
+          maxLength: 40
+          example: UTR1234567890
+        received_on:
+          type: string
+          description: Date received.
+          format: date
+          example: '2026-11-24'
+      required:
+      - amount
+      - method
+      - received_on
+    LedgerListKind:
+      type: string
+      description: Work lists for staff; nothing is sent automatically (BR-A1-50).
+      enum:
+      - overdue_charges
+      - charges_to_raise
+      - charges_without_invoice_reference
+      - pilots_ending
+      - retired_version_subscriptions
+      - outlets_over_limit
+      example: overdue_charges
+    LedgerListRow:
+      type: object
+      description: One row of a work list.
+      properties:
+        organisation_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        organisation_name:
+          type: string
+          description: Organisation name from the directory.
+          example: Example Hospitality
+        subject_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        due_date:
+          type: string
+          description: Due date or review date.
+          format: date
+          example: '2026-11-24'
+        age_days:
+          type: integer
+          description: Days past due, for the overdue list; buckets 1-7, 8-15, 16-30, over 30 are derived by the client.
+          minimum: 0
+          example: 3
+        amount:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+      required:
+      - organisation_id
+      - organisation_name
+    LedgerListRowPage:
+      allOf:
+      - $ref: ../../../common/components.yaml#/components/schemas/PageCursor
+      - type: object
+        description: A page of LedgerListRow items.
+        required:
+        - items
+        properties:
+          items:
+            type: array
+            description: Items, in the order stated by the operation.
+            items:
+              $ref: '#/components/schemas/LedgerListRow'
+    LifecycleRequest:
+      type: object
+      description: Execution of an approved lifecycle action. The grant header carries the approval; the subject hash
+        covers the organisation and the target status.
+      properties:
+        ticket:
+          $ref: ../../../common/components.yaml#/components/schemas/TicketReference
+        reason:
+          $ref: ../../../common/components.yaml#/components/schemas/Reason
+        owner_export_offered:
+          type: boolean
+          description: 'Close only: recorded confirmation that the owner was offered an export (BR-A1-72).'
+      required:
+      - ticket
+      - reason
+    LifecycleResult:
+      type: object
+      description: The organisation after the action.
+      properties:
+        organisation_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        status:
+          $ref: '#/components/schemas/OrganisationStatus'
+        changed_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+      required:
+      - organisation_id
+      - status
+      - changed_at
+    MyPlan:
+      type: object
+      description: 'The owner''s read-only "My plan" screen (Could, BR-A1-90): the caller''s own organisation only.'
+      properties:
+        plan_key:
+          type: string
+          description: Plan key.
+          example: table_service
+        plan_name_key:
+          type: string
+          description: i18n key of the plan name.
+          example: plan.table_service
+        plan_version:
+          type: integer
+          description: Version.
+          minimum: 1
+          example: 1
+        cycle:
+          $ref: '#/components/schemas/Cycle'
+        agreed_price:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        start_date:
+          type: string
+          description: Start date.
+          format: date
+          example: '2026-11-24'
+        paid_through:
+          type: string
+          description: Paid-through date or pilot review date.
+          format: date
+          example: '2026-11-24'
+        state:
+          $ref: '#/components/schemas/SubscriptionState'
+        overdue:
+          type: boolean
+          description: Shown to the owner as a label only; it gates nothing (ADR-0008 S5).
+        charges:
+          type: array
+          description: Charges, newest first.
+          items:
+            type: object
+            description: A charge as the owner sees it.
+            properties:
+              period_start:
+                type: string
+                description: First day covered.
+                format: date
+                example: '2026-11-24'
+              period_end:
+                type: string
+                description: Last day covered.
+                format: date
+                example: '2026-11-24'
+              total:
+                $ref: ../../../common/components.yaml#/components/schemas/Money
+              due_date:
+                type: string
+                description: Due date.
+                format: date
+                example: '2026-11-24'
+              invoice_number:
+                type: string
+                description: Invoice number when set.
+                example: HQ/2627/0042
+              status:
+                $ref: '#/components/schemas/ChargeStatus'
+            required:
+            - period_start
+            - period_end
+            - total
+            - due_date
+            - status
+        payments:
+          type: array
+          description: Payments, newest first.
+          items:
+            type: object
+            description: A payment as the owner sees it.
+            properties:
+              received_on:
+                type: string
+                description: Date received.
+                format: date
+                example: '2026-11-24'
+              amount:
+                $ref: ../../../common/components.yaml#/components/schemas/Money
+              method:
+                $ref: '#/components/schemas/PaymentMethod'
+            required:
+            - received_on
+            - amount
+            - method
+      required:
+      - plan_key
+      - plan_name_key
+      - plan_version
+      - cycle
+      - agreed_price
+      - start_date
+      - state
+      - overdue
+      - charges
+      - payments
+    ManualBookSeries:
+      type: object
+      description: 'A paper bill book registered as an entry-only series of kind manual_book (ADR-0014 A1.6 item 4).
+        Billing devices of the outlet receive it entry-only: numbers are typed, never allocated. One supply has one
+        invoice number, so Hostry never gives a book page a second number. x-provisional: whether a paper book may run
+        as a parallel series under the same GSTIN is a CA question (P2B-6).'
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        tax_registration_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        code:
+          type: string
+          description: The book's own prefix, unique per GSTIN together with the device-series codes.
+          pattern: ^[A-Z0-9]{1,6}$
+          example: BK1
+        outlet_ids:
+          type: array
+          description: Outlets whose billing devices may enter from this book.
+          items:
+            $ref: ../../../common/components.yaml#/components/schemas/Id
+          maxItems: 50
+        status:
+          type: string
+          description: active or closed.
+          enum:
+          - active
+          - closed
+          example: active
+        created_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+      required:
+      - id
+      - tax_registration_id
+      - code
+      - outlet_ids
+      - status
+      - created_at
+    ManualBookSeriesPage:
+      allOf:
+      - $ref: ../../../common/components.yaml#/components/schemas/PageCursor
+      - type: object
+        description: A page of ManualBookSeries items.
+        required:
+        - items
+        properties:
+          items:
+            type: array
+            description: Items, in the order stated by the operation.
+            items:
+              $ref: '#/components/schemas/ManualBookSeries'
+    RegisterManualBook:
+      type: object
+      description: Register a bill book.
+      properties:
+        tax_registration_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        code:
+          type: string
+          description: The book's prefix.
+          pattern: ^[A-Z0-9]{1,6}$
+          example: BK1
+        outlet_ids:
+          type: array
+          description: Outlets that may enter from it.
+          items:
+            $ref: ../../../common/components.yaml#/components/schemas/Id
+          maxItems: 50
+      required:
+      - tax_registration_id
+      - code
+      - outlet_ids
   responses:
     GstinInUse:
       description: A verified holder of this GSTIN already exists. Only vendor operations may say so;
@@ -3190,3 +5996,49 @@ components:
                 title: Approval required
                 status: 403
                 code: approval_required
+    OpenTradingDay:
+      description: An outlet has a business day in progress (open, dated today or yesterday IST); suspension and closure
+        are refused at request and again at execution (ADR-0014 A1.2). The approval stays approved and a fresh grant
+        may be issued until the request lapses.
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../../../common/components.yaml#/components/schemas/Problem
+          example:
+            type: urn:hostry:problem:open_trading_day
+            title: Trading day in progress
+            status: 409
+            code: open_trading_day
+    GrantRefused:
+      description: Grant missing (grant.required), used, expired or for another subject (grant.subject_mismatch).
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../../../common/components.yaml#/components/schemas/Problem
+          example:
+            type: urn:hostry:problem:grant.used
+            title: Approval grant refused
+            status: 403
+            code: grant.used
+    Overpayment:
+      description: The panel keeps no unapplied credit in A1.
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../../../common/components.yaml#/components/schemas/Problem
+          example:
+            type: urn:hostry:problem:overpayment
+            title: Payment exceeds outstanding
+            status: 422
+            code: overpayment
+    StrongSessionRequired:
+      description: The permission is strong_only and the session is a pin or device session.
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../../../common/components.yaml#/components/schemas/Problem
+          example:
+            type: urn:hostry:problem:strong_session_required
+            title: Strong session required
+            status: 403
+            code: strong_session_required
