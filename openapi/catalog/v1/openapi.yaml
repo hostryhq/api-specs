@@ -1,0 +1,1760 @@
+openapi: 3.1.0
+info:
+  title: Hostry catalog API
+  version: 1.0.0
+  description: 'What an outlet sells and how it is set up: categories, items, variants, modifiers, prices, item
+    tax class, stations, floors, tables, printers and reason codes (ADR-0014 R1, R3), as projected from the sync
+    stream into catalog''s own database, plus the menu import and the two strong-session tax-class edits. Every
+    master is written on devices as sync ops (intents of class config); this API never writes a synced row directly:
+    the online-only operations (tax class, menu import) call the gateway emit API with a self-contained op (ADR-0014
+    R1). The tenant is always the caller''s organisation from the token; outlet-scoped reads take X-Outlet-Id. Item
+    prices are brand-wide (brand stream) with an optional outlet price on item_outlet. A later product (bakery counter,
+    stall) reads the same API. Entity fields, owners and conflict policies are in entities/restaurant/.'
+  x-status: stable
+servers:
+- url: /
+tags:
+- name: catalog
+  description: Menu and outlet set-up reads, tax-class edits.
+- name: menu-import
+  description: CSV menu import (strong session, or a support act-mode session).
+security:
+- bearerAuth: []
+paths:
+  /v1/categories:
+    get:
+      operationId: listCategories
+      summary: List categories
+      tags:
+      - catalog
+      x-permission: menu.read
+      parameters:
+      - name: status
+        in: query
+        required: false
+        description: Filter by status.
+        schema:
+          type: string
+          enum:
+          - active
+          - hidden
+          - archived
+        example: active
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: A page of categories ordered by sort order.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryPage'
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5001
+                  brand_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6a
+                  name_en: Starters
+                  default_station_code: KITCHEN
+                  default_tax_class: fnb_standard
+                  sort_order: 10
+                  status: active
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/categories/{category_id}/tax-class:
+    put:
+      operationId: setCategoryTaxClass
+      summary: Set a category's default tax class
+      description: 'strong_only: refused in pin and device sessions with 403 strong_session_required (RM-M5); online
+        only; audited. Existing items keep their own class. Emits one config op to the brand stream.'
+      tags:
+      - catalog
+      x-permission: menu.tax_class.edit
+      x-step-up: true
+      parameters:
+      - name: category_id
+        in: path
+        required: true
+        description: Category id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5001
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetTaxClass'
+            example:
+              tax_class: fnb_non_gst
+              reason: Alcohol items are outside GST.
+      responses:
+        '200':
+          description: The change.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaxClassChange'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5001
+                tax_class: fnb_non_gst
+                updated_at: '2026-11-24T13:05:11.120Z'
+                op_id: cloud-1/brand:0190a1b2/412
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/StrongSessionRequired'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/dining-tables:
+    get:
+      operationId: listDiningTables
+      summary: List tables
+      tags:
+      - catalog
+      x-permission: settings.read
+      x-outlet-scoped: true
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/OutletScope
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: A page, outlet-scoped by X-Outlet-Id.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiningTablePage'
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5152
+                  outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  floor_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5151
+                  name: T1
+                  seats: 4
+                  active: true
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+  /v1/exceptions:
+    get:
+      operationId: listCatalogExceptions
+      summary: List catalog exceptions (concurrent price edits to confirm)
+      description: 'Detector findings derived from the projection: price_conflict (concurrent lww+review edits;
+        the winner applies and the loser is kept, RM-M4), config_changed_shared_device (price or menu change recorded
+        in a pin session). Resolving is an op from a device (conflict.confirm), never a call here.'
+      tags:
+      - catalog
+      x-permission: exceptions.view
+      x-outlet-scoped: true
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/OutletScope
+      - name: status
+        in: query
+        required: false
+        description: Filter by status.
+        schema:
+          type: string
+          enum:
+          - open
+          - resolved
+          - superseded
+        example: open
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: A page, newest first.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExceptionPage'
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5181
+                  kind: price_conflict
+                  severity: warning
+                  status: open
+                  subject_kind: price_entry
+                  subject_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5191
+                  outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  detected_at: '2026-11-24T13:05:11.120Z'
+                  detail_key: exception.price_conflict
+                  params:
+                    kept_paise: 25000
+                    lost_paise: 24000
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/floors:
+    get:
+      operationId: listFloors
+      summary: List floors
+      tags:
+      - catalog
+      x-permission: settings.read
+      x-outlet-scoped: true
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/OutletScope
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: A page, outlet-scoped by X-Outlet-Id.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FloorPage'
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5151
+                  outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  name: Ground floor
+                  sort_order: 1
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+  /v1/item-availability:
+    get:
+      operationId: listItemAvailability
+      summary: List the outlet overlay (sold out, outlet price, quick items)
+      tags:
+      - catalog
+      x-permission: menu.read
+      x-outlet-scoped: true
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/OutletScope
+      - name: available
+        in: query
+        required: false
+        description: Filter by availability.
+        schema:
+          type: string
+          enum:
+          - 'true'
+          - 'false'
+        example: 'false'
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: A page of overlay rows for the outlet in X-Outlet-Id.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItemOutletPage'
+              example:
+                items:
+                - item_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5101
+                  outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  available: true
+                  quick_item: true
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/items:
+    get:
+      operationId: listItems
+      summary: List items
+      tags:
+      - catalog
+      x-permission: menu.read
+      x-outlet-scoped: true
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/OutletScope
+      - name: category_id
+        in: query
+        required: false
+        description: Filter by category.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5001
+      - name: status
+        in: query
+        required: false
+        description: Filter by status.
+        schema:
+          type: string
+          enum:
+          - active
+          - hidden
+          - archived
+        example: active
+      - name: q
+        in: query
+        required: false
+        description: Name contains (any language) or exact item code.
+        schema:
+          type: string
+        example: paneer
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: A page of items with variants.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItemPage'
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5101
+                  brand_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6a
+                  category_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5001
+                  name_en: Paneer Tikka
+                  kitchen_name: Paneer Tikka
+                  station_code: KITCHEN
+                  veg_mark: veg
+                  tax_class: fnb_standard
+                  code: '101'
+                  status: active
+                  sort_order: 1
+                  variants:
+                  - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5111
+                    item_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5101
+                    name: Full
+                    price:
+                      amount_paise: 24000
+                      currency: INR
+                    is_default: true
+                    sort_order: 1
+                  modifier_group_ids:
+                  - 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5121
+                next_cursor: eyJhZnRlciI6IjAxOTBhMWIyIn0
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/items/{item_id}:
+    get:
+      operationId: getItem
+      summary: Get one item
+      tags:
+      - catalog
+      x-permission: menu.read
+      x-outlet-scoped: true
+      parameters:
+      - name: item_id
+        in: path
+        required: true
+        description: Item id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5101
+      - $ref: ../../../common/components.yaml#/components/parameters/OutletScope
+      responses:
+        '200':
+          description: The item.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Item'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5101
+                brand_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6a
+                category_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5001
+                name_en: Paneer Tikka
+                kitchen_name: Paneer Tikka
+                station_code: KITCHEN
+                veg_mark: veg
+                tax_class: fnb_standard
+                code: '101'
+                status: active
+                sort_order: 1
+                variants:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5111
+                  item_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5101
+                  name: Full
+                  price:
+                    amount_paise: 24000
+                    currency: INR
+                  is_default: true
+                  sort_order: 1
+                modifier_group_ids:
+                - 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5121
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+  /v1/items/{item_id}/tax-class:
+    put:
+      operationId: setItemTaxClass
+      summary: Set an item's tax class
+      description: strong_only (RM-M5); same rules as setCategoryTaxClass. Lines already on any bill keep the class
+        they were added with (RM-M6).
+      tags:
+      - catalog
+      x-permission: menu.tax_class.edit
+      x-step-up: true
+      parameters:
+      - name: item_id
+        in: path
+        required: true
+        description: Item id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5101
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetTaxClass'
+            example:
+              tax_class: fnb_non_gst
+              reason: Alcohol items are outside GST.
+      responses:
+        '200':
+          description: The change.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaxClassChange'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5101
+                tax_class: fnb_non_gst
+                updated_at: '2026-11-24T13:05:11.120Z'
+                op_id: cloud-1/brand:0190a1b2/412
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/StrongSessionRequired'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/menu:
+    get:
+      operationId: getMenu
+      summary: Get the whole menu with the outlet overlay
+      description: Read-only snapshot of the brand menu (categories, items, variants, modifier groups) with the
+        outlet's availability and prices; archived rows are excluded. Devices normally receive the same data by
+        sync; this serves owner mode, later products and tests.
+      tags:
+      - catalog
+      x-permission: menu.read
+      x-outlet-scoped: true
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/OutletScope
+      responses:
+        '200':
+          description: The menu.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Menu'
+              example:
+                brand_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6a
+                outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                generated_at: '2026-11-24T13:05:11.120Z'
+                categories:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5001
+                  brand_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6a
+                  name_en: Starters
+                  default_station_code: KITCHEN
+                  default_tax_class: fnb_standard
+                  sort_order: 10
+                  status: active
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5101
+                  brand_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6a
+                  category_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5001
+                  name_en: Paneer Tikka
+                  kitchen_name: Paneer Tikka
+                  station_code: KITCHEN
+                  veg_mark: veg
+                  tax_class: fnb_standard
+                  code: '101'
+                  status: active
+                  sort_order: 1
+                  variants:
+                  - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5111
+                    item_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5101
+                    name: Full
+                    price:
+                      amount_paise: 24000
+                      currency: INR
+                    is_default: true
+                    sort_order: 1
+                  modifier_group_ids:
+                  - 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5121
+                modifier_groups:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5121
+                  name: Add-ons
+                  min_select: 0
+                  max_select: 2
+                  modifiers:
+                  - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5122
+                    name: Extra cheese
+                    price_delta:
+                      amount_paise: 2000
+                      currency: INR
+                    sort_order: 1
+                availability:
+                - item_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5101
+                  outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  available: true
+                  quick_item: true
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+  /v1/menu-imports:
+    post:
+      operationId: createMenuImport
+      summary: Upload a CSV menu and preview it
+      description: strong_only (x-step-up). A support act-mode session may also call it, through catalog.import,
+        once security-reviewer has signed the flag and IST-43 passes (ADR-0005 A2.5 item 5, A1 BR-A1-89); until
+        then act mode answers mode_not_supported at identity. Validates every row, returns the preview, writes nothing.
+        Max 2,000 rows.
+      tags:
+      - menu-import
+      x-permission: menu.import
+      x-step-up: true
+      x-permission-widened-by: catalog.import
+      x-provisional: Act-mode access stays off until security-reviewer signs catalog.import.
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMenuImport'
+            example:
+              filename: menu.csv
+              csv_text: 'category,item name,item code,variant name,price,veg mark,station
+
+                Starters,Paneer Tikka,101,Full,240.00,veg,Kitchen
+
+                '
+      responses:
+        '201':
+          description: The preview job. A replay returns the same job.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MenuImport'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5171
+                status: previewed
+                source: owner
+                filename: menu.csv
+                row_count: 1
+                error_count: 0
+                errors: []
+                categories_created: 1
+                items_created: 1
+                items_updated: 0
+                price_changes: 0
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/StrongSessionRequired'
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+        '429':
+          $ref: ../../../common/components.yaml#/components/responses/TooManyRequests
+    get:
+      operationId: listMenuImports
+      summary: List menu import jobs
+      tags:
+      - menu-import
+      x-permission: menu.import
+      x-step-up: true
+      x-permission-widened-by: catalog.import
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: A page, newest first.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MenuImportPage'
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5171
+                  status: previewed
+                  source: owner
+                  filename: menu.csv
+                  row_count: 1
+                  error_count: 0
+                  errors: []
+                  categories_created: 1
+                  items_created: 1
+                  items_updated: 0
+                  price_changes: 0
+                  created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/StrongSessionRequired'
+  /v1/menu-imports/{import_id}:
+    get:
+      operationId: getMenuImport
+      summary: Get an import job with its row errors
+      tags:
+      - menu-import
+      x-permission: menu.import
+      x-step-up: true
+      x-permission-widened-by: catalog.import
+      parameters:
+      - name: import_id
+        in: path
+        required: true
+        description: Import job id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5171
+      responses:
+        '200':
+          description: The job.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MenuImport'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5171
+                status: previewed
+                source: owner
+                filename: menu.csv
+                row_count: 1
+                error_count: 0
+                errors: []
+                categories_created: 1
+                items_created: 1
+                items_updated: 0
+                price_changes: 0
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/StrongSessionRequired'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+  /v1/menu-imports/{import_id}/cancellation:
+    post:
+      operationId: cancelMenuImport
+      summary: Abandon a previewed import
+      tags:
+      - menu-import
+      x-permission: menu.import
+      x-step-up: true
+      x-permission-widened-by: catalog.import
+      parameters:
+      - name: import_id
+        in: path
+        required: true
+        description: Import job id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5171
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      responses:
+        '200':
+          description: The cancelled job.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MenuImport'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5171
+                status: cancelled
+                source: owner
+                filename: menu.csv
+                row_count: 1
+                error_count: 0
+                errors: []
+                categories_created: 1
+                items_created: 1
+                items_updated: 0
+                price_changes: 0
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/StrongSessionRequired'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+  /v1/menu-imports/{import_id}/commit:
+    post:
+      operationId: commitMenuImport
+      summary: Commit a previewed import
+      description: 'All rows or none: refused 422 import_has_errors while the preview has errors, 409 import_not_previewed
+        once committed or cancelled. Emits the resulting config ops through the gateway emit API (one op per category
+        and item batch, op ids derived from the job id so a retry cannot duplicate) and publishes catalog.menu_import.committed.'
+      tags:
+      - menu-import
+      x-permission: menu.import
+      x-step-up: true
+      x-permission-widened-by: catalog.import
+      parameters:
+      - name: import_id
+        in: path
+        required: true
+        description: Import job id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5171
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommitMenuImport'
+            example:
+              row_count: 1
+      responses:
+        '200':
+          description: The committed job.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MenuImport'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5171
+                status: committed
+                source: owner
+                filename: menu.csv
+                row_count: 1
+                error_count: 0
+                errors: []
+                categories_created: 1
+                items_created: 1
+                items_updated: 0
+                price_changes: 0
+                created_at: '2026-11-24T13:05:11.120Z'
+                committed_at: '2026-11-24T13:09:40.000Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/StrongSessionRequired'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/modifier-groups:
+    get:
+      operationId: listModifierGroups
+      summary: List modifier groups
+      tags:
+      - catalog
+      x-permission: menu.read
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: A page of modifier groups.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModifierGroupPage'
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5121
+                  name: Add-ons
+                  min_select: 0
+                  max_select: 2
+                  modifiers:
+                  - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5122
+                    name: Extra cheese
+                    price_delta:
+                      amount_paise: 2000
+                      currency: INR
+                    sort_order: 1
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+  /v1/printers:
+    get:
+      operationId: listPrinters
+      summary: List printers
+      tags:
+      - catalog
+      x-permission: settings.read
+      x-outlet-scoped: true
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/OutletScope
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: A page, outlet-scoped by X-Outlet-Id.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrinterPage'
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5141
+                  outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  name: Kitchen LAN
+                  connection: lan
+                  address: 192.0.2.50
+                  port: 9100
+                  paper_width_mm: 80
+                  chars_per_line: 48
+                  code_page: cp437
+                  cut: true
+                  drawer_pin: 0
+                  raster: true
+                  power_backup: none
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+  /v1/reason-codes:
+    get:
+      operationId: listReasonCodes
+      summary: List reason codes
+      tags:
+      - catalog
+      x-permission: menu.read
+      parameters:
+      - name: purpose
+        in: query
+        required: false
+        description: Filter by purpose.
+        schema:
+          type: string
+          enum:
+          - cancel
+          - discount
+          - comp
+          - internal
+          - refund
+          - credit_note
+          - present_change
+          - cash_move
+        example: cancel
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: A page of reason codes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReasonCodePage'
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5161
+                  purpose: cancel
+                  label_key: reason.cancel.guest_changed_mind
+                  active: true
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/stations:
+    get:
+      operationId: listStations
+      summary: List stations
+      tags:
+      - catalog
+      x-permission: settings.read
+      x-outlet-scoped: true
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/OutletScope
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: A page, outlet-scoped by X-Outlet-Id.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StationPage'
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5131
+                  outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  code: KITCHEN
+                  name: Kitchen
+                  output: both
+                  printer_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5141
+                  language: ta
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: ES256 tenant-realm access token issued by identity (ADR-0005). One tenant per token. Support
+        tokens are accepted only together with the admin service token.
+    vendorBearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: ES256 vendor-realm access token. Refused by every tenant-facing operation.
+    serviceAuth:
+      type: apiKey
+      in: header
+      name: Hostry-Service-Token
+      description: 60-second ES256 service token (ADR-0005 section 9). Operations under /internal/v1 accept it only
+        from the callers in x-service-callers.
+  schemas:
+    TaxClass:
+      type: string
+      description: 'Item tax class key chosen from the classes the published tax rule set defines (never a rate).
+        Phase 2 classes: fnb_standard, fnb_non_gst, exempt.'
+      pattern: ^[a-z][a-z0-9_]{1,31}$
+      example: fnb_standard
+    VegMark:
+      type: string
+      description: Veg mark shown on the order screen and printed on nothing.
+      enum:
+      - veg
+      - non_veg
+      - egg
+      - none
+      example: veg
+    CatalogStatus:
+      type: string
+      description: active is orderable, hidden is kept but not shown on the order screen, archived is a tombstone
+        (kept in history and reports, RM-M7).
+      enum:
+      - active
+      - hidden
+      - archived
+      example: active
+    Category:
+      type: object
+      description: A menu category (brand stream, lww). Archiving needs no active items (RM-M7).
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        brand_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        name_en:
+          type: string
+          description: English name (required).
+          maxLength: 60
+          example: Starters
+        name_ta:
+          type: string
+          description: Tamil name, optional.
+          maxLength: 60
+          example: தொடக்கம்
+        name_ml:
+          type: string
+          description: Malayalam name, optional.
+          maxLength: 60
+          example: സ്റ്റാർട്ടറുകൾ
+        default_station_code:
+          type: string
+          description: Station code new items inherit; resolved per outlet through Station.code.
+          maxLength: 20
+          example: KITCHEN
+        default_tax_class:
+          $ref: '#/components/schemas/TaxClass'
+        sort_order:
+          type: integer
+          description: Display order.
+          minimum: 0
+          example: 10
+        status:
+          $ref: '#/components/schemas/CatalogStatus'
+      required:
+      - id
+      - brand_id
+      - name_en
+      - default_tax_class
+      - sort_order
+      - status
+    ItemVariant:
+      type: object
+      description: A named price point of an item; exactly one variant per item is the default (RM-M3).
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        item_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        name:
+          type: string
+          description: Variant name, for example Half or Full.
+          maxLength: 40
+          example: Full
+        price:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        is_default:
+          type: boolean
+          description: Whether this variant is preselected.
+        sort_order:
+          type: integer
+          description: Display order.
+          minimum: 0
+          example: 1
+      required:
+      - id
+      - item_id
+      - name
+      - price
+      - is_default
+      - sort_order
+    Item:
+      type: object
+      description: A menu item with its variants. An item with variants has no price of its own; a priced item without
+        variants has one default variant named after the item (RM-M2, RM-M3).
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        brand_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        category_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        name_en:
+          type: string
+          description: English name (required).
+          maxLength: 80
+          example: Paneer Tikka
+        name_ta:
+          type: string
+          description: Tamil name, optional.
+          maxLength: 80
+          example: பனீர் டிக்கா
+        name_ml:
+          type: string
+          description: Malayalam name, optional.
+          maxLength: 80
+          example: പനീർ ടിക്ക
+        kitchen_name:
+          type: string
+          description: Kitchen short name, at most 20 characters; defaults to the name.
+          maxLength: 20
+          example: Paneer Tikka
+        station_code:
+          type: string
+          description: Station code override; empty means the category default.
+          maxLength: 20
+          example: KITCHEN
+        veg_mark:
+          $ref: '#/components/schemas/VegMark'
+        tax_class:
+          $ref: '#/components/schemas/TaxClass'
+        code:
+          type: string
+          description: Item code, digits, unique per brand; optional.
+          pattern: ^[0-9]{1,8}$
+          example: '101'
+        status:
+          $ref: '#/components/schemas/CatalogStatus'
+        sort_order:
+          type: integer
+          description: Display order.
+          minimum: 0
+          example: 1
+        variants:
+          type: array
+          description: Variants, default first.
+          items:
+            $ref: '#/components/schemas/ItemVariant'
+        modifier_group_ids:
+          type: array
+          description: Modifier groups offered on this item, in display order.
+          items:
+            $ref: ../../../common/components.yaml#/components/schemas/Id
+      required:
+      - id
+      - brand_id
+      - category_id
+      - name_en
+      - kitchen_name
+      - veg_mark
+      - tax_class
+      - status
+      - sort_order
+      - variants
+      - modifier_group_ids
+    Modifier:
+      type: object
+      description: A modifier option. The price delta may be negative; the line total never goes below zero. Modifier
+        prices are taxed with the line (RM-M3).
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        name:
+          type: string
+          description: Option name.
+          maxLength: 40
+          example: Extra cheese
+        price_delta:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        sort_order:
+          type: integer
+          description: Display order.
+          minimum: 0
+          example: 1
+      required:
+      - id
+      - name
+      - price_delta
+      - sort_order
+    ModifierGroup:
+      type: object
+      description: A modifier group with selection bounds.
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        name:
+          type: string
+          description: Group name.
+          maxLength: 40
+          example: Add-ons
+        min_select:
+          type: integer
+          description: Minimum options a line must carry.
+          minimum: 0
+          example: 0
+        max_select:
+          type: integer
+          description: Maximum options a line may carry.
+          minimum: 1
+          example: 2
+        modifiers:
+          type: array
+          description: Options.
+          items:
+            $ref: '#/components/schemas/Modifier'
+      required:
+      - id
+      - name
+      - min_select
+      - max_select
+      - modifiers
+    ItemOutlet:
+      type: object
+      description: 'Per-outlet overlay of an item: availability (sold out), optional outlet price and station (outlet
+        stream, lww; the outlet price is lww + review).'
+      properties:
+        item_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        outlet_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        available:
+          type: boolean
+          description: False while sold out; resets at the start of the next business date by default (RM-M8).
+        outlet_price:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        station_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        quick_item:
+          type: boolean
+          description: One of the outlet's up to 12 quick items (RM-M10).
+      required:
+      - item_id
+      - outlet_id
+      - available
+      - quick_item
+    Station:
+      type: object
+      description: A kitchen or bar station (RM-K1).
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        outlet_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        code:
+          type: string
+          description: Short code, unique per outlet; DEFAULT is seeded.
+          maxLength: 20
+          example: KITCHEN
+        name:
+          type: string
+          description: Station name.
+          maxLength: 30
+          example: Kitchen
+        output:
+          type: string
+          description: Where tickets go.
+          enum:
+          - printer
+          - kds
+          - both
+          example: both
+        printer_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        language:
+          type: string
+          description: Language of printed tickets.
+          enum:
+          - en
+          - ta
+          - ml
+          example: ta
+      required:
+      - id
+      - outlet_id
+      - code
+      - name
+      - output
+      - language
+    Floor:
+      type: object
+      description: A section of the floor (RM-F1).
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        outlet_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        name:
+          type: string
+          description: Section name.
+          maxLength: 30
+          example: Ground floor
+        sort_order:
+          type: integer
+          description: Display order.
+          minimum: 0
+          example: 1
+      required:
+      - id
+      - outlet_id
+      - name
+      - sort_order
+    DiningTable:
+      type: object
+      description: A table (RM-F1). Its status is derived from open seatings and never stored.
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        outlet_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        floor_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        name:
+          type: string
+          description: Table name, at most 8 characters.
+          maxLength: 8
+          example: T1
+        seats:
+          type: integer
+          description: Seats, 1 to 50.
+          minimum: 1
+          maximum: 50
+          example: 4
+        active:
+          type: boolean
+          description: Inactive tables are hidden; a table with an open seating cannot be deactivated.
+      required:
+      - id
+      - outlet_id
+      - floor_id
+      - name
+      - seats
+      - active
+    Printer:
+      type: object
+      description: 'A printer and how it is reached (ADR-0014 R8): lan (address and port) or device (USB, Bluetooth
+        or spooler on that device).'
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        outlet_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        name:
+          type: string
+          description: Printer name.
+          maxLength: 30
+          example: Kitchen LAN
+        connection:
+          type: string
+          description: lan or device:<device id> style reach.
+          enum:
+          - lan
+          - device
+          example: lan
+        address:
+          type: string
+          description: IPv4 address, for lan printers.
+          maxLength: 45
+          example: 192.0.2.50
+        port:
+          type: integer
+          description: TCP port, for lan printers (normally 9100).
+          minimum: 1
+          maximum: 65535
+          example: 9100
+        host_device_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        paper_width_mm:
+          type: integer
+          description: Paper width, 58 or 80.
+          minimum: 58
+          maximum: 80
+          example: 80
+        chars_per_line:
+          type: integer
+          description: Characters per line at the printer's default font.
+          minimum: 20
+          maximum: 80
+          example: 48
+        code_page:
+          type: string
+          description: ESC/POS code page name.
+          maxLength: 20
+          example: cp437
+        cut:
+          type: boolean
+          description: Whether the printer cuts after a ticket.
+        drawer_pin:
+          type: integer
+          description: Cash-drawer pin, 0 for none.
+          minimum: 0
+          maximum: 2
+          example: 0
+        raster:
+          type: boolean
+          description: Whether raster images (Tamil and Malayalam) are supported.
+        power_backup:
+          type: string
+          description: Printed fallback depends on this; recorded at set-up (RM-U5).
+          enum:
+          - none
+          - ups
+          - inverter
+          example: none
+      required:
+      - id
+      - outlet_id
+      - name
+      - connection
+      - paper_width_mm
+      - chars_per_line
+      - code_page
+      - cut
+      - drawer_pin
+      - raster
+      - power_backup
+    ReasonCode:
+      type: object
+      description: An outlet or brand reason code for cancels, discounts, comps, internal closures, refunds, credit
+        notes and changes after a pre-bill.
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        purpose:
+          type: string
+          description: What the code may be used for.
+          enum:
+          - cancel
+          - discount
+          - comp
+          - internal
+          - refund
+          - credit_note
+          - present_change
+          - cash_move
+          example: cancel
+        label_key:
+          type: string
+          description: i18n key of the label (seeded) or a literal label the owner typed.
+          maxLength: 60
+          example: reason.cancel.guest_changed_mind
+        active:
+          type: boolean
+          description: Whether the code is offered.
+      required:
+      - id
+      - purpose
+      - label_key
+      - active
+    Menu:
+      type: object
+      description: The whole sellable menu of a brand with the outlet overlay, for a first load or a refresh by
+        a client that is not syncing (read-only; devices normally get this by sync).
+      properties:
+        brand_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        outlet_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        generated_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+        categories:
+          type: array
+          description: Categories, in order.
+          items:
+            $ref: '#/components/schemas/Category'
+        items:
+          type: array
+          description: Items with variants.
+          items:
+            $ref: '#/components/schemas/Item'
+        modifier_groups:
+          type: array
+          description: Modifier groups referenced by items.
+          items:
+            $ref: '#/components/schemas/ModifierGroup'
+        availability:
+          type: array
+          description: Outlet overlay rows.
+          items:
+            $ref: '#/components/schemas/ItemOutlet'
+      required:
+      - brand_id
+      - outlet_id
+      - generated_at
+      - categories
+      - items
+      - modifier_groups
+      - availability
+    SetTaxClass:
+      type: object
+      description: A tax-class change; the class must exist in the rule set in force.
+      properties:
+        tax_class:
+          $ref: '#/components/schemas/TaxClass'
+        reason:
+          $ref: ../../../common/components.yaml#/components/schemas/Reason
+      required:
+      - tax_class
+      - reason
+    TaxClassChange:
+      type: object
+      description: Result of a tax-class change; the op was emitted to every device of the brand.
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        tax_class:
+          $ref: '#/components/schemas/TaxClass'
+        updated_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+        op_id:
+          type: string
+          description: Identity of the emitted op, cloud-<epoch>/stream/seq.
+          example: cloud-1/brand:0190a1b2/412
+      required:
+      - id
+      - tax_class
+      - updated_at
+      - op_id
+    CreateMenuImport:
+      type: object
+      description: A CSV menu, previewed and validated; nothing is written until commit.
+      properties:
+        filename:
+          type: string
+          description: Original file name, for the audit line.
+          maxLength: 100
+          example: menu.csv
+        csv_text:
+          type: string
+          description: UTF-8 CSV with columns category, item name, item code, variant name, price (rupees, up to
+            two decimals), veg mark, station; up to 2,000 rows.
+          maxLength: 400000
+          example: 'category,item name,item code,variant name,price,veg mark,station
+
+            Starters,Paneer Tikka,101,Full,240.00,veg,Kitchen
+
+            '
+      required:
+      - filename
+      - csv_text
+    ImportRowError:
+      type: object
+      description: A row-level error; a preview with any error cannot be committed (all rows or none, RM-M9).
+      properties:
+        row:
+          type: integer
+          description: 1-based data row number (header excluded).
+          minimum: 1
+          example: 7
+        field:
+          type: string
+          description: CSV column name.
+          example: price
+        code:
+          type: string
+          description: Stable error code.
+          example: price_invalid
+      required:
+      - row
+      - field
+      - code
+    MenuImport:
+      type: object
+      description: A menu import job (server-only data, ADR-0014 R3). Re-import matches by item code and counts
+        as a price edit.
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        status:
+          type: string
+          description: 'previewed: valid or with errors, awaiting commit; committed: ops emitted; cancelled: abandoned.'
+          enum:
+          - previewed
+          - committed
+          - cancelled
+          example: previewed
+        source:
+          type: string
+          description: 'owner: the owner''s own strong session; support_session: Hostry staff under an owner-consented
+            act-mode session (A1 BR-A1-86 to 89).'
+          enum:
+          - owner
+          - support_session
+          example: owner
+        filename:
+          type: string
+          description: Original file name.
+          example: menu.csv
+        row_count:
+          type: integer
+          description: Data rows read.
+          minimum: 0
+          example: 1
+        error_count:
+          type: integer
+          description: Rows with an error.
+          minimum: 0
+          example: 0
+        errors:
+          type: array
+          description: Row-level errors, at most 100 returned.
+          items:
+            $ref: '#/components/schemas/ImportRowError'
+          maxItems: 100
+        categories_created:
+          type: integer
+          description: Categories the commit would create or did create.
+          minimum: 0
+          example: 1
+        items_created:
+          type: integer
+          description: Items created.
+          minimum: 0
+          example: 1
+        items_updated:
+          type: integer
+          description: Items matched by code and updated.
+          minimum: 0
+          example: 0
+        price_changes:
+          type: integer
+          description: Price edits among the updates (each is a price edit, RM-M4).
+          minimum: 0
+          example: 0
+        created_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+        committed_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+      required:
+      - id
+      - status
+      - source
+      - filename
+      - row_count
+      - error_count
+      - errors
+      - categories_created
+      - items_created
+      - items_updated
+      - price_changes
+      - created_at
+    CommitMenuImport:
+      type: object
+      description: 'Commit guard: the row count the preview showed.'
+      properties:
+        row_count:
+          type: integer
+          description: Must equal the preview's row_count; guards against committing a different file.
+          minimum: 1
+          example: 1
+      required:
+      - row_count
+    ExceptionPage:
+      allOf:
+      - $ref: ../../../common/components.yaml#/components/schemas/PageCursor
+      - type: object
+        description: A page of catalog exceptions.
+        required:
+        - items
+        properties:
+          items:
+            type: array
+            description: Newest first.
+            items:
+              $ref: ../../../common/exceptions.yaml#/components/schemas/Exception
+    CategoryPage:
+      allOf:
+      - $ref: ../../../common/components.yaml#/components/schemas/PageCursor
+      - type: object
+        description: A page of Category items.
+        required:
+        - items
+        properties:
+          items:
+            type: array
+            description: Items, in the order stated by the operation.
+            items:
+              $ref: '#/components/schemas/Category'
+    ItemPage:
+      allOf:
+      - $ref: ../../../common/components.yaml#/components/schemas/PageCursor
+      - type: object
+        description: A page of Item items.
+        required:
+        - items
+        properties:
+          items:
+            type: array
+            description: Items, in the order stated by the operation.
+            items:
+              $ref: '#/components/schemas/Item'
+    ModifierGroupPage:
+      allOf:
+      - $ref: ../../../common/components.yaml#/components/schemas/PageCursor
+      - type: object
+        description: A page of ModifierGroup items.
+        required:
+        - items
+        properties:
+          items:
+            type: array
+            description: Items, in the order stated by the operation.
+            items:
+              $ref: '#/components/schemas/ModifierGroup'
+    ItemOutletPage:
+      allOf:
+      - $ref: ../../../common/components.yaml#/components/schemas/PageCursor
+      - type: object
+        description: A page of ItemOutlet items.
+        required:
+        - items
+        properties:
+          items:
+            type: array
+            description: Items, in the order stated by the operation.
+            items:
+              $ref: '#/components/schemas/ItemOutlet'
+    StationPage:
+      allOf:
+      - $ref: ../../../common/components.yaml#/components/schemas/PageCursor
+      - type: object
+        description: A page of Station items.
+        required:
+        - items
+        properties:
+          items:
+            type: array
+            description: Items, in the order stated by the operation.
+            items:
+              $ref: '#/components/schemas/Station'
+    FloorPage:
+      allOf:
+      - $ref: ../../../common/components.yaml#/components/schemas/PageCursor
+      - type: object
+        description: A page of Floor items.
+        required:
+        - items
+        properties:
+          items:
+            type: array
+            description: Items, in the order stated by the operation.
+            items:
+              $ref: '#/components/schemas/Floor'
+    DiningTablePage:
+      allOf:
+      - $ref: ../../../common/components.yaml#/components/schemas/PageCursor
+      - type: object
+        description: A page of DiningTable items.
+        required:
+        - items
+        properties:
+          items:
+            type: array
+            description: Items, in the order stated by the operation.
+            items:
+              $ref: '#/components/schemas/DiningTable'
+    PrinterPage:
+      allOf:
+      - $ref: ../../../common/components.yaml#/components/schemas/PageCursor
+      - type: object
+        description: A page of Printer items.
+        required:
+        - items
+        properties:
+          items:
+            type: array
+            description: Items, in the order stated by the operation.
+            items:
+              $ref: '#/components/schemas/Printer'
+    ReasonCodePage:
+      allOf:
+      - $ref: ../../../common/components.yaml#/components/schemas/PageCursor
+      - type: object
+        description: A page of ReasonCode items.
+        required:
+        - items
+        properties:
+          items:
+            type: array
+            description: Items, in the order stated by the operation.
+            items:
+              $ref: '#/components/schemas/ReasonCode'
+    MenuImportPage:
+      allOf:
+      - $ref: ../../../common/components.yaml#/components/schemas/PageCursor
+      - type: object
+        description: A page of MenuImport items.
+        required:
+        - items
+        properties:
+          items:
+            type: array
+            description: Items, in the order stated by the operation.
+            items:
+              $ref: '#/components/schemas/MenuImport'
+  responses:
+    StrongSessionRequired:
+      description: The permission is strong_only and the session is a pin or device session.
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../../../common/components.yaml#/components/schemas/Problem
+          example:
+            type: urn:hostry:problem:strong_session_required
+            title: Strong session required
+            status: 403
+            code: strong_session_required
