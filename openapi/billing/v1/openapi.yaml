@@ -15,6 +15,19 @@ info:
     sales documents; Hostry''s own subscription ledger is in tenancy. Amounts are Money (paise); quantities are
     thousandths; rates are basis points.'
   x-status: stable
+  x-example-worlds:
+    base: Organisation 4a60 with outlet 4a61 and verified registration 4a6b (regular). Bill 7001 (AAA/2627/000123,
+      tax_invoice, paid by cash payment 7021, verified), credit note 7011, refund 7061, shift 7051 closed, business
+      day 7031 closed with no revisions (Z/2026-11-24/P1), internal consumption 7081, series AAA registered, published
+      rule set 7041 (unreviewed) in force, outlet billing config at defaults (number_at settle), orders reports
+      no open check. No exception, no gap, no draft rule set. The caller is an owner (strong session) or, on /internal/v1/vendor
+      routes, the admin service with a vendor user holding the needed permission.
+    payments-exceed: Base plus an open exception 7091 (payments_exceed_total on bill 7001) after a second payment
+      was taken on another device.
+    rule-set-draft: Base plus draft rule set 7042 (version 2, revision 1, effective 2026-12-15, unreviewed, one
+      rule).
+    rule-set-signed: Base plus rule set 7042 signed (reviewed, sign-off recorded, effective 2026-12-15) and a valid
+      single-use vendor approval grant for it; the caller is the approver, a second platform admin.
 servers:
 - url: /
 tags:
@@ -975,6 +988,7 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/Forbidden
         '422':
           $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+      x-example-world: payments-exceed
   /v1/exceptions/{exception_id}:
     get:
       operationId: getBillingException
@@ -1017,6 +1031,7 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/Forbidden
         '404':
           $ref: ../../../common/components.yaml#/components/responses/NotFound
+      x-example-world: payments-exceed
   /v1/internal-consumptions:
     get:
       operationId: listInternalConsumptions
@@ -2260,6 +2275,7 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/Forbidden
         '422':
           $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+      x-example-world: rule-set-draft
     post:
       operationId: createTaxRuleSetDraft
       summary: Create a draft rule set
@@ -2387,6 +2403,7 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/Forbidden
         '404':
           $ref: ../../../common/components.yaml#/components/responses/NotFound
+      x-example-world: rule-set-draft
     patch:
       operationId: updateTaxRuleSetDraft
       summary: Edit a draft rule set
@@ -2472,6 +2489,7 @@ paths:
           $ref: '#/components/responses/PreconditionFailed'
         '422':
           $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+      x-example-world: rule-set-draft
     delete:
       operationId: deleteTaxRuleSetDraft
       summary: Delete a draft rule set
@@ -2507,6 +2525,7 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/NotFound
         '409':
           $ref: ../../../common/components.yaml#/components/responses/Conflict
+      x-example-world: rule-set-draft
   /internal/v1/vendor/tax-rule-sets/{rule_set_id}/publication:
     post:
       operationId: publishTaxRuleSet
@@ -2587,6 +2606,7 @@ paths:
           $ref: '#/components/responses/NotSigned'
         '422':
           $ref: '#/components/responses/LeadTooShort'
+      x-example-world: rule-set-signed
   /internal/v1/vendor/tax-rule-sets/{rule_set_id}/signature:
     post:
       operationId: signTaxRuleSet
@@ -2665,6 +2685,7 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/Conflict
         '422':
           $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+      x-example-world: rule-set-draft
   /internal/v1/vendor/tax-rule-sets/{rule_set_id}/validation:
     post:
       operationId: validateTaxRuleSet
@@ -2711,6 +2732,7 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/NotFound
         '409':
           $ref: ../../../common/components.yaml#/components/responses/Conflict
+      x-example-world: rule-set-draft
 components:
   securitySchemes:
     bearerAuth:

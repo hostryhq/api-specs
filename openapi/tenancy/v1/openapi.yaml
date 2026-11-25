@@ -12,6 +12,26 @@ info:
     catalogue also serve a support token (view mode), which is accepted only together with the admin service
     token.
   x-status: stable
+  x-example-worlds:
+    base: "Organisation 4a60 (trial) with default brand 4a6a, outlet 4a61 (restaurant, state 33) and registration 4a6b (GSTIN 33ABCDE1234F1Z7, unverified, open). No series, no links, settings 7 days / 5 minutes, state table with 29 and 33. The caller is the organisation owner in a strong session. LINKS_ENABLED is false."
+    empty: "No organisation exists and no verified holder of GSTIN 33ABCDE1234F1Z7. The caller is a vendor user with the admin service token."
+    registration-verified: "The base world with registration 4a6b verified (certificate_seen at 13:10:11) and no series issued yet. Device 4a5e exists in identity."
+    series-issued: "The registration-verified world after identity issued series for device 4a5e: tax_invoice 4a6c (code A7K) and credit_note 4a95 (code A7M), both active since 13:15:11."
+    registration-spare-verified: "The base world plus a second open registration 4a93 (GSTIN 29ABCDE1234F1ZW, state 29, verified at 13:10:11) that no outlet references and that has no series."
+    link-none: "The base world with LINKS_ENABLED true, organisation 4a63 (Example Restaurants, outlet 4a94, registration with verified GSTIN 33AAAAA0000A1Z9) existing, and no link."
+    link-proposed-to-caller: "LINKS_ENABLED true. The caller is organisation 4a63 (outlet 4a94). Organisation 4a60 proposed link 4a62 (template on_premises_outlet, grant 4a72 test.echo.read outbound from 4a60 for outlet 4a61, pending) at 13:05:11; invitation code 7QK3M9XD7QK3M9XD is unused and unexpired. 4a60 has a verified registration 4a6b."
+    link-accepted: "LINKS_ENABLED true. The caller is the proposer 4a60. Link 4a62 was accepted by 4a63 at 13:10:11 and awaits confirmation; grant 4a72 is pending."
+    link-active: "LINKS_ENABLED true. The caller is the proposer 4a60. Link 4a62 is active (accepted 13:10:11, confirmed 13:20:11) with grant 4a72 active; activity holds link.proposed, link.accepted and link.confirmed. The service token of getLinkDecision acts for 4a63."
+    link-suspended: "The link-active world after the caller suspended link 4a62; the caller is the suspending party."
+    link-amendment-pending: "LINKS_ENABLED true. The caller is the acceptor 4a63. Link 4a62 is active; proposer 4a60 proposed amendment 4a73 (add grant test.echo.post outbound) at 13:05:11 and it is pending."
+    plan-seeded: "The base world's organisation 4a60 (trial, no subscription) and, platform-wide, plan table_service with draft version 1 (feature keys restaurant.core, restaurant.kds, restaurant.captain, restaurant.reports.core; one outlet; monthly list price 129900) and Hostry billing configuration 8041 effective 2026-12-01 (state 33, SAC 997331, 1800 bp, registered, tolerance 99, terms 7 days). The caller is a platform admin."
+    plan-active: "The plan-seeded world with version 1 of table_service active; organisation 4a60 has no subscription."
+    subscribed: "The plan-active world after subscription 8011 (table_service v1, monthly, 129900, start 2026-12-01, active) was assigned to 4a60, with open charge 8021 for 2026-12-01 to 2026-12-31 (taxable 129900, CGST 11691, SGST 11691, total 153282, due 2026-12-08), no payment, no invoice reference."
+    charge-overdue: "The subscribed world on 2026-12-11: charge 8021 is open and three days past due."
+    payment-recorded: "The subscribed world after payment 8031 (153282, upi, UTR1234567890, received 2026-12-02) was recorded against charge 8021, which is paid."
+    org-active: "Organisation 4a60 active (a plan was assigned), outlet 4a61 with no business day in progress. Caller is the admin service with the approver's token and a valid single-use grant for the action."
+    org-suspended: "Organisation 4a60 suspended, outlet 4a61 with no business day in progress. Caller is the admin service with the approver's token and a valid grant for reinstatement."
+    book-registered: "The base world's registration 4a6b verified, outlet 4a61 and bill book 8051 (code BKB, entry-only, active) registered."
 servers:
 - url: /
 tags:
@@ -131,7 +151,7 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateBrand'
             example:
-              id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6a
+              id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a91
               name: Example Bakery
       responses:
         '201':
@@ -141,7 +161,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Brand'
               example:
-                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6a
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a91
                 name: Example Bakery
                 is_default: false
                 created_at: '2026-11-24T13:05:11.120Z'
@@ -240,8 +260,8 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateOutlet'
             example:
-              id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
-              name: Main Restaurant
+              id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a92
+              name: Garden Restaurant
               kind: restaurant
               state_code: '33'
               tax_registration_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
@@ -253,9 +273,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/Outlet'
               example:
-                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a92
                 brand_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6a
-                name: Main Restaurant
+                name: Garden Restaurant
                 kind: restaurant
                 status: active
                 state_code: '33'
@@ -380,7 +400,7 @@ paths:
                 - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
                   legal_name: Example Hospitality Pvt Ltd
                   regime: regular
-                  gstin: 33ABCDE1234F1Z5
+                  gstin: 33ABCDE1234F1Z7
                   state_code: '33'
                   verification:
                     state: unverified
@@ -406,11 +426,11 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateTaxRegistration'
             example:
-              id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
-              legal_name: Example Hospitality Pvt Ltd
+              id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a93
+              legal_name: Example Hospitality Karnataka Pvt Ltd
               regime: regular
-              gstin: 33ABCDE1234F1Z5
-              state_code: '33'
+              gstin: 29ABCDE1234F1ZW
+              state_code: '29'
       responses:
         '201':
           description: Registration created unverified. Identical response whether or not another organisation
@@ -420,11 +440,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/TaxRegistration'
               example:
-                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
-                legal_name: Example Hospitality Pvt Ltd
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a93
+                legal_name: Example Hospitality Karnataka Pvt Ltd
                 regime: regular
-                gstin: 33ABCDE1234F1Z5
-                state_code: '33'
+                gstin: 29ABCDE1234F1ZW
+                state_code: '29'
                 verification:
                   state: unverified
                 status: open
@@ -461,7 +481,7 @@ paths:
                 id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
                 legal_name: Example Hospitality Pvt Ltd
                 regime: regular
-                gstin: 33ABCDE1234F1Z5
+                gstin: 33ABCDE1234F1Z7
                 state_code: '33'
                 verification:
                   state: unverified
@@ -510,11 +530,71 @@ paths:
                 id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
                 legal_name: Example Hospitality Pvt Ltd
                 regime: regular
-                gstin: 33ABCDE1234F1Z5
+                gstin: 33ABCDE1234F1Z7
                 state_code: '33'
                 verification:
                   state: unverified
                 status: open
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/StepUpRequired'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/tax-registrations/{registration_id}/closure:
+    put:
+      operationId: closeTaxRegistration
+      summary: Close a tax registration and its series
+      description: 'ADR-0003 A1.1 item 6: a verified GSTIN is fixed, so a different GSTIN is a new registration
+        and the old one is closed here, together with all its series (status closed; a series with an
+        unreconciled tail is closed with the unreconciled marker instead). 409 registration_in_use while
+        an active outlet still references the registration. Closing is terminal and idempotent. Publishes
+        no event in v1.'
+      tags:
+      - tenancy
+      x-permission: tax_registration.manage
+      x-example-world: registration-spare-verified
+      x-step-up: true
+      parameters:
+      - name: registration_id
+        in: path
+        required: true
+        description: Tax registration ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a93
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CloseRegistration'
+            example:
+              reason: Moved the Bengaluru outlets to a new GSTIN.
+      responses:
+        '200':
+          description: Registration closed with its series. A replay returns the same registration.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaxRegistration'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a93
+                legal_name: Example Hospitality Karnataka Pvt Ltd
+                regime: regular
+                gstin: 29ABCDE1234F1ZW
+                state_code: '29'
+                verification:
+                  state: verified
+                  method: certificate_seen
+                  verified_at: '2026-11-24T13:10:11.120Z'
+                status: closed
                 created_at: '2026-11-24T13:05:11.120Z'
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
@@ -542,6 +622,8 @@ paths:
                 $ref: '#/components/schemas/StateList'
               example:
                 items:
+                - code: '29'
+                  name: Karnataka
                 - code: '33'
                   name: Tamil Nadu
         '401':
@@ -609,6 +691,7 @@ paths:
       tags:
       - tenancy
       x-permission: series.read
+      x-example-world: series-issued
       x-outlet-scoped: true
       parameters:
       - name: outlet_id
@@ -643,12 +726,20 @@ paths:
                 items:
                 - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6c
                   tax_registration_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
-                  code: A7
+                  code: A7K
                   doc_type: tax_invoice
                   outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
                   device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
                   status: active
-                  issued_at: '2026-11-24T13:05:11.120Z'
+                  issued_at: '2026-11-24T13:15:11.120Z'
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a95
+                  tax_registration_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+                  code: A7M
+                  doc_type: credit_note
+                  outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                  status: active
+                  issued_at: '2026-11-24T13:15:11.120Z'
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -660,6 +751,7 @@ paths:
       tags:
       - tenancy
       x-permission: series.close_unreconciled
+      x-example-world: series-issued
       x-outlet-scoped: true
       parameters:
       - name: series_id
@@ -689,13 +781,13 @@ paths:
               example:
                 id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6c
                 tax_registration_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
-                code: A7
+                code: A7K
                 doc_type: tax_invoice
                 outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
                 device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
                 status: closed_unreconciled
-                issued_at: '2026-11-24T13:05:11.120Z'
-                closed_at: '2026-11-24T13:10:11.120Z'
+                issued_at: '2026-11-24T13:15:11.120Z'
+                closed_at: '2026-11-24T13:25:11.120Z'
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -711,6 +803,7 @@ paths:
       tags:
       - links
       x-permission: link.read
+      x-example-world: link-active
       x-feature-flag: LINKS_ENABLED
       parameters:
       - name: status
@@ -740,7 +833,7 @@ paths:
                     display_name: Example Restaurants
                     registrations:
                     - legal_name: Example Restaurants LLP
-                      gstin: 33AAAAA0000A1Z5
+                      gstin: 33AAAAA0000A1Z9
                       state_code: '33'
                       gstin_verified: true
                   grants:
@@ -764,6 +857,7 @@ paths:
       tags:
       - links
       x-permission: link.manage
+      x-example-world: link-none
       x-feature-flag: LINKS_ENABLED
       x-step-up: true
       parameters:
@@ -823,6 +917,7 @@ paths:
       tags:
       - links
       x-permission: link.read
+      x-example-world: link-active
       x-feature-flag: LINKS_ENABLED
       parameters:
       - name: link_id
@@ -849,7 +944,7 @@ paths:
                   display_name: Example Restaurants
                   registrations:
                   - legal_name: Example Restaurants LLP
-                    gstin: 33AAAAA0000A1Z5
+                    gstin: 33AAAAA0000A1Z9
                     state_code: '33'
                     gstin_verified: true
                 grants:
@@ -876,6 +971,7 @@ paths:
       tags:
       - links
       x-permission: link.manage
+      x-example-world: link-proposed-to-caller
       x-feature-flag: LINKS_ENABLED
       x-step-up: true
       parameters:
@@ -889,7 +985,7 @@ paths:
             example:
               invitation_code: 7QK3M9XD7QK3M9XD
               outlet_ids:
-              - 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+              - 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a94
       responses:
         '201':
           description: Link becomes accepted (no grant is live yet). The response shows the proposer's
@@ -904,21 +1000,21 @@ paths:
                 template: on_premises_outlet
                 status: accepted
                 role: acceptor
-                counterparty_organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a63
+                counterparty_organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
                 counterparty:
-                  display_name: Example Restaurants
+                  display_name: Example Hospitality
                   registrations:
-                  - legal_name: Example Restaurants LLP
-                    gstin: 33AAAAA0000A1Z5
+                  - legal_name: Example Hospitality Pvt Ltd
+                    gstin: 33ABCDE1234F1Z7
                     state_code: '33'
                     gstin_verified: true
                 grants:
                 - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a72
                   scope: test.echo.read
-                  direction: outbound
+                  direction: inbound
                   outlet_ids:
                   - 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
-                  status: active
+                  status: pending
                 proposed_at: '2026-11-24T13:05:11.120Z'
                 expires_at: '2026-12-08T13:05:11.120Z'
                 accepted_at: '2026-11-24T13:10:11.120Z'
@@ -937,6 +1033,7 @@ paths:
       tags:
       - links
       x-permission: link.manage
+      x-example-world: link-accepted
       x-feature-flag: LINKS_ENABLED
       x-step-up: true
       parameters:
@@ -974,7 +1071,7 @@ paths:
                   display_name: Example Restaurants
                   registrations:
                   - legal_name: Example Restaurants LLP
-                    gstin: 33AAAAA0000A1Z5
+                    gstin: 33AAAAA0000A1Z9
                     state_code: '33'
                     gstin_verified: true
                 grants:
@@ -1005,6 +1102,7 @@ paths:
       tags:
       - links
       x-permission: link.manage
+      x-example-world: link-accepted
       x-feature-flag: LINKS_ENABLED
       x-step-up: true
       parameters:
@@ -1041,7 +1139,7 @@ paths:
                   display_name: Example Restaurants
                   registrations:
                   - legal_name: Example Restaurants LLP
-                    gstin: 33AAAAA0000A1Z5
+                    gstin: 33AAAAA0000A1Z9
                     state_code: '33'
                     gstin_verified: true
                 grants:
@@ -1050,11 +1148,10 @@ paths:
                   direction: outbound
                   outlet_ids:
                   - 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
-                  status: active
+                  status: removed
                 proposed_at: '2026-11-24T13:05:11.120Z'
                 expires_at: '2026-12-08T13:05:11.120Z'
                 accepted_at: '2026-11-24T13:10:11.120Z'
-                confirmed_at: '2026-11-24T13:20:11.120Z'
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -1070,6 +1167,7 @@ paths:
       tags:
       - links
       x-permission: link.manage
+      x-example-world: link-active
       x-feature-flag: LINKS_ENABLED
       x-step-up: true
       parameters:
@@ -1106,7 +1204,7 @@ paths:
                   display_name: Example Restaurants
                   registrations:
                   - legal_name: Example Restaurants LLP
-                    gstin: 33AAAAA0000A1Z5
+                    gstin: 33AAAAA0000A1Z9
                     state_code: '33'
                     gstin_verified: true
                 grants:
@@ -1134,6 +1232,7 @@ paths:
       tags:
       - links
       x-permission: link.manage
+      x-example-world: link-suspended
       x-feature-flag: LINKS_ENABLED
       x-step-up: true
       parameters:
@@ -1162,7 +1261,7 @@ paths:
                   display_name: Example Restaurants
                   registrations:
                   - legal_name: Example Restaurants LLP
-                    gstin: 33AAAAA0000A1Z5
+                    gstin: 33AAAAA0000A1Z9
                     state_code: '33'
                     gstin_verified: true
                 grants:
@@ -1191,6 +1290,7 @@ paths:
       tags:
       - links
       x-permission: link.revoke
+      x-example-world: link-active
       x-feature-flag: LINKS_ENABLED
       x-step-up: true
       parameters:
@@ -1228,7 +1328,7 @@ paths:
                   display_name: Example Restaurants
                   registrations:
                   - legal_name: Example Restaurants LLP
-                    gstin: 33AAAAA0000A1Z5
+                    gstin: 33AAAAA0000A1Z9
                     state_code: '33'
                     gstin_verified: true
                 grants:
@@ -1237,7 +1337,7 @@ paths:
                   direction: outbound
                   outlet_ids:
                   - 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
-                  status: active
+                  status: removed
                 proposed_at: '2026-11-24T13:05:11.120Z'
                 expires_at: '2026-12-08T13:05:11.120Z'
                 accepted_at: '2026-11-24T13:10:11.120Z'
@@ -1255,6 +1355,7 @@ paths:
       tags:
       - links
       x-permission: link.manage
+      x-example-world: link-active
       x-feature-flag: LINKS_ENABLED
       x-step-up: true
       parameters:
@@ -1276,7 +1377,7 @@ paths:
               id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a73
               add_grants:
               - scope: test.echo.post
-                direction: inbound
+                direction: outbound
       responses:
         '201':
           description: Amendment pending the other party. Only the grantor of a grant can add or widen
@@ -1290,7 +1391,7 @@ paths:
                 link_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a62
                 add_grants:
                 - scope: test.echo.post
-                  direction: inbound
+                  direction: outbound
                 status: pending
                 created_at: '2026-11-24T13:05:11.120Z'
         '401':
@@ -1310,6 +1411,7 @@ paths:
       tags:
       - links
       x-permission: link.manage
+      x-example-world: link-amendment-pending
       x-feature-flag: LINKS_ENABLED
       x-step-up: true
       parameters:
@@ -1348,7 +1450,7 @@ paths:
                 link_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a62
                 add_grants:
                 - scope: test.echo.post
-                  direction: inbound
+                  direction: outbound
                 status: accepted
                 created_at: '2026-11-24T13:05:11.120Z'
         '401':
@@ -1366,6 +1468,7 @@ paths:
       tags:
       - links
       x-permission: link.manage
+      x-example-world: link-active
       x-feature-flag: LINKS_ENABLED
       x-step-up: true
       parameters:
@@ -1400,6 +1503,7 @@ paths:
       tags:
       - links
       x-permission: link.read
+      x-example-world: link-active
       x-feature-flag: LINKS_ENABLED
       parameters:
       - name: link_id
@@ -1421,7 +1525,19 @@ paths:
                 $ref: '#/components/schemas/LinkActivityPage'
               example:
                 items:
-                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a79
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a96
+                  link_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a62
+                  occurred_at: '2026-11-24T13:05:11.120Z'
+                  side: proposer
+                  action: link.proposed
+                  outcome: succeeded
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a97
+                  link_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a62
+                  occurred_at: '2026-11-24T13:10:11.120Z'
+                  side: acceptor
+                  action: link.accepted
+                  outcome: succeeded
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a98
                   link_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a62
                   occurred_at: '2026-11-24T13:20:11.120Z'
                   side: proposer
@@ -1454,7 +1570,7 @@ paths:
                 items:
                 - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8051
                   tax_registration_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
-                  code: BK1
+                  code: BKB
                   outlet_ids:
                   - 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
                   status: active
@@ -1464,6 +1580,7 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
           $ref: ../../../common/components.yaml#/components/responses/Forbidden
+      x-example-world: book-registered
     post:
       operationId: registerManualBookSeries
       summary: Register a paper bill book as an entry-only series
@@ -1486,7 +1603,7 @@ paths:
               $ref: '#/components/schemas/RegisterManualBook'
             example:
               tax_registration_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
-              code: BK1
+              code: BKB
               outlet_ids:
               - 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
       responses:
@@ -1499,7 +1616,7 @@ paths:
               example:
                 id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8051
                 tax_registration_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
-                code: BK1
+                code: BKB
                 outlet_ids:
                 - 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
                 status: active
@@ -1563,6 +1680,7 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/Forbidden
         '404':
           $ref: ../../../common/components.yaml#/components/responses/NotFound
+      x-example-world: payment-recorded
   /internal/v1/document-series-issuances:
     post:
       operationId: issueDocumentSeries
@@ -1572,6 +1690,7 @@ paths:
       tags:
       - internal
       x-permission: series.issue
+      x-example-world: registration-verified
       x-service-callers:
       - identity
       security:
@@ -1603,12 +1722,20 @@ paths:
                 items:
                 - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6c
                   tax_registration_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
-                  code: A7
+                  code: A7K
                   doc_type: tax_invoice
                   outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
                   device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
                   status: active
-                  issued_at: '2026-11-24T13:05:11.120Z'
+                  issued_at: '2026-11-24T13:15:11.120Z'
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a95
+                  tax_registration_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+                  code: A7M
+                  doc_type: credit_note
+                  outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                  status: active
+                  issued_at: '2026-11-24T13:15:11.120Z'
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -1628,6 +1755,7 @@ paths:
       tags:
       - internal
       x-permission: series.issue
+      x-example-world: series-issued
       x-service-callers:
       - identity
       security:
@@ -1671,6 +1799,7 @@ paths:
       tags:
       - internal
       x-permission: link.decide
+      x-example-world: link-active
       x-service-callers:
       - '*'
       x-feature-flag: LINKS_ENABLED
@@ -1701,7 +1830,7 @@ paths:
                 $ref: '#/components/schemas/LinkDecision'
               example:
                 allowed: true
-                data_owner_organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a63
+                data_owner_organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
                 outlet_ids:
                 - 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
                 cache_seconds: 30
@@ -1784,6 +1913,7 @@ paths:
       tags:
       - vendor
       x-permission: admin.org.create
+      x-example-world: empty
       x-service-callers:
       - admin
       x-vendor-class: operational
@@ -1809,7 +1939,7 @@ paths:
               tax_registration:
                 legal_name: Example Hospitality Pvt Ltd
                 regime: regular
-                gstin: 33ABCDE1234F1Z5
+                gstin: 33ABCDE1234F1Z7
       responses:
         '201':
           description: One transaction creates organisation (status trial), hidden default brand, outlet
@@ -1845,7 +1975,7 @@ paths:
                   id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
                   legal_name: Example Hospitality Pvt Ltd
                   regime: regular
-                  gstin: 33ABCDE1234F1Z5
+                  gstin: 33ABCDE1234F1Z7
                   state_code: '33'
                   verification:
                     state: unverified
@@ -1910,7 +2040,7 @@ paths:
                 - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
                   legal_name: Example Hospitality Pvt Ltd
                   regime: regular
-                  gstin: 33ABCDE1234F1Z5
+                  gstin: 33ABCDE1234F1Z7
                   state_code: '33'
                   verification_state: unverified
                   status: open
@@ -1973,7 +2103,7 @@ paths:
                 id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
                 legal_name: Example Hospitality Pvt Ltd
                 regime: regular
-                gstin: 33ABCDE1234F1Z5
+                gstin: 33ABCDE1234F1Z7
                 state_code: '33'
                 verification:
                   state: verified
@@ -1989,6 +2119,78 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/NotFound
         '409':
           $ref: '#/components/responses/GstinInUse'
+  /internal/v1/vendor/organisations/{organisation_id}/tax-registrations/{registration_id}/rejection:
+    put:
+      operationId: rejectTaxRegistration
+      summary: Mark a registration rejected
+      description: 'ADR-0003 A1.1 item 4 (AC-TEN-20): vendor staff reject a registration whose GSTIN could
+        not be proven. Allowed only while the registration is unverified (409 otherwise). A rejected registration
+        can get no series and its GSTIN can be corrected or the registration closed by the tenant. The
+        reason is kept in the vendor audit log and the tenant audit log, never in the registration body.
+        Idempotent.'
+      tags:
+      - vendor
+      x-permission: admin.registration.verify
+      x-service-callers:
+      - admin
+      x-vendor-class: verification
+      x-vendor-audit: recorded
+      security:
+      - vendorBearerAuth: []
+        serviceAuth: []
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation ID (vendor routes take the organisation from the path).
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - name: registration_id
+        in: path
+        required: true
+        description: Tax registration ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RejectRegistration'
+            example:
+              reason: The certificate shown does not match the legal name.
+      responses:
+        '200':
+          description: Registration rejected (idempotent). Written to the vendor log and the tenant's log.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaxRegistration'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+                legal_name: Example Hospitality Pvt Ltd
+                regime: regular
+                gstin: 33ABCDE1234F1Z7
+                state_code: '33'
+                verification:
+                  state: rejected
+                  rejected_at: '2026-11-24T13:10:11.120Z'
+                status: open
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
   /internal/v1/vendor/billing-configurations:
     get:
       operationId: listBillingConfigurations
@@ -2032,6 +2234,7 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/Forbidden
         '422':
           $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+      x-example-world: plan-seeded
     post:
       operationId: createBillingConfiguration
       summary: Add a GST configuration version
@@ -2139,6 +2342,7 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/Forbidden
         '422':
           $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+      x-example-world: subscribed
   /internal/v1/vendor/ledger-lists/{list_kind}:
     get:
       operationId: listLedgerEntries
@@ -2194,6 +2398,7 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/NotFound
         '422':
           $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+      x-example-world: charge-overdue
   /internal/v1/vendor/organisations/{organisation_id}/charges:
     get:
       operationId: listCharges
@@ -2276,6 +2481,7 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/NotFound
         '422':
           $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+      x-example-world: subscribed
     post:
       operationId: raiseCharge
       summary: Raise a charge
@@ -2357,6 +2563,7 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/Conflict
         '422':
           $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+      x-example-world: plan-active
   /internal/v1/vendor/organisations/{organisation_id}/charges/{charge_id}:
     get:
       operationId: getCharge
@@ -2428,6 +2635,7 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/Forbidden
         '404':
           $ref: ../../../common/components.yaml#/components/responses/NotFound
+      x-example-world: subscribed
   /internal/v1/vendor/organisations/{organisation_id}/charges/{charge_id}/cancellation:
     post:
       operationId: cancelCharge
@@ -2513,6 +2721,7 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/Conflict
         '422':
           $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+      x-example-world: subscribed
   /internal/v1/vendor/organisations/{organisation_id}/charges/{charge_id}/invoice-reference:
     put:
       operationId: setChargeInvoiceReference
@@ -2604,6 +2813,7 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/Conflict
         '422':
           $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+      x-example-world: subscribed
   /internal/v1/vendor/organisations/{organisation_id}/charges/{charge_id}/payments:
     get:
       operationId: listChargePayments
@@ -2664,6 +2874,7 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/NotFound
         '422':
           $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+      x-example-world: payment-recorded
     post:
       operationId: recordPayment
       summary: Record a payment received by hand
@@ -2737,6 +2948,7 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/Conflict
         '422':
           $ref: '#/components/responses/Overpayment'
+      x-example-world: subscribed
   /internal/v1/vendor/organisations/{organisation_id}/charges/{charge_id}/payments/{payment_id}/reversal:
     post:
       operationId: reversePayment
@@ -2813,6 +3025,7 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/Conflict
         '422':
           $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+      x-example-world: payment-recorded
   /internal/v1/vendor/organisations/{organisation_id}/charges/{charge_id}/waiver:
     post:
       operationId: waiveCharge
@@ -2898,6 +3111,7 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/Conflict
         '422':
           $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+      x-example-world: subscribed
   /internal/v1/vendor/organisations/{organisation_id}/closure:
     post:
       operationId: closeOrganisation
@@ -2961,6 +3175,7 @@ paths:
           $ref: '#/components/responses/OpenTradingDay'
         '422':
           $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+      x-example-world: org-active
   /internal/v1/vendor/organisations/{organisation_id}/reinstatement:
     post:
       operationId: reinstateOrganisation
@@ -3022,6 +3237,7 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/Conflict
         '422':
           $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+      x-example-world: org-suspended
   /internal/v1/vendor/organisations/{organisation_id}/subscription:
     get:
       operationId: getOrganisationSubscription
@@ -3077,6 +3293,7 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/Forbidden
         '404':
           $ref: ../../../common/components.yaml#/components/responses/NotFound
+      x-example-world: subscribed
     post:
       operationId: startSubscription
       summary: Assign a plan version or a pilot
@@ -3149,6 +3366,7 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/Conflict
         '422':
           $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+      x-example-world: plan-active
     put:
       operationId: changeSubscription
       summary: Change plan, price or add-ons from the next charge
@@ -3217,6 +3435,7 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/Conflict
         '422':
           $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+      x-example-world: subscribed
   /internal/v1/vendor/organisations/{organisation_id}/subscription/cancellation:
     post:
       operationId: cancelSubscription
@@ -3285,6 +3504,7 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/Conflict
         '422':
           $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+      x-example-world: subscribed
   /internal/v1/vendor/organisations/{organisation_id}/suspension:
     post:
       operationId: suspendOrganisation
@@ -3348,6 +3568,7 @@ paths:
           $ref: '#/components/responses/OpenTradingDay'
         '422':
           $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+      x-example-world: org-active
   /internal/v1/vendor/plans:
     get:
       operationId: listPlans
@@ -3400,6 +3621,7 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/Forbidden
         '422':
           $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+      x-example-world: plan-seeded
     post:
       operationId: createPlan
       summary: Create a plan with a draft first version
@@ -3527,6 +3749,7 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/Forbidden
         '404':
           $ref: ../../../common/components.yaml#/components/responses/NotFound
+      x-example-world: plan-seeded
   /internal/v1/vendor/plans/{plan_key}/versions:
     post:
       operationId: createPlanVersion
@@ -3602,6 +3825,7 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/Conflict
         '422':
           $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+      x-example-world: plan-seeded
   /internal/v1/vendor/plans/{plan_key}/versions/{version}/activation:
     post:
       operationId: activatePlanVersion
@@ -3666,6 +3890,7 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/NotFound
         '409':
           $ref: ../../../common/components.yaml#/components/responses/Conflict
+      x-example-world: plan-seeded
   /internal/v1/vendor/plans/{plan_key}/versions/{version}/retirement:
     post:
       operationId: retirePlanVersion
@@ -3730,6 +3955,7 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/NotFound
         '409':
           $ref: ../../../common/components.yaml#/components/responses/Conflict
+      x-example-world: plan-active
 components:
   securitySchemes:
     bearerAuth:
@@ -4004,6 +4230,8 @@ components:
           $ref: '#/components/schemas/VerificationMethod'
         verified_at:
           $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+        rejected_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
       additionalProperties: false
     TaxRegistration:
       type: object
@@ -4191,8 +4419,10 @@ components:
           $ref: ../../../common/components.yaml#/components/schemas/Id
         code:
           type: string
-          description: Series code.
-          example: A7
+          description: Series code, 3 characters from capitals and digits without I, O, 0 and 1 (ADR-0002
+            S7). Printed as <code>/<FY>/<running>.
+          pattern: ^[A-HJ-NP-Z2-9]{3}$
+          example: A7K
         doc_type:
           $ref: '#/components/schemas/DocType'
         outlet_id:
@@ -4956,6 +5186,22 @@ components:
           description: Required when the method is other.
           maxLength: 500
           example: Certificate seen on the onboarding call.
+    RejectRegistration:
+      type: object
+      description: Reject a registration. The reason is the record for the auditor.
+      required:
+      - reason
+      properties:
+        reason:
+          $ref: ../../../common/components.yaml#/components/schemas/Reason
+    CloseRegistration:
+      type: object
+      description: Close a registration and its series. The reason is the record for the auditor.
+      required:
+      - reason
+      properties:
+        reason:
+          $ref: ../../../common/components.yaml#/components/schemas/Reason
     PlanVersionState:
       type: string
       description: draft is editable; active is immutable and sellable; retired stays on existing subscriptions (BR-A1-10,
@@ -5832,7 +6078,7 @@ components:
           type: string
           description: The book's own prefix, unique per GSTIN together with the device-series codes.
           pattern: ^[A-Z0-9]{1,6}$
-          example: BK1
+          example: BKB
         outlet_ids:
           type: array
           description: Outlets whose billing devices may enter from this book.
@@ -5878,7 +6124,7 @@ components:
           type: string
           description: The book's prefix.
           pattern: ^[A-Z0-9]{1,6}$
-          example: BK1
+          example: BKB
         outlet_ids:
           type: array
           description: Outlets that may enter from it.

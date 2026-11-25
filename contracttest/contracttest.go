@@ -48,7 +48,16 @@ type Options struct {
 	// ExpectExamples additionally requires the body to equal the spec's response example.
 	// Set it for doubles, which must serve the spec's examples.
 	ExpectExamples bool
+	// SeedWorld, when set, is called before each operation with the operation's example world
+	// (its x-example-world extension, default DefaultWorld) so a stateful target can be put into
+	// the state the operation's examples assume. A world is a named fixture declared in the
+	// spec's info.x-example-worlds; see docs/conventions.md. It is not called again for the
+	// idempotent replay. An error fails that operation.
+	SeedWorld func(ctx context.Context, world string) error
 }
+
+// DefaultWorld is the example world of operations that declare no x-example-world.
+const DefaultWorld = "base"
 
 // OperationReport is the outcome for one operation (or the pseudo-operation "unknown-route").
 type OperationReport struct {
@@ -131,6 +140,11 @@ func (h *harness) checkOperation(ctx context.Context, path, method string, item 
 	expStatus, expResp := lowest2xx(op)
 	if expStatus == 0 {
 		return []string{"operation declares no 2xx response"}
+	}
+	if h.o.SeedWorld != nil {
+		if err := h.o.SeedWorld(ctx, WorldOf(op)); err != nil {
+			return []string{fmt.Sprintf("seeding example world %q: %v", WorldOf(op), err)}
+		}
 	}
 	req, bodyBytes, err := h.buildRequest(ctx, path, method, item, op)
 	if err != nil {
@@ -255,6 +269,11 @@ func (h *harness) buildRequest(ctx context.Context, path, method string, item *o
 		case "query":
 			q.Set(p.Name, s)
 		case "header":
+			if strings.EqualFold(p.Name, "Idempotency-Key") {
+				// Distinct, deterministic key per operation so one example key never collides
+				// across operations on a stateful target.
+				s = op.OperationID + ":" + s
+			}
 			hdr.Set(p.Name, s)
 		}
 	}
@@ -288,6 +307,14 @@ func (h *harness) buildRequest(ctx context.Context, path, method string, item *o
 	req.Header.Set("Accept", "application/json, application/problem+json")
 	h.addHeaders(req)
 	return req, body, nil
+}
+
+// WorldOf returns the operation's example world: its x-example-world extension or DefaultWorld.
+func WorldOf(op *openapi3.Operation) string {
+	if w, ok := op.Extensions["x-example-world"].(string); ok && w != "" {
+		return w
+	}
+	return DefaultWorld
 }
 
 func lowest2xx(op *openapi3.Operation) (int, *openapi3.Response) {

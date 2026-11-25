@@ -11,6 +11,13 @@ info:
     outlet-scoped calls take X-Outlet-Id. Business date is explicit and never derived from a timestamp. Entity fields:
     entities/restaurant/.'
   x-status: stable
+  x-example-worlds:
+    base: Outlet 4a61, table 5152 (T4) with open seating 6031. Open check 6001 (dine_in, label Guest 2, presented
+      once, one sent line 6011 Paneer Tikka x2 now ready, list total 52000), KOT 6021 (P1-0007, printed), one cancel
+      of a started line (wastage) at 13:05:11 and one present record. No exception exists. The caller is a manager.
+    orphan-line: Base plus an open exception 6041 (orphan_line, subject order_line 6011).
+    no-open-checks: Outlet 4a61 with no open check (every check billed or cancelled). The caller is the billing
+      service.
 servers:
 - url: /
 tags:
@@ -210,6 +217,7 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/Forbidden
         '422':
           $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+      x-example-world: orphan-line
   /v1/exceptions/{exception_id}:
     get:
       operationId: getOrderException
@@ -251,6 +259,7 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/Forbidden
         '404':
           $ref: ../../../common/components.yaml#/components/responses/NotFound
+      x-example-world: orphan-line
   /v1/projection-digests:
     get:
       operationId: getOrdersProjectionDigest
@@ -673,6 +682,7 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/Forbidden
         '404':
           $ref: ../../../common/components.yaml#/components/responses/NotFound
+      x-example-world: no-open-checks
 components:
   securitySchemes:
     bearerAuth:

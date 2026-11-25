@@ -11,6 +11,16 @@ info:
     prices are brand-wide (brand stream) with an optional outlet price on item_outlet. A later product (bakery counter,
     stall) reads the same API. Entity fields, owners and conflict policies are in entities/restaurant/.'
   x-status: stable
+  x-example-worlds:
+    base: Brand 4a6a with outlet 4a61 (restaurant, state 33). Category 5001 (Starters, default_tax_class fnb_standard),
+      item 5101 (Paneer Tikka, code 101, variant 5111 Full at 24000, modifier group 5121 with modifier 5122), station
+      5131 (KITCHEN) with printer 5141 (LAN), floor 5151, table 5152 (T1), reason code 5161, item_outlet for 5101
+      available and a quick item. No menu import job and no exceptions. The caller is the owner Asha in a strong
+      online session.
+    import-previewed: Base plus menu import job 5171 (owner source, file menu.csv, one valid row, no errors) in
+      status previewed.
+    price-conflict: Base plus an open exception 5181 (price_conflict, price_entry 5191, kept 25000, lost 24000)
+      detected 13:05:11.
 servers:
 - url: /
 tags:
@@ -198,6 +208,7 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/Forbidden
         '422':
           $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+      x-example-world: price-conflict
   /v1/floors:
     get:
       operationId: listFloors
@@ -617,6 +628,7 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
           $ref: '#/components/responses/StrongSessionRequired'
+      x-example-world: import-previewed
   /v1/menu-imports/{import_id}:
     get:
       operationId: getMenuImport
@@ -660,6 +672,7 @@ paths:
           $ref: '#/components/responses/StrongSessionRequired'
         '404':
           $ref: ../../../common/components.yaml#/components/responses/NotFound
+      x-example-world: import-previewed
   /v1/menu-imports/{import_id}/cancellation:
     post:
       operationId: cancelMenuImport
@@ -706,6 +719,7 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/NotFound
         '409':
           $ref: ../../../common/components.yaml#/components/responses/Conflict
+      x-example-world: import-previewed
   /v1/menu-imports/{import_id}/commit:
     post:
       operationId: commitMenuImport
@@ -766,6 +780,7 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/Conflict
         '422':
           $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+      x-example-world: import-previewed
   /v1/modifier-groups:
     get:
       operationId: listModifierGroups

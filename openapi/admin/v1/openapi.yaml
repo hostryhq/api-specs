@@ -14,6 +14,16 @@ info:
     no audit record: the serving service records each vendor action in its own transaction and identity
     assembles the vendor audit log. The panel is online only; writes are never queued.'
   x-status: stable
+  x-example-worlds:
+    base: "Vendor users Priya 4a66 (support, active, TOTP enrolled) and Arun 4a78 (platform_admin, active, account older than 7 days). Organisation 4a60 (trial) with brand 4a6a, outlet 4a61 (restaurant, state 33), registration 4a6b (GSTIN 33ABCDE1234F1Z7, unverified), device 4a5e (pos, active, billing capable), and a pending owner invitation 4a67 for +919876543210 (owner name Asha, created 13:05:11, expires 2026-12-08). No session beyond the caller, no support session, no approval. The caller is signed in as Priya, with the role needed for the operation."
+    empty: "No organisation exists and no verified holder of GSTIN 33ABCDE1234F1Z7."
+    session-open: "Base with a signed-in admin session for Priya (cookie and CSRF token csrf_example_token)."
+    account-setup-pending: "Priya 4a66 in status setup_pending with setup token setup_example valid and no TOTP enrolled."
+    org-no-owner: "Organisation 4a60 exists with no members and no owner invitation."
+    device-revoked: "Base after device 4a5e was revoked at 13:15:11 by Priya for ticket SUP-2041 (vendor audit entry 4a8a vendor.device.revoked)."
+    support-session-active: "Support session 4a68 (view mode) started by Priya for organisation 4a60, ticket SUP-2041, 13:05:11 to 13:35:11, active. The organisation is as in the identity base world and the tenancy series-issued world: registration 4a6b verified at 13:10:11 (certificate_seen), series A7K (tax_invoice 4a6c) and A7M (credit_note 4a95) active for device 4a5e, members Asha 4a64 (owner) and Ravi 4a9e, roles Owner 4a9a, Cashier 4a65 and Waiter 4a9b."
+    approval-pending: "Base plus vendor approval 4a6d (kind device_revoke_over_quota, organisation 4a60, subject device 4a5e, requested by Priya 4a66, ticket SUP-2041) pending, created 13:05:11, expiring 2026-11-25T13:05:11. The caller is Arun 4a78 (platform_admin), who may approve and cancel it."
+    signin-code-approved: "Base plus vendor approval 4a6d (kind sign_in_code, organisation 4a60, +919876543210, requested by Priya 4a66) approved by Arun 4a78; the caller is Priya, who has not claimed her code half."
 servers:
 - url: /
 tags:
@@ -65,6 +75,9 @@ paths:
                   - admin.device.revoke
                   - admin.support.session.start
                   - admin.audit.read_own
+                  - admin.approval.create
+                  - admin.approval.read
+                  - admin.approval.decide
                 csrf_token: csrf_example_token
                 idle_timeout_seconds: 1800
                 idle_expires_at: '2026-11-24T13:10:11.120Z'
@@ -86,6 +99,7 @@ paths:
       tags:
       - admin
       x-permission: authenticated
+      x-example-world: session-open
       responses:
         '200':
           description: The signed-in user, clocks and CSRF token; includes the active support session,
@@ -105,6 +119,9 @@ paths:
                   - admin.device.revoke
                   - admin.support.session.start
                   - admin.audit.read_own
+                  - admin.approval.create
+                  - admin.approval.read
+                  - admin.approval.decide
                 csrf_token: csrf_example_token
                 idle_timeout_seconds: 1800
                 idle_expires_at: '2026-11-24T13:10:11.120Z'
@@ -117,6 +134,7 @@ paths:
       tags:
       - admin
       x-permission: authenticated
+      x-example-world: session-open
       parameters:
       - name: X-CSRF-Token
         in: header
@@ -142,6 +160,7 @@ paths:
       tags:
       - admin
       x-permission: public
+      x-example-world: account-setup-pending
       security: []
       parameters:
       - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
@@ -176,6 +195,7 @@ paths:
       tags:
       - admin
       x-permission: public
+      x-example-world: account-setup-pending
       security: []
       parameters:
       - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
@@ -234,6 +254,13 @@ paths:
                   status: active
                   totp_enrolled: true
                   created_at: '2026-11-24T13:05:11.120Z'
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a78
+                  email: admin@example.invalid
+                  display_name: Arun
+                  role: platform_admin
+                  status: active
+                  totp_enrolled: true
+                  created_at: '2026-11-24T13:05:11.120Z'
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -263,9 +290,9 @@ paths:
             schema:
               $ref: ../../identity/v1/openapi.yaml#/components/schemas/CreateVendorUser
             example:
-              id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
-              email: staff@example.invalid
-              display_name: Priya
+              id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a88
+              email: new.staff@example.invalid
+              display_name: Karthik
               role: support
       responses:
         '201':
@@ -276,9 +303,9 @@ paths:
               schema:
                 $ref: ../../identity/v1/openapi.yaml#/components/schemas/VendorUser
               example:
-                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
-                email: staff@example.invalid
-                display_name: Priya
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a88
+                email: new.staff@example.invalid
+                display_name: Karthik
                 role: support
                 status: setup_pending
                 totp_enrolled: false
@@ -459,6 +486,7 @@ paths:
       tags:
       - admin
       x-permission: admin.org.create
+      x-example-world: empty
       parameters:
       - name: X-CSRF-Token
         in: header
@@ -484,7 +512,7 @@ paths:
               tax_registration:
                 legal_name: Example Hospitality Pvt Ltd
                 regime: regular
-                gstin: 33ABCDE1234F1Z5
+                gstin: 33ABCDE1234F1Z7
               owner:
                 name: Asha
                 mobile_e164: '+919876543210'
@@ -526,7 +554,7 @@ paths:
                     id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
                     legal_name: Example Hospitality Pvt Ltd
                     regime: regular
-                    gstin: 33ABCDE1234F1Z5
+                    gstin: 33ABCDE1234F1Z7
                     state_code: '33'
                     verification:
                       state: unverified
@@ -594,7 +622,7 @@ paths:
                 - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
                   legal_name: Example Hospitality Pvt Ltd
                   regime: regular
-                  gstin: 33ABCDE1234F1Z5
+                  gstin: 33ABCDE1234F1Z7
                   state_code: '33'
                   verification_state: unverified
                   status: open
@@ -661,6 +689,7 @@ paths:
       tags:
       - admin
       x-permission: admin.owner_invite.manage
+      x-example-world: org-no-owner
       parameters:
       - name: organisation_id
         in: path
@@ -759,7 +788,7 @@ paths:
                 status: pending
                 mobile_masked: +91*******210
                 owner_name: Asha
-                expires_at: '2026-12-08T13:05:11.120Z'
+                expires_at: '2026-12-08T13:10:11.120Z'
                 created_at: '2026-11-24T13:05:11.120Z'
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
@@ -878,7 +907,7 @@ paths:
                 id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
                 legal_name: Example Hospitality Pvt Ltd
                 regime: regular
-                gstin: 33ABCDE1234F1Z5
+                gstin: 33ABCDE1234F1Z7
                 state_code: '33'
                 verification:
                   state: verified
@@ -1059,6 +1088,353 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
         '503':
           $ref: '#/components/responses/UpstreamUnavailable'
+  /v1/approvals:
+    post:
+      operationId: fileVendorApproval
+      summary: File a two-person approval
+      description: "Files a request that a second vendor user must approve (ADR-0005 A2.3; ADR-0014 A1.3). Kinds: sign_in_code, owner_recovery, device_revoke_over_quota (the 409 vendor_approval_required of revokeOrganisationDevice is resolved by filing this with the device as subject, then repeating the revoke with the approval_id once approved), org_suspend, org_reinstate, org_close and tax_rule_set_publish. The gate permission is admin.approval.create; the service then checks the kind-specific permission (x-permission-by-kind). Refused second_approver_unavailable with fewer than two eligible users, in every environment. Passes through to the identity service with the admin service token and the signed-in vendor user's access token; the browser never sees either."
+      tags:
+      - admin
+      x-permission: admin.approval.create
+      x-permission-by-kind:
+        sign_in_code: admin.signin_code.create
+        owner_recovery: admin.recovery.create
+        device_revoke_over_quota: admin.device.revoke
+        org_suspend: admin.org.lifecycle.request
+        org_reinstate: admin.org.lifecycle.request
+        org_close: admin.org.lifecycle.request
+        tax_rule_set_publish: admin.taxrules.publish
+      parameters:
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        description: Per-session CSRF token from signIn or getSession. Required on every state-changing
+          request together with a matching Origin.
+        schema:
+          type: string
+        example: csrf_example_token
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../../identity/v1/openapi.yaml#/components/schemas/CreateVendorApproval
+            example:
+              kind: device_revoke_over_quota
+              organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+              subject_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+              ticket_reference: SUP-2041
+              reason: Owner phoned to report a lost tablet.
+              verification_method: callback_to_registered_number
+      responses:
+        '201':
+          description: "Pending approval. A replay of the same Idempotency-Key returns the same approval."
+          content:
+            application/json:
+              schema:
+                $ref: ../../identity/v1/openapi.yaml#/components/schemas/VendorApproval
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6d
+                kind: device_revoke_over_quota
+                state: pending
+                organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                subject_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                requested_by: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+                ticket_reference: SUP-2041
+                verification_method: callback_to_registered_number
+                created_at: '2026-11-24T13:05:11.120Z'
+                expires_at: '2026-11-25T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: '#/components/responses/ApprovalConflict'
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+    get:
+      operationId: listVendorApprovals
+      summary: List approvals
+      description: "Approvals the signed-in vendor user requested or may approve, newest first. Passes through to the identity service with the admin service token and the signed-in vendor user's access token; the browser never sees either."
+      tags:
+      - admin
+      x-permission: admin.approval.read
+      x-example-world: approval-pending
+      parameters:
+      - name: state
+        in: query
+        required: false
+        description: Filter by state.
+        schema:
+          type: string
+          description: Approval state.
+          enum:
+          - pending
+          - approved
+          - rejected
+          - expired
+          - cancelled
+          - completed
+        example: pending
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorLimit
+      responses:
+        '200':
+          description: "A page of approvals."
+          content:
+            application/json:
+              schema:
+                $ref: ../../identity/v1/openapi.yaml#/components/schemas/VendorApprovalPage
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6d
+                  kind: device_revoke_over_quota
+                  state: pending
+                  organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                  subject_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                  requested_by: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+                  ticket_reference: SUP-2041
+                  verification_method: callback_to_registered_number
+                  created_at: '2026-11-24T13:05:11.120Z'
+                  expires_at: '2026-11-25T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+  /v1/approvals/{approval_id}:
+    get:
+      operationId: getVendorApproval
+      summary: Get an approval
+      description: "The approval, if the signed-in vendor user requested it or may approve it; otherwise 404. Passes through to the identity service with the admin service token and the signed-in vendor user's access token; the browser never sees either."
+      tags:
+      - admin
+      x-permission: admin.approval.read
+      x-example-world: approval-pending
+      parameters:
+      - name: approval_id
+        in: path
+        required: true
+        description: Vendor approval ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6d
+      responses:
+        '200':
+          description: "The approval."
+          content:
+            application/json:
+              schema:
+                $ref: ../../identity/v1/openapi.yaml#/components/schemas/VendorApproval
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6d
+                kind: device_revoke_over_quota
+                state: pending
+                organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                subject_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                requested_by: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+                ticket_reference: SUP-2041
+                verification_method: callback_to_registered_number
+                created_at: '2026-11-24T13:05:11.120Z'
+                expires_at: '2026-11-25T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+  /v1/approvals/{approval_id}/decision:
+    put:
+      operationId: approveVendorApproval
+      summary: Approve with a fresh TOTP
+      description: "The approver must differ from the requester, hold the kind's approve permission and have an account older than 7 days; no single-person override exists. For org_suspend, org_reinstate, org_close and tax_rule_set_publish identity also returns a single-use vendor approval grant, which the admin service keeps in memory against the session and uses to call the executing service; it is never returned to the browser. Passes through to the identity service with the admin service token and the signed-in vendor user's access token; the browser never sees either."
+      tags:
+      - admin
+      x-permission: admin.approval.decide
+      x-example-world: approval-pending
+      x-permission-by-kind:
+        sign_in_code: admin.signin_code.approve
+        owner_recovery: admin.recovery.approve
+        device_revoke_over_quota: admin.device.revoke
+        org_suspend: admin.org.lifecycle.approve
+        org_reinstate: admin.org.lifecycle.approve
+        org_close: admin.org.lifecycle.approve
+        tax_rule_set_publish: admin.taxrules.publish
+      parameters:
+      - name: approval_id
+        in: path
+        required: true
+        description: Vendor approval ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6d
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        description: Per-session CSRF token from signIn or getSession. Required on every state-changing
+          request together with a matching Origin.
+        schema:
+          type: string
+        example: csrf_example_token
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../../identity/v1/openapi.yaml#/components/schemas/ApproveVendorApproval
+            example:
+              totp_code: '123456'
+      responses:
+        '200':
+          description: "Approved. For a sign-in code the approver receives characters 5 to 8 once."
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApprovalDecisionView'
+              example:
+                approval:
+                  id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6d
+                  kind: device_revoke_over_quota
+                  state: approved
+                  organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                  subject_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                  requested_by: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+                  ticket_reference: SUP-2041
+                  verification_method: callback_to_registered_number
+                  created_at: '2026-11-24T13:05:11.120Z'
+                  expires_at: '2026-11-25T13:05:11.120Z'
+                  approved_by: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a78
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: '#/components/responses/ApprovalConflict'
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+  /v1/approvals/{approval_id}/code-half-claims:
+    post:
+      operationId: claimCodeHalf
+      summary: Claim the requester's half of a sign-in code (once)
+      description: "Characters 1 to 4, shown once. Neither vendor user ever sees the other half. Passes through to the identity service with the admin service token and the signed-in vendor user's access token; the browser never sees either."
+      tags:
+      - admin
+      x-permission: admin.approval.create
+      x-example-world: signin-code-approved
+      parameters:
+      - name: approval_id
+        in: path
+        required: true
+        description: Vendor approval ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6d
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        description: Per-session CSRF token from signIn or getSession. Required on every state-changing
+          request together with a matching Origin.
+        schema:
+          type: string
+        example: csrf_example_token
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      responses:
+        '201':
+          description: "Characters 1 to 4, shown once."
+          content:
+            application/json:
+              schema:
+                $ref: ../../identity/v1/openapi.yaml#/components/schemas/CodeHalf
+              example:
+                half: 7QK3
+                position: first
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: '#/components/responses/ApprovalConflict'
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+  /v1/approvals/{approval_id}/cancellation:
+    put:
+      operationId: cancelVendorApproval
+      summary: Reject or cancel an approval
+      description: "Either vendor user may cancel an owner recovery during its delay. Passes through to the identity service with the admin service token and the signed-in vendor user's access token; the browser never sees either."
+      tags:
+      - admin
+      x-permission: admin.approval.decide
+      x-example-world: approval-pending
+      parameters:
+      - name: approval_id
+        in: path
+        required: true
+        description: Vendor approval ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6d
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        description: Per-session CSRF token from signIn or getSession. Required on every state-changing
+          request together with a matching Origin.
+        schema:
+          type: string
+        example: csrf_example_token
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../../identity/v1/openapi.yaml#/components/schemas/RejectVendorApproval
+            example:
+              reason: Requester could not be verified by callback.
+      responses:
+        '200':
+          description: "Approval cancelled."
+          content:
+            application/json:
+              schema:
+                $ref: ../../identity/v1/openapi.yaml#/components/schemas/VendorApproval
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6d
+                kind: device_revoke_over_quota
+                state: cancelled
+                organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                subject_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                requested_by: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+                ticket_reference: SUP-2041
+                verification_method: callback_to_registered_number
+                created_at: '2026-11-24T13:05:11.120Z'
+                expires_at: '2026-11-25T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: '#/components/responses/ApprovalConflict'
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
   /v1/audit-entries:
     get:
       operationId: listAuditEntries
@@ -1066,6 +1442,7 @@ paths:
       tags:
       - admin
       x-permission: admin.audit.read_own
+      x-example-world: device-revoked
       x-permission-widened-by: admin.audit.read
       parameters:
       - name: from
@@ -1123,8 +1500,8 @@ paths:
                 $ref: ../../identity/v1/openapi.yaml#/components/schemas/VendorAuditPage
               example:
                 items:
-                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a69
-                  occurred_at: '2026-11-24T13:05:11.120Z'
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a8a
+                  occurred_at: '2026-11-24T13:15:11.120Z'
                   actor_vendor_user_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
                   action: vendor.device.revoked
                   organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
@@ -1209,6 +1586,7 @@ paths:
       tags:
       - admin
       x-permission: admin.support.session.start
+      x-example-world: support-session-active
       responses:
         '200':
           description: The active session with its countdown; 404 when none.
@@ -1239,6 +1617,7 @@ paths:
       tags:
       - admin
       x-permission: admin.support.session.start
+      x-example-world: support-session-active
       parameters:
       - name: X-CSRF-Token
         in: header
@@ -1270,6 +1649,7 @@ paths:
       tags:
       - admin
       x-permission: admin.support.session.start
+      x-example-world: support-session-active
       parameters:
       - name: organisation_id
         in: path
@@ -1307,6 +1687,7 @@ paths:
       tags:
       - admin
       x-permission: admin.support.session.start
+      x-example-world: support-session-active
       parameters:
       - name: organisation_id
         in: path
@@ -1347,6 +1728,7 @@ paths:
       tags:
       - admin
       x-permission: admin.support.session.start
+      x-example-world: support-session-active
       parameters:
       - name: organisation_id
         in: path
@@ -1392,6 +1774,7 @@ paths:
       tags:
       - admin
       x-permission: admin.support.session.start
+      x-example-world: support-session-active
       parameters:
       - name: organisation_id
         in: path
@@ -1414,10 +1797,12 @@ paths:
                 - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
                   legal_name: Example Hospitality Pvt Ltd
                   regime: regular
-                  gstin: 33ABCDE1234F1Z5
+                  gstin: 33ABCDE1234F1Z7
                   state_code: '33'
                   verification:
-                    state: unverified
+                    state: verified
+                    method: certificate_seen
+                    verified_at: '2026-11-24T13:10:11.120Z'
                   status: open
                   created_at: '2026-11-24T13:05:11.120Z'
         '401':
@@ -1437,6 +1822,7 @@ paths:
       tags:
       - admin
       x-permission: admin.support.session.start
+      x-example-world: support-session-active
       parameters:
       - name: organisation_id
         in: path
@@ -1458,12 +1844,20 @@ paths:
                 items:
                 - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6c
                   tax_registration_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
-                  code: A7
+                  code: A7K
                   doc_type: tax_invoice
                   outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
                   device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
                   status: active
-                  issued_at: '2026-11-24T13:05:11.120Z'
+                  issued_at: '2026-11-24T13:15:11.120Z'
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a95
+                  tax_registration_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+                  code: A7M
+                  doc_type: credit_note
+                  outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                  status: active
+                  issued_at: '2026-11-24T13:15:11.120Z'
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -1481,6 +1875,7 @@ paths:
       tags:
       - admin
       x-permission: admin.support.session.start
+      x-example-world: support-session-active
       parameters:
       - name: organisation_id
         in: path
@@ -1517,6 +1912,7 @@ paths:
       tags:
       - admin
       x-permission: admin.support.session.start
+      x-example-world: support-session-active
       parameters:
       - name: organisation_id
         in: path
@@ -1544,6 +1940,17 @@ paths:
                   has_pin: true
                   role_assignments:
                   - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6f
+                    role_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a9a
+                  - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a8b
+                    role_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65
+                  created_at: '2026-11-24T13:05:11.120Z'
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a9e
+                  display_name: Ravi
+                  status: active
+                  mobile_masked: +91*******211
+                  has_pin: false
+                  role_assignments:
+                  - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a9f
                     role_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65
                   created_at: '2026-11-24T13:05:11.120Z'
         '401':
@@ -1563,6 +1970,7 @@ paths:
       tags:
       - admin
       x-permission: admin.support.session.start
+      x-example-world: support-session-active
       parameters:
       - name: organisation_id
         in: path
@@ -1582,11 +1990,53 @@ paths:
                 $ref: ../../identity/v1/openapi.yaml#/components/schemas/RolePage
               example:
                 items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a9a
+                  name: Owner
+                  permissions:
+                  - organisation.read
+                  - organisation.manage
+                  - brand.read
+                  - brand.manage
+                  - outlet.read
+                  - outlet.create
+                  - outlet.manage
+                  - tax_registration.read
+                  - tax_registration.manage
+                  - settings.read
+                  - settings.manage
+                  - series.read
+                  - series.close_unreconciled
+                  - link.read
+                  - link.manage
+                  - link.revoke
+                  - device.read
+                  - device.register
+                  - device.activation_code.create
+                  - device.revoke
+                  - member.read
+                  - member.manage
+                  - member.pin.authorise
+                  - member.role.assign
+                  - member.owner.assign
+                  - role.read
+                  - role.manage
+                  - audit.read
+                  - support.code.create
+                  built_in: true
+                  created_at: '2026-11-24T13:05:11.120Z'
+                  updated_at: '2026-11-24T13:05:11.120Z'
                 - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a65
                   name: Cashier
                   permissions:
-                  - order.create
-                  - bill.create
+                  - outlet.read
+                  - device.read
+                  built_in: false
+                  created_at: '2026-11-24T13:05:11.120Z'
+                  updated_at: '2026-11-24T13:05:11.120Z'
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a9b
+                  name: Waiter
+                  permissions:
+                  - outlet.read
                   built_in: false
                   created_at: '2026-11-24T13:05:11.120Z'
                   updated_at: '2026-11-24T13:05:11.120Z'
@@ -1607,6 +2057,7 @@ paths:
       tags:
       - admin
       x-permission: admin.support.session.start
+      x-example-world: support-session-active
       parameters:
       - name: organisation_id
         in: path
@@ -1682,6 +2133,17 @@ components:
           $ref: ../../../common/components.yaml#/components/schemas/Timestamp
         support_session:
           $ref: ../../identity/v1/openapi.yaml#/components/schemas/SupportSession
+    ApprovalDecisionView:
+      type: object
+      description: Result of an approval decision as the browser sees it. The vendor approval grant of
+        the executing kinds stays in the admin service and is never included.
+      required:
+      - approval
+      properties:
+        approval:
+          $ref: ../../identity/v1/openapi.yaml#/components/schemas/VendorApproval
+        code_half:
+          $ref: ../../identity/v1/openapi.yaml#/components/schemas/CodeHalf
     OwnerStatus:
       type: string
       description: 'Owner state: none, the latest invitation state, or unknown when identity is unavailable
@@ -1941,6 +2403,26 @@ components:
           $ref: ../../../common/components.yaml#/components/schemas/Timestamp
       additionalProperties: false
   responses:
+    ApprovalConflict:
+      description: The approval is not in a state that allows this, the approver is the requester or too
+        new, or fewer than two eligible vendor users exist.
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../../../common/components.yaml#/components/schemas/Problem
+          examples:
+            second:
+              value:
+                type: urn:hostry:problem:second_approver_unavailable
+                title: No second approver is available
+                status: 409
+                code: second_approver_unavailable
+            state:
+              value:
+                type: urn:hostry:problem:approval_not_pending
+                title: The approval is not pending
+                status: 409
+                code: approval_not_pending
     SignInFailed:
       description: Sign-in refused. Wrong password, unknown email, wrong TOTP, replayed TOTP and lockout
         all give this same answer and an audit entry vendor.sign_in.failed.
