@@ -1,7 +1,7 @@
 $schema: https://json-schema.org/draft/2020-12/schema
 $id: urn:hostry:events:sync.pii.erased:v1
 title: sync.pii.erased v1
-description: The gateway erased the personal data of an op (ADR-0014 A2.1 item 7). Ids only. Each owner erases its side-table rows for the op; the copy on the bus ages out within 7 days in the internal queue.
+description: The gateway erased the personal data of an op (ADR-0014 A2.1 item 7). Ids only. Published by the sync gateway when it records the cloud-signed erasure op (intent sync.pii.erase). Each owner erases its side-table rows for the op, values and salts both; the copy on the bus ages out within 7 days in the internal queue.
 x-publisher: sync
 x-subscribers:
 - billing

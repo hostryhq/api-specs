@@ -60,7 +60,7 @@ rules:
       field: description
       function: truthy
   hostry-no-tenant-in-request-body:
-    description: Tenant comes from the token, never from a request body field. Exception, /internal/v1 operations called with a service token only (it carries no tenant), for example the sync emit operation.
+    description: Tenant comes from the token, never from a request body field. Exception, /internal/v1 operations called with a service token only (a service token), for example the sync emit operation, where the token carries a tenant claim that must equal the body tenant_id (O2-11).
     severity: error
     given: $.paths[?(!@property.startsWith('/internal/'))][*].requestBody.content[*].schema..properties
     then:

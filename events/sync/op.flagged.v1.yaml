@@ -1,7 +1,7 @@
 $schema: https://json-schema.org/draft/2020-12/schema
 $id: urn:hostry:events:sync.op.flagged:v1
 title: sync.op.flagged v1
-description: "An op already published was flagged afterwards (ADR-0014 A2.1 item 4). Identity of the op and a coarse code only; the flag text and attribution stay behind the member-token exceptions endpoint and never reach a device."
+description: "Published by the sync gateway when it flags an op (at acceptance or afterwards). An op already published was flagged afterwards (ADR-0014 A2.1 item 4). Identity of the op and a coarse code only; the flag text and attribution stay behind the member-token exceptions endpoint and never reach a device."
 x-publisher: sync
 x-subscribers:
 - billing

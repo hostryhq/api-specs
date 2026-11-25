@@ -157,6 +157,8 @@ permissions:
   - {key: sync.push, realm: tenant, service: sync, description_key: perm.sync.push, flags: []}  # device token: hello, push, pull, snapshot, poke
   - {key: sync.drain, realm: tenant, service: sync, description_key: perm.sync.drain, flags: []}  # drain token: quarantine-upload only (ADR-0005 section 4)
   - {key: sync.quarantine.manage, realm: tenant, service: sync, description_key: perm.sync.quarantine.manage, flags: [sensitive]}
+  - {key: sync.quarantine.read, realm: tenant, service: sync, description_key: perm.sync.quarantine.read, flags: [support_viewable]}  # listQuarantine (held list, no content); a support session in view mode may read it
+  - {key: sync.quarantine.confirm, realm: tenant, service: sync, description_key: perm.sync.quarantine.confirm, flags: [support_actable]}  # Hostry support confirms the cause of a chain-broken, foreign-series or fork hold; releases nothing (SY-1)
   - {key: sync.exceptions.read, realm: tenant, service: sync, description_key: perm.sync.exceptions.read, flags: []}
   - {key: sync.register.read, realm: tenant, service: sync, description_key: perm.sync.register.read, flags: []}
   - {key: sync.emit, realm: service, service: sync, description_key: perm.sync.emit, flags: []}  # catalog and billing write cloud-origin ops (ADR-0014 A2.2)

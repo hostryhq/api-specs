@@ -26,7 +26,7 @@ Actions that need a `strong_only` permission have **no intent**: they are online
 | `streams` | Streams the intent may be recorded on (ADR-0002 S3). One op touches entities of **one** stream; every touched entity's stream must be listed. |
 | `numbering`, `documents` | `allocated` (number taken from the device series in the same local transaction), `typed` (entry-only paper-book series) or `none`; the document types it consumes. Must agree with the touched entities' `doc_number` fields. |
 | `entities` | Map entity name to the mutation kinds (`insert`, `set`, `delta`, `rank`, `del`, `undel`) the intent may use. Kinds must agree with the entity's field policies and tombstone flag. A cloud-origin-only entity appears only under a cloud intent. |
-| `records` | Protocol records that are not synced entities: `session`, `approval`, `series_activation`, `clock_confirmation`, `sync_void`. |
+| `records` | Protocol records that are not synced entities: `session`, `approval`, `series_activation`, `series_close`, `clock_confirmation`, `sync_void`, `pii_erase` (shapes: sync/protocol-v1.md, Control records). |
 | `pii_fields` | Touched fields that travel in the op's `pii` object, outside the hash. |
 | `idempotency` | What a replay does. Offline clients retry and sync resumes, so every intent states it. |
 | `x-provisional` | A choice made by this registry that needs a ruling; listed below. |

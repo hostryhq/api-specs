@@ -1,7 +1,7 @@
 $schema: https://json-schema.org/draft/2020-12/schema
 $id: urn:hostry:events:sync.quarantine.recorded:v1
 title: sync.quarantine.recorded v1
-description: "An op arrived and was held in quarantine. Id-only (ADR-0014 A2.1 item 4): series code, number and document type, never the content of the op, so billing can show a held number in its register as held instead of a gap."
+description: "Published by the sync gateway in the transaction that holds a slot in quarantine. An op arrived and was held in quarantine. Id-only (ADR-0014 A2.1 item 4): series code, number and document type, never the content of the op, so billing can show a held number in its register as held instead of a gap."
 x-publisher: sync
 x-subscribers:
 - billing

@@ -14,6 +14,8 @@ import (
 	"testing"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/hostryhq/api-specs/internal/canon"
 )
 
 const (
@@ -65,6 +67,15 @@ type vectors struct {
 		Ops   int
 		Valid bool
 	} `json:"emit_batch"`
+	Canonical []struct {
+		In, Out string
+	} `json:"canonical"`
+	PIICommit []struct {
+		Value      json.RawMessage `json:"value"`
+		Salt       string          `json:"salt"`
+		JCS        string          `json:"jcs"`
+		Commitment string          `json:"commitment"`
+	} `json:"pii_commit"`
 	ExamplePack map[string]string `json:"example_pack"`
 }
 
@@ -145,6 +156,29 @@ func TestVectorsAreSelfConsistent(t *testing.T) {
 		}
 		if (c.Bytes <= limit) != c.Valid {
 			t.Errorf("size vector %s %d bytes: valid=%v disagrees with the limit %d", c.Field, c.Bytes, c.Valid, limit)
+		}
+	}
+	for _, c := range v.Canonical {
+		got, err := canon.JCSText(c.In)
+		if err != nil || string(got) != c.Out {
+			t.Errorf("canonical form of %s: %s (%v), vector says %s", c.In, got, err, c.Out)
+		}
+	}
+	if len(v.PIICommit) < 4 {
+		t.Error("pii_commit vectors are required (security ruling SR-2)")
+	}
+	for _, c := range v.PIICommit {
+		salt, err := base64.RawURLEncoding.DecodeString(c.Salt)
+		if err != nil || len(salt) != 16 {
+			t.Errorf("pii_commit salt %q must be 16 bytes of base64url", c.Salt)
+			continue
+		}
+		got, err := canon.JCSText(string(c.Value))
+		if err != nil || string(got) != c.JCS {
+			t.Errorf("pii_commit jcs of %s: %s (%v), vector says %s", c.Value, got, err, c.JCS)
+		}
+		if want := sum(string(salt) + c.JCS); want != c.Commitment {
+			t.Errorf("pii_commit of %s: %s, vector says %s", c.Value, want, c.Commitment)
 		}
 	}
 	if len(v.SizeLimit) < 4 || len(v.EmitBatch) < 4 {

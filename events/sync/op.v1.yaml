@@ -7,7 +7,7 @@ description: 'An op became applicable at the gateway (accepted, or released from
   the JSON string holding the exact bytes the origin sent and `h` was computed over (never re-serialised or upcast); no op field
   is repeated beside it. Consumers read it only through go-common/sync.ParseOp, need no order and do not wait for gaps (seq is
   sparse for a service). A quarantined op is never published with its body. `pii` is stored by a consumer only for an entity it
-  owns (never for a replica), in an erasable side table; the bus keeps a message 7 days at most. Key is <stream>|<origin>, key_seq
+  owns (never for a replica), in an erasable side table; the bus keeps a message 7 days at most. The pii object keeps the salt of each field next to its value (key ~s:<field>, base64url; O2-12), exactly as it arrived and verified at the gateway, so the owner can verify body.pii_c = SHA-256(salt || JCS(value)) itself; the gateway does not strip salts. Key is <stream>|<origin>, key_seq
   is seq, outlet_id is set for an outlet stream. See sync/protocol-v1.md.'
 x-publisher: sync
 x-subscribers:
@@ -99,8 +99,19 @@ allOf:
           maxLength: 262144
         pii:
           type: object
-          description: Personal data beside the op, outside the hash; at most 16384 bytes. Stored only by the owner of the entity it belongs to.
-          additionalProperties: true
+          description: 'Personal data beside the op, outside the hash; at most 16384 bytes. Shape entity, row id, field, value (O2-8), only fields that verified against body.pii_c at the gateway, each with its salt under the key ~s:<field> (base64url, 16 bytes) so a consumer can verify again (O2-12). Stored only by the owner of the entity it belongs to; erased on sync.pii.erased (values and salts).'
+          additionalProperties:
+            type: object
+            description: Rows of one entity, by row id.
+            additionalProperties:
+              type: object
+              description: Personal fields of one row, by field name, each with its salt.
+              additionalProperties:
+                type:
+                - string
+                - boolean
+                - integer
+                description: A field value, or the salt of a field under the key ~s:<field>.
 examples:
 - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f9201
   type: sync.op.menu

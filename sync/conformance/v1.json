@@ -19,6 +19,10 @@
     {
       "In": "{\"emoji\":\"😀\",\"😀\":1,\"￿\":2}",
       "Out": "{\"emoji\":\"😀\",\"😀\":1,\"￿\":2}"
+    },
+    {
+      "In": "{\"pii_c\":{\"check\":{\"b\":{\"customer_phone\":\"x\"},\"a\":{\"customer_name\":\"y\"}}},\"docs\":[{\"type\":\"credit_note\",\"number\":\"A7M/2627/000001\"}]}",
+      "Out": "{\"docs\":[{\"number\":\"A7M/2627/000001\",\"type\":\"credit_note\"}],\"pii_c\":{\"check\":{\"a\":{\"customer_name\":\"y\"},\"b\":{\"customer_phone\":\"x\"}}}}"
     }
   ],
   "hash": [
@@ -177,5 +181,43 @@
   ],
   "example_pack": {
     "dev-4a5e-1": "BFm0zxJ102vRAn5PV7i_yHy1FL6TRLMWiycNeONCneQw-2z5HokFBOkL_i-TylVuuieHuuS0xN1ieo7PZiulFaE"
-  }
+  },
+  "pii_commit": [
+    {
+      "commitment": "fb926b59239c6d646b19799ab4f0c2196c3b9544e1901c9f6873017c570d2766",
+      "jcs": "\"Meera\"",
+      "salt": "AAECAwQFBgcICQoLDA0ODw",
+      "value": "Meera"
+    },
+    {
+      "commitment": "2fc77fdc9cd5852397cd7e2dff88dd1387bc4b73a173e5ea5e575e3aa9fb0335",
+      "jcs": "\"+919876543210\"",
+      "salt": "AAECAwQFBgcICQoLDA0ODw",
+      "value": "+919876543210"
+    },
+    {
+      "commitment": "81150586b55f8a68962852f14974bf5c643b03f46a011ba7e64fff3038906bae",
+      "jcs": "\"Rā\\\"j\\\\ 中\\t\"",
+      "salt": "AAECAwQFBgcICQoLDA0ODw",
+      "value": "Rā\"j\\ 中\t"
+    },
+    {
+      "commitment": "548775e0af5e79621e914c371433658b1b6146b6e8dd37113d804f48fe322ac9",
+      "jcs": "true",
+      "salt": "AAECAwQFBgcICQoLDA0ODw",
+      "value": true
+    },
+    {
+      "commitment": "0c131a42fd28a64263bfa6b5d3d52e4127c01f10cb45fbfd260eda828246f3d1",
+      "jcs": "12345",
+      "salt": "AAECAwQFBgcICQoLDA0ODw",
+      "value": 12345
+    },
+    {
+      "commitment": "7763e308f04d02ede5317faa9ff74d2e8f29971025f3e325496ddf5de6a63d69",
+      "jcs": "\"\"",
+      "salt": "AAECAwQFBgcICQoLDA0ODw",
+      "value": ""
+    }
+  ]
 }

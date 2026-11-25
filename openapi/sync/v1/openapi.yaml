@@ -313,7 +313,7 @@ paths:
       operationId: listQuarantine
       tags:
       - admin
-      x-permission: sync.quarantine.manage
+      x-permission: sync.quarantine.read
       summary: Cloud only, member token. The held list with reasons (never sent to devices).
       security:
       - memberBearer: []
@@ -421,11 +421,12 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Ref'
+              $ref: '#/components/schemas/QuarantineDecision'
             example:
               origin: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
               stream: outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
               seq: 3
+              reason: Checked with the owner, the device was restored from a backup.
       responses:
         '200':
           description: Done.
@@ -450,6 +451,10 @@ paths:
                 code: sync.not_releasable
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
   /sync/v1/quarantine/discard:
     post:
       operationId: discardQuarantine
@@ -466,11 +471,12 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Ref'
+              $ref: '#/components/schemas/QuarantineDecision'
             example:
               origin: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
               stream: outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
               seq: 3
+              reason: Checked with the owner, the device was restored from a backup.
       responses:
         '200':
           description: Done.
@@ -495,6 +501,65 @@ paths:
                 code: sync.not_releasable
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /sync/v1/quarantine/confirm:
+    post:
+      operationId: confirmSyncQuarantine
+      tags:
+      - admin
+      x-permission: sync.quarantine.confirm
+      summary: Cloud only, support token in act mode. Hostry support confirms the cause of a chain-broken, foreign-series or fork hold; it releases nothing.
+      description: |-
+        ADR-0002 S11 ("released only after vendor support has confirmed the cause"). Only a support token in act mode holding `sync.quarantine.confirm` may call it; a tenant member holding the permission is refused 403, and support can never release or discard. The statement is bound to the held op: the body carries `h`, the hash of the exact op the supporter looked at, and a different `h` is 422 `sync.confirm_hash_required`. It marks the slot vendor-confirmed, so that the organisation's manager (`sync.quarantine.manage`) can then release it, raises an owner alert and is written to the tenant-visible audit log with the reason. Only the reasons chain_broken, foreign_series and fork can be confirmed; any other held slot is 409 `sync.decision_not_allowed`. Confirming twice answers 200 and changes nothing.
+      security:
+      - memberBearer: []
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuarantineConfirmation'
+            example:
+              origin: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+              stream: outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+              seq: 3
+              h: 7a12848dfd8c7c9dce262261d97432158905aeb5f99798239d4583528921b057
+              reason: Cause confirmed by callback with the owner, device restored from a backup.
+      responses:
+        '200':
+          description: Confirmed (or already confirmed).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ref'
+              example:
+                origin: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                stream: outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                seq: 3
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          description: The slot is not held for a reason that can be confirmed (`sync.decision_not_allowed`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: ../../../common/components.yaml#/components/schemas/Problem
+              example:
+                type: urn:hostry:problem:sync.decision_not_allowed
+                title: Decision not allowed
+                status: 409
+                code: sync.decision_not_allowed
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
   /internal/v1/emit:
     post:
       operationId: emitOps
@@ -510,7 +575,7 @@ paths:
 
         Idempotency is `(tenant_id, caller, key)` for each op, written in the transaction that stores it and kept as long as the op. The same key with the same content answers 200 with the original `origin`, `stream`, `seq` and `replayed: true`; the same key with other content is 422 `idempotency.mismatch`. A whole replayed batch is therefore a 200 with every op `replayed`. Every row an emit inserts has an id derived from its key (UUIDv5), so an emit repeated after a cloud restore converges on the same row. The `Idempotency-Key` header is accepted and ignored.
 
-        When the gateway is unreachable, answers 5xx or is not ready after a restore, an interactive caller answers its own client 503 `emit.unavailable` with `Retry-After` and changes nothing; a queued emission waits in the caller's `emit_queue`. A refusal listed below is a defect in the caller (it answers 500 `emit.rejected` and alerts), never a user error. Unlike every other operation, the tenant is a body field: a service token carries no tenant.
+        When the gateway is unreachable, answers 5xx or is not ready after a restore, an interactive caller answers its own client 503 `emit.unavailable` with `Retry-After` and changes nothing; a queued emission waits in the caller's `emit_queue`. A refusal listed below is a defect in the caller (it answers 500 `emit.rejected` and alerts), never a user error. The service token carries a tenant claim (O2-11: tokens for this operation are minted per tenant) and the body's `tenant_id` must equal it: a token without a tenant is 401, a different tenant is 403 `emit.tenant_mismatch`. The tenant stays a body field here (the one exception to the rule that it comes from the token alone) so that a mismatch is refused, never silently resolved.
       parameters:
       - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
       requestBody:
@@ -551,7 +616,7 @@ paths:
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
-          description: The caller is not a service listed in x-service-callers.
+          description: The caller is not a service listed in x-service-callers, or the body tenant differs from the tenant claim of the token (`emit.tenant_mismatch`).
           content:
             application/problem+json:
               schema:
@@ -607,8 +672,80 @@ components:
       type: apiKey
       in: header
       name: Hostry-Service-Token
-      description: Service token; operations under /internal/v1 accept only this, from a caller in x-service-callers.
+      description: Service token; operations under /internal/v1 accept only this, from a caller in x-service-callers. For emitOps it carries a tenant claim (O2-11).
   schemas:
+    Pii:
+      type: object
+      description: 'Personal data beside an op, outside the hash and erasable (O2-8; protocol-v1.md, Personal data). Shape entity name,
+        then row id, then field name, then value; a value is a string, boolean or integer. Next to each value travels the salt that
+        its commitment in body.pii_c was made with, under the key "~s:" followed by the field name (base64url, no padding, 16 bytes).
+        A node keeps only the fields whose commitment verifies, drops the rest and keeps value and salt together, and the gateway
+        publishes both on the bus (events/sync/op.v1) so the owning service can verify too (O2-12). A field name that starts with "~s:"
+        is reserved. At most 16384 bytes of canonical JSON. sync.pii.erase removes values and salts; the commitments stay.'
+      additionalProperties:
+        type: object
+        description: The rows of one entity, by row id.
+        additionalProperties:
+          type: object
+          description: The personal fields of one row, by field name, each with its salt.
+          additionalProperties:
+            type:
+            - string
+            - boolean
+            - integer
+            description: A field value, or the base64url salt of a field under the key "~s:<field>".
+      examples:
+      - check:
+          0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6001:
+            customer_name: Meera
+            '~s:customer_name': AAECAwQFBgcICQoLDA0ODw
+    PiiCommitments:
+      type: object
+      description: 'Salted per-field commitments to the personal data of the op, inside the hashed body (so the chain and seal
+        cover them and erasing the data never touches the chain). Shape entity, row id, field, then the lower-case hex SHA-256 over
+        the 16 salt bytes followed by the RFC 8785 canonical JSON text of the value. A plain hash of the value is never carried:
+        a phone number could be guessed back from it. The commitments stay after erasure and cannot be reopened without the salt.'
+      additionalProperties:
+        type: object
+        description: The rows of one entity, by row id.
+        additionalProperties:
+          type: object
+          description: The commitments of one row, by field name.
+          additionalProperties:
+            type: string
+            description: Commitment of one field.
+            pattern: ^[0-9a-f]{64}$
+    QuarantineDecision:
+      allOf:
+      - $ref: '#/components/schemas/Ref'
+      - type: object
+        description: A decision on a held slot; a reason is required and stays in the tenant-visible audit log.
+        properties:
+          reason:
+            type: string
+            description: Why, 1 to 200 characters. No personal data.
+            minLength: 1
+            maxLength: 200
+        required:
+        - reason
+    QuarantineConfirmation:
+      allOf:
+      - $ref: '#/components/schemas/Ref'
+      - type: object
+        description: Hostry support's confirmation of the cause of a hold, bound to the content it looked at.
+        properties:
+          h:
+            type: string
+            description: Hash of the held op (the `h` of the held slot), so the statement covers exactly what was inspected.
+            pattern: ^[0-9a-f]{64}$
+          reason:
+            type: string
+            description: What was checked and with whom, 1 to 200 characters.
+            minLength: 1
+            maxLength: 200
+        required:
+        - h
+        - reason
     Vector:
       type: object
       description: Highest contiguous seq per `origin/stream` key (origin id, a slash, the stream id).
@@ -661,10 +798,7 @@ components:
             $ref: '#/components/schemas/OpBody'
           maxLength: 262144
         pii:
-          type: object
-          description: Personal data beside the op, outside the hash and erasable at the cloud; at most 16384 bytes of canonical
-            JSON.
-          additionalProperties: true
+          $ref: '#/components/schemas/Pii'
       required:
       - origin
       - stream
@@ -745,6 +879,33 @@ components:
           required:
           - type
           - number
+        docs:
+          type: array
+          description: Every legal document number this op allocates, in the order allocated (O2-7). `doc` is the first of them, kept
+            for readers that know only one. An op that allocates one number carries `doc` and may omit `docs`; an op that allocates
+            several (bill.rebill is a credit note and a new bill) carries `docs`. The gateway and the series register read `docs`
+            when present, else `doc`. An op never takes a number twice from one series.
+          items:
+            type: object
+            description: One allocated document number.
+            properties:
+              type:
+                type: string
+                description: Document type.
+                enum:
+                - tax_invoice
+                - bill_of_supply
+                - plain_bill
+                - credit_note
+              number:
+                type: string
+                description: <code>/<FY>/<running>, for example A7K/2627/000123.
+                maxLength: 16
+            required:
+            - type
+            - number
+        pii_c:
+          $ref: '#/components/schemas/PiiCommitments'
         muts:
           type: array
           description: Atomic generic mutations.
@@ -765,7 +926,10 @@ components:
       - muts
     Mut:
       type: object
-      description: One mutation of one entity row.
+      description: 'One mutation of one entity row, or of a protocol record. Records are not synced entities and carry `e` equal to the record name,
+        one of sync_void, pii_erase and series_close (sync/protocol-v1.md, Control records): sync_void (cloud origin, id stream|origin|seq,
+        fields origin, stream, seq, reason), pii_erase (cloud origin only, id stream|origin|seq of the target op, fields origin, stream, seq),
+        series_close (device statement, id = the series id, fields code, fy, last_number, last_number >= 0).'
       properties:
         e:
           type: string
@@ -1051,6 +1215,14 @@ components:
           description: Cloud epoch this node last synced under.
         cloud_vector:
           $ref: '#/components/schemas/Vector'
+        pii_erased:
+          type: array
+          description: Acknowledgement of cloud-signed erasures (intent sync.pii.erase) this node applied to its rows, op log, caches
+            and spool since its last direct cloud hello, as the refs of the target ops (not of the erasure ops). The gateway records
+            it per node; a node that reaches only a hub acknowledges at its next direct cloud hello and keeps the list until then.
+            Only the cloud reads it.
+          items:
+            $ref: '#/components/schemas/Ref'
       required:
       - protocol
     HelloResponse:
@@ -1270,6 +1442,12 @@ components:
               reason:
                 type: string
                 description: Why it is held.
+              intent:
+                type: string
+                description: Intent name of the held op, when it could be read.
+              number:
+                type: string
+                description: The legal number the op carries, when it carries one.
               received_at:
                 type: string
                 description: When it arrived.
@@ -1377,9 +1555,7 @@ components:
             $ref: '#/components/schemas/Mut'
           minItems: 1
         pii:
-          type: object
-          description: Personal data beside the op; at most 16384 bytes.
-          additionalProperties: true
+          $ref: '#/components/schemas/Pii'
         actor:
           type: string
           description: Member id, `support:<vendor user>` or `service:<name>`.
@@ -1405,7 +1581,7 @@ components:
       properties:
         tenant_id:
           $ref: ../../../common/components.yaml#/components/schemas/Id
-          description: The tenant (organisation). A service token carries none, so it is a body field here.
+          description: The tenant (organisation). Must equal the tenant claim of the service token (403 emit.tenant_mismatch otherwise).
         ops:
           type: array
           description: One to 200 ops, stored atomically.

@@ -94,7 +94,7 @@ intents:
   intent_v: 1
   class: control
   owner: identity
-  description: "The device's own statement that a series it holds is closed: when a pack tells a device the series is closed it stops allocating from it and records its last number in the same local transaction (ADR-0014 A2.5 item 2). Billing reads it with the series.activate records and publishes billing.series.reconciled when its register holds every number up to it."
+  description: "The device's own statement that a series it holds is closed: when a pack tells a device the series is closed it stops allocating from it and records its last number in the same local transaction (ADR-0014 A2.5 item 2). Record shape: one mutation {e: series_close, k: insert, id: <series id>, f: {code: the 3-character series code, fy: the four-digit financial year, last_number: the last running number the device allocated from the series, an integer >= 0 (0 when it never allocated)}}. Billing reads it with the series.activate records from the sync.op.series event and publishes billing.series.reconciled (billing is the publisher, O2-10) when its register holds every number up to last_number."
   permission: null
   permission_reason: A device statement about its own series, made automatically when the pack closes the series; no person acts and the gateway checks the series was issued to the device.
   proof:

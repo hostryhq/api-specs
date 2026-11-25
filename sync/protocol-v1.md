@@ -15,8 +15,12 @@ green on the new vectors. A change to any signed or hashed message takes a new d
 - An op travels as `Item{origin, stream, seq, h, body, pii}`. `body` is the **canonical JSON text of the op
   body as a JSON string**. Relays forward it byte for byte; every verifier hashes the UTF-8 bytes it
   received: `h = lowercase hex SHA-256(body)`. Nobody re-serialises (S17).
-- Canonical form is RFC 8785 for the integer-only subset: sorted keys (UTF-16 order), no whitespace, minimal
-  escapes, integers only within +-(2^53-1). Fractions and exponents are refused (money is paise).
+- Canonical form (JCS) is RFC 8785 for the integer-only subset: object keys sorted by UTF-16 code unit order, no whitespace,
+  strings escaped minimally (only `"`, `\`, the short forms `\b \f \n \r \t`, and other code points below U+0020 as lower-case
+  `\u00xx`; everything else, including non-ASCII and `/`, is written as UTF-8 unescaped), `-0` is `0`, integers only within
+  +-(2^53-1). Fractions and exponents are refused (money is paise). The same form is used for the op body, for the values inside
+  personal-data commitments and for the rows of a projection digest; the `canonical` vectors in `sync/conformance/v1.json` are the
+  check, and `internal/canon` in this repository is the reference.
 - Chain: `ph` of op n is `h` of op n-1 of the same origin and stream; op 1 chains to
   `sha256("hostry-genesis-v1\n" + origin + "\n" + stream)`.
 - Seal: ES256 (raw r||s, base64url) over `sha256("hostry-seal-v1\n" + origin + "\n" + stream + "\n" + seq + "\n" + h)`.
@@ -129,12 +133,16 @@ the example is not a valid code (the stub registry issues `AAA`, `AAB`, ...). Th
 - An op is published when it becomes applicable: at acceptance, or at release from quarantine. A quarantined op is never
   published with its body. `sync.quarantine.recorded` (series code, number and document type, no content) and
   `sync.op.flagged` (identity and coarse code) are id-only types.
-- `pii` travels in the event (a stated exception to ADR-0011 B6). A consumer stores `pii` fields only for entities it owns,
-  in an erasable side table, and never for a replica (`replicated_to`, ADR-0014 A2.4). `sync.pii.erased` (ids only) tells
-  each owner to erase.
+- `pii` travels in the event (a stated exception to ADR-0011 B6), in the shape of Personal data below: entity, row id, field,
+  value, **and each field's salt next to its value** (key `~s:<field>`, base64url; O2-12), only fields that verified against
+  `body.pii_c`. The gateway does not strip salts, so the owning service can verify `pii_c = SHA-256(salt || JCS(value))` itself.
+  A consumer stores `pii` fields (values and salts) only for entities it owns, in an erasable side table, and never for a replica
+  (`replicated_to`, ADR-0014 A2.4). `sync.pii.erased` (ids only) tells each owner to erase values and salts.
 
 ## Cloud-origin emit (ADR-0014 A2.2)
-Operation `emitOps` (`POST /internal/v1/emit`) is the only way a service writes data to devices. The gateway alone stamps
+Operation `emitOps` (`POST /internal/v1/emit`) is the only way a service writes data to devices. **Tenant (O2-11):** the service
+token used for it carries a tenant claim (the caller mints one per tenant); the body's `tenant_id` must equal it, else 403
+`emit.tenant_mismatch`, and a token without a tenant is 401. The gateway alone stamps
 `origin = cloud-<epoch>`, `seq`, `ph`, `hlc` and seals the batch; a caller never chooses them. It checks that the caller owns
 the intent, the intent is cloud-origin, every mutation is of an entity and kind the intent lists, the stream belongs to the
 tenant and the size limit. Idempotency is `(tenant_id, caller, key)` per op: same key and content answers the original
@@ -154,11 +162,74 @@ endpoints (`listExceptions`, `listQuarantine`) and never reach a device.
 ## Several document numbers in one op; mixed field policies
 - **One op may allocate more than one legal document number** when its intent inserts more than one numbered document, for
   example `bill.rebill` = a credit note number (series of type credit_note) and a new bill number (series of type tax_invoice
-  or bill_of_supply), allocated in the same local transaction. Each number sits in the `doc` of its own inserted row
+  or bill_of_supply), allocated in the same local transaction. Each number sits in the `doc_number` field of its own inserted row
   (the registry marks the entity's `doc_number` field, `numbering: allocated`, and lists every document type in `documents`).
-  The op body's single `doc` member of OpBody carries the first; the others are read from the mutated rows' `doc_number`
-  fields by the gateway and the register. An op never takes a number twice from one series.
+  **The op body carries them in `docs` (O2-7)**, an array of `{type, number}` in the order allocated; `doc` is the first of them
+  and stays for readers that know one. The gateway and the series register read `docs` when present, else `doc`. An op never
+  takes a number twice from one series.
 - **Entities with mixed per-field policies are valid** (`check`, `order_line` and other entities whose `policy` is `mixed`):
   each field states its own policy (`immutable`, `lww`, `lww_review`, `delta`, `rank`) and the engine applies it per field
   group; a `set` mutation names only fields of `lww` or `lww_review` policy, an `insert` sets immutable and initial values.
   Conflict resolution is per field group, never per row.
+
+## Personal data beside an op (security ruling SR-2, O2-8, O2-12)
+Customer data (name, phone, GSTIN) never sits in the hashed body in the clear, and never as a plain hash (a phone number could be
+guessed back from one). It travels in `Item.pii` outside the hash so that erasure never touches the chain.
+- **Shape.** `pii` = entity name, then row id, then field name, then value (string, boolean or integer), for the entity fields
+  marked `pii: true`. At most 16384 bytes of canonical JSON.
+- **Commitments.** The sealed body carries `pii_c` with the same nesting, each field `lower-case hex SHA-256(salt || JCS(value))`.
+  `salt` is 16 fresh random bytes per field; `JCS(value)` is the canonical JSON text of the value (a string is quoted and
+  escaped, a boolean is `true`/`false`, an integer is its digits), so a string and a number can never commit to the same text.
+  Vectors `pii_commit` in `sync/conformance/v1.json`.
+- **Salts on the wire.** Each field's salt travels in the same `pii` object under the key `~s:<field>` (base64url, no padding).
+  A field name starting with `~s:` is reserved. The gateway, hubs and the owning services keep value and salt together.
+- **Verification.** Every node that ingests `pii` recomputes each commitment; a field with no commitment, no salt or a value that
+  does not match is dropped (never stored, never published) and the op is marked `pii_dropped`. A commitment with no value is
+  normal (erased, or not sent). The gateway publishes the verified values *with* their salts (op event above), so an owning
+  service can verify again.
+- **Erasure.** The cloud-origin op of intent `sync.pii.erase` with one mutation of the record `pii_erase` (id `stream|origin|seq`
+  of the target op, fields `origin`, `stream`, `seq`) removes the values AND the salts of the target op from every node's rows, op
+  log, caches and spool, and makes the node discard any later arrival of that op's `pii`. The commitments stay in the sealed body
+  and cannot be reopened without the salt. The gateway writes the op and `sync.pii.erased` (ids only) in one transaction; erasing
+  twice answers the first erasure op. **Acknowledgement:** the next direct cloud `hello` of a node carries `pii_erased` (array of
+  refs of the target ops); the gateway records it per node. A node that reaches only a hub keeps the list until its next direct
+  cloud hello. GST retention (72 months) means erasure is field-level; the document itself stays.
+
+## Control records
+Records are mutations whose `e` is not a synced entity. They are listed by the intents that carry them (`records:` in
+`sync/intents`) and have no entity schema; the shapes are:
+| Record | Intent | Origin | `id` | `f` |
+|---|---|---|---|---|
+| `sync_void` | `sync.void` | cloud | `stream|origin|seq` of the voided op | `origin`, `stream`, `seq`, `reason` = `refused` |
+| `pii_erase` | `sync.pii.erase` | cloud only | `stream|origin|seq` of the target op | `origin`, `stream`, `seq` |
+| `series_close` | `series.close` | device | the series id | `code` (3-character series code), `fy` (four digits), `last_number` (integer >= 0, the last running number the device allocated from the series; 0 when it never allocated) |
+A node ignores a record it does not know (older clients, ADR-0002 S13). `series_close` is statement-once per (device, series): a
+replay is ignored and a second statement with another `last_number` is refused and alerted. Billing reads `series_close` from the
+`sync.op.series` event; `go-common/sync.ParseOp` exposes it as a control record.
+
+## Projection digest, algorithm `sha256-canon-v1`
+The digests of `getOrdersProjectionDigest` and `getBillingProjectionDigest` equal what a device computes from its local entities, so
+that convergence can be tested (ADR-0014 T2, T9, T11). The **canonical row form**:
+1. **Rows.** The rows of the entities the service owns that belong to the business day: the entity has a `business_date` equal to
+   it, or no `business_date` and a parent row (through `order_id`, `check_id`, `kot_id`, `bill_id` or `credit_note_id`, the first the
+   entity has) that does. Tombstoned rows and replicas of another owner's entities are left out.
+2. **Row text.** The JCS (RFC 8785, integers only) of an object holding `id` and every field of the entity schema the row has set,
+   absent and null fields omitted, `pii: true` fields omitted, nothing implicit (no `tenant_id`, `origin`, `actor`, `hlc`).
+3. **Entity digest.** `hash` = lower-case hex SHA-256 over the row texts in ascending `id` order (byte order), each followed by a
+   line feed; `row_count` is the number of rows. Only entities with at least one row are listed, in ascending name order.
+4. **State hash.** `state_hash` = lower-case hex SHA-256 over, for each listed entity in ascending name order, the text
+   `<entity>\n<row_count>\n<hash>\n`.
+`examples/digests/*.json` hold the rows of the digest example worlds and `make lint-digests` recomputes the OpenAPI examples from them.
+
+## Events published by the gateway
+The sync gateway (service `sync`) publishes: `sync.op.<namespace>` (op applicable), `sync.op.flagged` (an op flagged at acceptance or
+afterwards; identity and coarse code only), `sync.quarantine.recorded` (a slot held; series code, number and document type, no
+content) and `sync.pii.erased` (ids only). Each is written in the transaction of the state change that causes it. It does **not**
+publish `billing.series.reconciled`: that is billing's event (O2-10), published after billing has consumed the device's
+`series.close` op (or identity's `identity.device.drained`) and holds every number up to `last_number`.
+
+## Quarantine decisions
+`releaseQuarantine` and `discardQuarantine` require a `reason` (1 to 200 characters); a member cannot decide a hold on their own op.
+`confirmSyncQuarantine` (permission `sync.quarantine.confirm`, support token in act mode only) is Hostry support's confirmation of the
+cause of a chain-broken, foreign-series or fork hold, bound to the held op by its hash `h`. It releases nothing; the organisation's
+manager releases afterwards. The held list (`listQuarantine`) needs `sync.quarantine.read`, which a support session may use in view mode.

@@ -1,7 +1,7 @@
 $schema: https://json-schema.org/draft/2020-12/schema
 $id: urn:hostry:events:billing.series.reconciled:v1
 title: billing.series.reconciled v1
-description: "The document register holds every number of a closed series up to the last number its device stated (series.close or the drain record). Published once per series; tenancy fills tail_confirmed_at and last_number (ADR-0014 A2.5 item 2)."
+description: "The document register holds every number of a closed series up to the last number its device stated (series.close or the drain record). Published once per series by billing (not by the sync gateway, O2-10), after it consumed the device's series.close op from sync.op.series (or the drain record from identity.device.drained) and its register is complete; tenancy fills tail_confirmed_at and last_number (ADR-0014 A2.5 item 2)."
 x-publisher: billing
 x-subscribers:
 - tenancy

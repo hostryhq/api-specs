@@ -97,7 +97,7 @@ var (
 	streamsT   = set("outlet", "brand", "tenant")
 	numberingT = set("none", "allocated", "typed")
 	docsT      = set("tax_invoice", "bill_of_supply", "plain_bill", "credit_note")
-	recordsT   = set("session", "approval", "series_activation", "series_close", "clock_confirmation", "sync_void")
+	recordsT   = set("session", "approval", "series_activation", "series_close", "clock_confirmation", "sync_void", "pii_erase")
 	mutKinds   = set("insert", "set", "delta", "rank", "del", "undel")
 )
 
