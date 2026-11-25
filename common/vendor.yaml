@@ -1,0 +1,34 @@
+# Vendor approval grant and conditional-write headers for /internal/v1/vendor operations that execute
+# a two-person approval in the serving service (ADR-0014 A1.3, ADR-0013 V2 item 3 and V7). Referenced as
+# ../../../common/vendor.yaml#/components/... Not a service API.
+openapi: 3.1.0
+info:
+  title: Hostry vendor approval components
+  version: 1.0.0
+  description: Headers and responses for vendor operations executed under a signed single-use approval grant.
+paths: {}
+components:
+  parameters:
+    VendorApprovalGrant:
+      name: Hostry-Vendor-Approval
+      in: header
+      required: true
+      description: >-
+        Signed, single-use vendor approval grant from identity (ADR-0014 A1.3): vendor realm, type
+        vendor_approval, 5 minutes; claims are the approval id, kind, organisation or none, requester,
+        approver and a subject hash over the fields named per kind. The executing service verifies the
+        signature and the approver's permission (the bearer token is the approver's), recomputes the
+        subject hash from the request, records the grant id as used in the action's own transaction and
+        applies its own guard. A used, expired or foreign-subject grant is refused 403 with code
+        grant.used, grant.expired or grant.subject_mismatch; a missing one is 403 grant.required.
+      schema:
+        type: string
+      example: grant_example_0190a1b2
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      description: Entity tag of the version being edited (from the last read); a stale tag returns 412 with code precondition_failed.
+      schema:
+        type: string
+      example: '"7"'
