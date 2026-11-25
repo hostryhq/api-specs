@@ -216,8 +216,8 @@ typed by `bill.manual_entry`** (numbering `typed`) is not foreign when its serie
 series** of the organisation's tax registration that lists the op's outlet:
 - The gateway's register knows the book from tenancy: it asks `listOutletManualBookSeries` (`GET /internal/v1/outlets/{outlet_id}/manual-book-series`,
   cached 60 seconds, dropped on `tenancy.manual_book.registered`) and carries every book as an **entry-only series** in its register,
-  keyed `(series code, FY)`, kind `manual_book`. Identity puts the same books in the offline pack (`PackSeries.doc_type: manual_book`,
-  state `active`), so a device refuses an unregistered code before it records anything.
+  keyed `(series code, FY)`, kind `manual_book`. Identity puts the same books in the offline pack (`manual_books`, entries of
+  `{code, tax_registration_id}`), so a device refuses an unregistered code before it records anything.
 - **Any** billing device of a listed outlet may type a page; no origin owns the series. The op is accepted and published, and the
   register stores the typed number under the book. The bill id is the UUIDv5 of (series, FY, number), so the same page typed on two
   devices (or twice) is one row and no `duplicate_document`; a different bill id on the same typed number is `duplicate_document`

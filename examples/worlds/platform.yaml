@@ -97,3 +97,4 @@ entries:
 - {name: ev_series_issued, id: '9131', kind: event}
 - {name: ev_series_closed, id: '9132', kind: event}
 - {name: ev_device_drained, id: '9133', kind: event}
+- {name: ev_manual_book_registered, id: '9134', kind: event}

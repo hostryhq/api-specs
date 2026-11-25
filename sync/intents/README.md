@@ -56,6 +56,7 @@ is written by at least one intent. A guarded (money or tax) entity is never chan
 | Internal closure and open item use `bill.line.comp` beyond their allowance; their limit setting keys are new | `check.close_internal`, `menu.open_item` | product |
 | `menu.price.outlet_set` (per-outlet override, Could) replaces `menu.price.set` in `item_outlet.written_by_intents` because an op has one stream | `menu.price.outlet_set` | product |
 | `kds.status` and `menu.availability.set` allow a `device` session; the KDS role is assumed to hold `kds.bump` and `menu.availability.set` | `kds.status`, `kds.recall`, `menu.availability.set` | ADR-0005 role templates |
+| A `device` session writes `actor` = `device:<origin>` and is judged against the device role template of its kind (sync/protocol-v1.md, Attribution of device-session ops) | `kds.status`, `kds.recall`, `menu.availability.set`, `series.close` | ADR-0005 role templates |
 | `kot.print.ack` and `seating.close` use `order.edit`; they are device-side facts with no permission of their own in the spec | those two | product |
 
 ## Not in the registry

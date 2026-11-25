@@ -219,7 +219,8 @@ func run(dir string) (errs []string, count int) {
 			if p == "lww_review" && f.Group == "" {
 				fail("%s: lww_review needs a group (the stamp is kept per field group)", fa)
 			}
-			if f.PII && (f.Type == "paise" || f.Type == "bp" || f.Type == "qty_milli" || f.DocNumber || moneyish.MatchString(fn)) {
+			// customer_gstin is the buyer's identity (ADR-0014 A2.1 item 7 names it personal data), not a tax figure.
+			if f.PII && (f.Type == "paise" || f.Type == "bp" || f.Type == "qty_milli" || f.DocNumber || (moneyish.MatchString(fn) && fn != "customer_gstin")) {
 				fail("%s: no money, tax or numbering field may be pii (ADR-0002 S4)", fa)
 			}
 			if f.DocNumber && p != "immutable" {

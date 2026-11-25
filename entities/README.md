@@ -50,7 +50,7 @@ which is why `check_present` and friends have no `member_id` or `device_id` fiel
 ## `pii`
 
 A field with `pii: true` travels in the op's `pii` object, outside the op hash (ADR-0002 S4). No money, tax or numbering
-field may be `pii` (the lint refuses it). Restaurant fields: guest and customer names, a takeaway phone.
+field may be `pii` (the lint refuses it). Restaurant fields: guest and customer names, a takeaway phone, the customer GSTIN (`check` and `bill`; the lint exempts `customer_gstin` from the tax-field name rule because it is the buyer identity).
 
 ## Stations are per outlet, the menu is per brand
 

@@ -669,12 +669,14 @@ paths:
         The caller has already authorised the request online (its own permission, step-up and audit); the gateway does not re-check the user. The tenant is the tenant claim of the service token (a token without one is 401); no body field names it. For every target `{origin, stream, seq}` the gateway checks that the op exists, belongs to the tenant and that its stream does, then, in one transaction per target, writes the cloud-origin op of intent `sync.pii.erase` (one `pii_erase` record, id `stream|origin|seq`, sealed like any cloud-origin op, stamped by the gateway alone), removes the stored `pii` values and salts of the target op, and writes `sync.pii.erased` (ids only) for the owning services (ADR-0014 A2.1 item 7; sync/protocol-v1.md, Personal data).
 
         Erasing a target twice answers the first erasure op with `replayed: true` and writes nothing. A target the gateway does not hold is 422 `erase.target_unknown` (nothing is written for any target of the request; the batch is atomic); a target with no personal data is erased all the same, so a node that later receives the op discards a late arrival. The commitments in the sealed body stay. GST retention (72 months) keeps the document: erasure is field-level. The erased values leave the internal queue within 7 days (ADR-0014 A2.1 item 7). `Idempotency-Key` is accepted and ignored: the target is the idempotency key.
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ErasePiiRequest'
+              $ref: '#/components/schemas/PiiErasureRequest'
             example:
               targets:
               - origin: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
@@ -686,7 +688,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErasePiiResponse'
+                $ref: '#/components/schemas/PiiErasureList'
               example:
                 erasures:
                 - origin: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
@@ -1759,7 +1761,7 @@ components:
       required:
       - tenant_id
       - ops
-    ErasePiiRequest:
+    PiiErasureRequest:
       type: object
       description: Ops whose personal data is to be erased. The tenant is the token's tenant claim.
       properties:
@@ -1791,7 +1793,7 @@ components:
       - origin
       - stream
       - seq
-    ErasePiiResponse:
+    PiiErasureList:
       type: object
       description: Where each erasure op landed.
       properties:
