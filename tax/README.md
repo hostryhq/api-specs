@@ -15,7 +15,7 @@ in code: they come from the rule set row selected for the document (`rule-set.sc
 `regime` (`regular`, `composition`, `unregistered`), `price_mode` (`exclusive`, `inclusive`), `round_off` (bool), `rules`
 (tax class to `{gst, cgst_bp, sgst_bp}`; already resolved from the rule set in force on the invoice date for the regime, the
 outlet's specified-premises flag and the order channel), `lines` (`qty_milli`, `unit_price_paise`, `modifier_delta_paise`,
-`tax_class`, optional line `discount`, `comp`), optional `bill_discount`, `service_charge_bp`, optional `packing`.
+`tax_class`, optional line `discount`, `comp`), optional `bill_discount`, `service_charge_bp`, optional `packing`. Under `regular` a line or packing class absent from `rules` is the error `unknown_tax_class` (never non-GST; TV-065); the other regimes do not read `rules`.
 A discount is `{kind: percent, value: basis points}` or `{kind: amount, value: paise}`.
 
 ## Steps (in order)

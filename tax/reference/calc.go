@@ -17,6 +17,7 @@ var (
 	ErrDiscountExceedsValue = errors.New("discount_exceeds_value")
 	ErrCreditExceeds        = errors.New("credit_exceeds_original")
 	ErrUnknownLine          = errors.New("unknown_line")
+	ErrUnknownTaxClass      = errors.New("unknown_tax_class")
 )
 
 // Rule is the rate row selected from the rule set for a tax class.
@@ -159,12 +160,17 @@ func allocate(total int64, weights []int64) []int64 {
 	return out
 }
 
-func ruleOf(b *Bill, class string) (gst bool, cg, sg int64) {
+// ruleOf resolves a tax class. Under the regular regime a class missing from the rules is an error (D1): it is a defect
+// in the rule set or the item and must never be taken as non-GST. Other regimes do not consult the rules.
+func ruleOf(b *Bill, class string) (gst bool, cg, sg int64, err error) {
 	if b.Regime != "regular" {
-		return false, 0, 0
+		return false, 0, 0, nil
 	}
-	r := b.Rules[class]
-	return r.GST, r.CGSTbp, r.SGSTbp
+	r, ok := b.Rules[class]
+	if !ok {
+		return false, 0, 0, ErrUnknownTaxClass
+	}
+	return r.GST, r.CGSTbp, r.SGSTbp, nil
 }
 
 type calcLine struct {
@@ -229,8 +235,11 @@ func (b *Bill) lines() ([]calcLine, int64, error) {
 }
 
 // taxGroup applies the group arithmetic to a group value.
-func (b *Bill) taxGroup(class string, value, charge int64) Group {
-	gst, cg, sg := ruleOf(b, class)
+func (b *Bill) taxGroup(class string, value, charge int64) (Group, error) {
+	gst, cg, sg, err := ruleOf(b, class)
+	if err != nil {
+		return Group{}, err
+	}
 	g := Group{TaxClass: class, GSTApplies: gst, RateBp: cg + sg, ValuePaise: value, ChargeAllocPaise: charge, TaxablePaise: value}
 	if gst {
 		taxable := value
@@ -241,7 +250,7 @@ func (b *Bill) taxGroup(class string, value, charge int64) Group {
 		g.CGSTPaise = roundHalfUp(taxable*cg, 10000)
 		g.SGSTPaise = roundHalfUp(taxable*sg, 10000)
 	}
-	return g
+	return g, nil
 }
 
 type totals struct {
@@ -290,7 +299,7 @@ func classesOf(ls []calcLine, p *Packing) []string {
 	return out
 }
 
-func (b *Bill) groups(ls []calcLine) (groups []Group, service, packing int64) {
+func (b *Bill) groups(ls []calcLine) (groups []Group, service, packing int64, err error) {
 	var base int64
 	for _, l := range ls {
 		base += l.net2
@@ -312,9 +321,13 @@ func (b *Bill) groups(ls []calcLine) (groups []Group, service, packing int64) {
 			charge += b.Packing.AmountPaise
 			packing = b.Packing.AmountPaise
 		}
-		groups = append(groups, b.taxGroup(c, vals[i]+charge, charge))
+		g, gerr := b.taxGroup(c, vals[i]+charge, charge)
+		if gerr != nil {
+			return nil, 0, 0, gerr
+		}
+		groups = append(groups, g)
 	}
-	return groups, service, packing
+	return groups, service, packing, nil
 }
 
 // Calculate computes a bill.
@@ -323,7 +336,10 @@ func Calculate(b Bill) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	groups, service, packing := b.groups(ls)
+	groups, service, packing, err := b.groups(ls)
+	if err != nil {
+		return Result{}, err
+	}
 	t := b.totalsOf(groups)
 	r := Result{BillDiscountPaise: dd, ServiceChargePaise: service, PackingPaise: packing, Groups: groups,
 		NonGSTSubtotal: t.nonGST, TaxablePaise: t.taxable, CGSTPaise: t.cgst, SGSTPaise: t.sgst, PreRoundTotalPaise: t.pre, RoundOffPaise: t.roundOff, TotalPaise: t.total}
@@ -354,7 +370,10 @@ func CalculateCredit(orig Bill, credit []CreditLine) (CreditResult, error) {
 		}
 		qty[c.LineID] = c.QtyMilli
 	}
-	origGroups, _, _ := orig.groups(ls)
+	origGroups, _, _, err := orig.groups(ls)
+	if err != nil {
+		return CreditResult{}, err
+	}
 	var out CreditResult
 	credited := map[string]int64{}
 	original := map[string]int64{}
@@ -377,7 +396,11 @@ func CalculateCredit(orig Bill, credit []CreditLine) (CreditResult, error) {
 		if original[g.TaxClass] > 0 {
 			cc = roundHalfUp(g.ChargeAllocPaise*credited[g.TaxClass], original[g.TaxClass])
 		}
-		out.Groups = append(out.Groups, orig.taxGroup(g.TaxClass, credited[g.TaxClass]+cc, cc))
+		cg, gerr := orig.taxGroup(g.TaxClass, credited[g.TaxClass]+cc, cc)
+		if gerr != nil {
+			return CreditResult{}, gerr
+		}
+		out.Groups = append(out.Groups, cg)
 	}
 	t := orig.totalsOf(out.Groups)
 	out.NonGSTSubtotal, out.TaxablePaise, out.CGSTPaise, out.SGSTPaise = t.nonGST, t.taxable, t.cgst, t.sgst
