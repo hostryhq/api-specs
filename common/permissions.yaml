@@ -37,6 +37,7 @@ permissions:
   - {key: device.read, realm: tenant, service: identity, description_key: perm.device.read, flags: [support_viewable]}
   - {key: device.register, realm: tenant, service: identity, description_key: perm.device.register, flags: [strong_only, owner_grant]}
   - {key: device.activation_code.create, realm: tenant, service: identity, description_key: perm.device.activation_code.create, flags: [strong_only, owner_grant]}
+  - {key: device.recover, realm: tenant, service: identity, description_key: perm.device.recover, flags: [strong_only, owner_grant]}  # owner-approved key-loss recovery of a device (ADR-0002 A1.3 item 2)
   - {key: device.revoke, realm: tenant, service: identity, description_key: perm.device.revoke, flags: [sensitive, strong_only, owner_grant]}
   - {key: member.read, realm: tenant, service: identity, description_key: perm.member.read, flags: [support_viewable]}
   - {key: member.manage, realm: tenant, service: identity, description_key: perm.member.manage, flags: [sensitive, strong_only, owner_grant]}

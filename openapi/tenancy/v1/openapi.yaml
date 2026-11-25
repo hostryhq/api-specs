@@ -336,6 +336,8 @@ paths:
     patch:
       operationId: updateOutlet
       summary: Change an outlet
+      description: "An outlet never changes brand (ADR-0014 A3.4 item 4): a `brand_id` other than the current one is refused with 409
+        `outlet_brand_fixed`. Moving an outlet between brands needs its own ruling."
       tags:
       - tenancy
       x-permission: outlet.manage
@@ -380,6 +382,17 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/Forbidden
         '404':
           $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          description: The body names another brand (outlet_brand_fixed), or an Idempotency-Key request is still in progress.
+          content:
+            application/problem+json:
+              schema:
+                $ref: ../../../common/components.yaml#/components/schemas/Problem
+              example:
+                type: urn:hostry:problem:outlet_brand_fixed
+                title: An outlet cannot change brand
+                status: 409
+                code: outlet_brand_fixed
         '422':
           $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
   /v1/outlets/{outlet_id}/tax-registration:
@@ -2085,13 +2098,16 @@ paths:
       operationId: getStreamOwner
       summary: Which organisation owns an outlet or brand stream
       description: 'Sync gateway directory question (ADR-0005 A3.2 row 8): whether an outlet or brand id belongs to the
-        token''s tenant. 404 when it does not exist or belongs to another tenant. Found answers are cached without expiry.'
+        token''s tenant. 404 when it does not exist or belongs to another tenant. Found answers are cached without expiry.
+        Also the outlet read of identity at device activation (ADR-0014 A3.4 item 1): for an outlet the answer carries its `brand_id`, which
+        identity stores on the device row and signs into the credential. An outlet never changes brand, so the answer never changes.'
       tags:
       - internal
       x-permission: series.directory.read
       x-example-world: base
       x-service-callers:
       - sync
+      - identity
       security:
       - serviceAuth: []
       parameters:
@@ -4518,6 +4534,10 @@ components:
           example: Main Restaurant
         status:
           $ref: '#/components/schemas/OutletStatus'
+        brand_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+          description: Accepted only when equal to the outlet's current brand; any other value is refused with 409 `outlet_brand_fixed`. An
+            outlet stays in the brand it was created under (ADR-0014 A3.4 item 4).
     TaxRegime:
       type: string
       description: GST regime.

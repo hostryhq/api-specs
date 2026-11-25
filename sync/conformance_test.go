@@ -92,26 +92,26 @@ type vectors struct {
 	ApprovalProof struct {
 		ProofKey string `json:"proof_key"`
 		Cases    []struct {
-			Case, Kind, Message, Proof string
-			ActionHash                 string `json:"action_hash"`
-			SessionID                  string `json:"session_id"`
-			DeviceID                   string `json:"device_id"`
-			MemberID                   string `json:"member_id"`
-			PackV                      int    `json:"pack_v"`
-			PinV                       int    `json:"pin_v"`
-			OpenedAt                   string `json:"opened_at"`
-			ApprovalID                 string `json:"approval_id"`
-			Permission, Target         string
-			RequesterID                string `json:"requester_id"`
-			ApprovedAt                 string `json:"approved_at"`
-			Reason                     string
+			Case, Kind, Message, Proof, Intent string
+			ActionHash                         string `json:"action_hash"`
+			SessionID                          string `json:"session_id"`
+			DeviceID                           string `json:"device_id"`
+			MemberID                           string `json:"member_id"`
+			PackV                              int    `json:"pack_v"`
+			PinV                               int    `json:"pin_v"`
+			OpenedAt                           string `json:"opened_at"`
+			ApprovalID                         string `json:"approval_id"`
+			Permission, Target                 string
+			RequesterID                        string `json:"requester_id"`
+			ApprovedAt                         string `json:"approved_at"`
+			Reason                             string
 		} `json:"cases"`
 	} `json:"approval_proof"`
 	ActionHash []struct {
-		Case, Intent string
-		Binds        map[string]any
-		JCS          string `json:"jcs"`
-		ActionHash   string `json:"action_hash"`
+		Case, Intent, Permission, Requester, Target, Reason string
+		ApprovalID                                          string `json:"approval_id"`
+		JCS                                                 string `json:"jcs"`
+		ActionHash                                          string `json:"action_hash"`
 	} `json:"action_hash"`
 	DigestRow []struct {
 		Case, Entity, ID string
@@ -271,6 +271,11 @@ func TestVectorsAreSelfConsistent(t *testing.T) {
 		case "session":
 			msg = strings.Join([]string{"session", c.SessionID, c.DeviceID, c.MemberID, strconv.Itoa(c.PackV), strconv.Itoa(c.PinV), c.OpenedAt}, "|")
 		case "approval":
+			j, _ := canon.JCS(map[string]any{"intent": c.Intent, "permission": c.Permission, "requester": c.RequesterID, "target": c.Target,
+				"approval_id": c.ApprovalID, "reason": c.Reason})
+			if want := "sha256:" + sum(string(j)); want != c.ActionHash {
+				t.Errorf("approval_proof %q: action_hash %s, recomputed %s", c.Case, c.ActionHash, want)
+			}
 			msg = strings.Join([]string{"approval", c.ActionHash, c.DeviceID, c.MemberID, strconv.Itoa(c.PackV), strconv.Itoa(c.PinV), c.ApprovalID,
 				c.Permission, strconv.Quote(c.Target), c.RequesterID, c.ApprovedAt, strconv.Quote(c.Reason)}, "|")
 		default:
@@ -290,11 +295,8 @@ func TestVectorsAreSelfConsistent(t *testing.T) {
 		t.Error("action_hash vectors are required (ADR-0014 A3.3 item 1)")
 	}
 	for _, c := range v.ActionHash {
-		o := map[string]any{"intent": c.Intent}
-		for k, val := range c.Binds {
-			o[k] = val
-		}
-		j, err := canon.JCS(o)
+		j, err := canon.JCS(map[string]any{"intent": c.Intent, "permission": c.Permission, "requester": c.Requester, "target": c.Target,
+			"approval_id": c.ApprovalID, "reason": c.Reason})
 		if err != nil || string(j) != c.JCS {
 			t.Errorf("action_hash %q: JCS %s (%v), vector says %s", c.Case, j, err, c.JCS)
 		}

@@ -40,7 +40,8 @@ intents:
   class: control
   owner: identity
   description: 'Manager override at the counter (ADR-0005 section 8): approval id, permission, target, action hash over the
-    fields the registry names, requester, approver, pin_v and the action proof. One action, 2 minutes. The op body carries the approver''s `pin_v` beside
+    fields the registry names, requester, approver, pin_v and the action proof. One action, 2 minutes. Requester and approver differ (a
+    two-person approval); confirming one''s own PIN is `approval.self_confirm`. The op body carries the approver''s `pin_v` beside
     the proof (ADR-0005 A3.1).'
   permission: null
   permission_reason: The approver must hold the cited permission and differ from the requester; the gateway checks this against
@@ -62,6 +63,32 @@ intents:
   - approval
   idempotency: Approval id is a client UUIDv7. Exactly one op may cite it; a second citing op is unverified. A replayed grant
     is ignored.
+- intent: approval.self_confirm
+  intent_v: 1
+  class: control
+  owner: identity
+  description: 'A member confirms their own PIN on a sensitive action they may do themselves (ADR-0005 section 8, own sensitive action):
+    the same `approval` record and action proof as approval.grant, with requester = approver = the actor. Never satisfies a two-person
+    rule; an op that cites it needs the actor to hold the permission (otherwise `approval_flag` `self`). One action, 2 minutes.'
+  permission: null
+  permission_reason: The actor must hold the cited permission themselves; the gateway checks this against the pack.
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: none
+  entities: {}
+  records:
+  - approval
+  idempotency: Approval id is a client UUIDv7. Exactly one op may cite it; a second citing op is unverified. A replayed confirmation is ignored.
+  x-provisional: Added by round 5 so that requester = approver is allowed only here and never in approval.grant; confirm with security-reviewer.
 - intent: series.activate
   intent_v: 1
   class: control

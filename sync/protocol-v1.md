@@ -183,10 +183,12 @@ messages (`SessionProofMessage`, `ApprovalProofMessageBound`); `client-core` mus
 - **Session proof:** `session|<sid>|<device id>|<member id>|<pack_v>|<pin_v>|<opened at>`.
 - **Approval proof** (the approver's, over the record of `approval.grant`): `approval|<action hash>|<device id>|<approver member id>|<pack_v>|<pin_v>|<approval id>|<permission>|<quoted target>|<requester id>|<approved at>|<quoted reason>`;
   `reason` is the empty quoted string `""` when the record has none. `approved at` is the op's `at`.
-- **Action hash:** `sha256:` plus the lower-case hex SHA-256 of the JCS of the object `{intent: <intent name>, <name>: <value> ...}` with one
-  member for each name the intent lists in `proof.binds`. A value is read from the first mutation of the op that sets a field of that
-  name (integers stay integers, ids stay strings). Because `intent` is in the hash, the proof binds the intent as well as the permission
-  and target. A bound name the op does not set fails the check as `mismatch`.
+- **Action hash** (`x-provisional`, orchestrator ruling in round 5): `sha256:` plus the lower-case hex SHA-256 of the JCS of the object
+  `{intent, permission, requester, target, approval_id, reason}`; `target` and `reason` are empty strings when the record has none. The
+  gateway recomputes it from the citing op: `intent` and `permission` are the op's intent and the permission it needs, `requester` the op's `actor`,
+  `target` the `<entity>:<row id>` of the row the op inserts or sets, `approval_id` the op's `approval`, `reason` the record's. Because
+  `intent` is in the hash, the proof binds the intent as well as the permission and target. Vectors `action_hash`. (The `proof.binds`
+  names of an intent no longer enter the hash; they name the fields a screen shows the approver.)
 
 ## Approval citation (ADR-0014 A3.3; ADR-0005 section 8)
 An op of an intent with `override: true` whose actor lacks the permission cites an approval: body field `approval` = the approval id. The
@@ -194,7 +196,8 @@ An op of an intent with `override: true` whose actor lacks the permission cites 
 gateway keeps one row per `(tenant, origin, approval id)` with the record and the `verifyProof` verdict (ADR-0005 A3.1 item 3).
 Question 6 (permission) for an op that cites an approval is answered **by the approver** when all hold: the intent is `override: true`;
 the approval verdict is `valid`; same origin and same `sid` as the `approval.grant` op; the record's `intent` and `permission` are the op's;
-`requester` = the op's `actor`, and differs from the approver unless the actor holds the permission (own sensitive action); the approver held
+`requester` = the op's `actor`, and differs from the approver (a record of intent `approval.grant`; for the one case where they may be equal see
+**Own-action confirmation** below); the approver held
 the permission in the op's `pack_v`; the action hash recomputed from the op and the `target` row match; the op's `at` is 0 to 120 seconds
 after the approval's; no other op cites the approval (the lowest `hlc` keeps it). The op is then **`accepted` with no flag**, attribution
 `verified`, shown as "approved by". The actor's own lack of the permission is never a `permission_flag` on this path.
@@ -204,8 +207,14 @@ after the approval's; no other op cites the approval (the lowest `hlc` keeps it)
   unreachable: the verdict is **`pending`**, judged again; never `permission_flag`.
 - **Failure.** Any condition false: `unverified`, flag **`approval_flag`** with a `reason`: `proof_invalid`, `mismatch` (intent, permission,
   requester, target or action hash differ), `reused` (another op cites it), `expired` (outside 120 s), `approver_not_permitted`, `self`
-  (requester is the approver and lacks the permission). A trading fact is accepted at high severity; a configuration change is voided.
+  (requester is the approver on an `approval.grant`, or a self-confirmation cites an actor who lacks the permission). A trading fact is accepted at high severity; a configuration change is voided.
   **`permission_flag` remains only** for an actor without the permission who cites no approval, or an intent that is not `override: true`.
+- **Own-action confirmation (`x-provisional`).** ADR-0005 section 8 lets a member confirm their own PIN on a sensitive action they may do. That is
+  the distinct intent **`approval.self_confirm`**, with the same `approval` record and proof, where `requester` = approver = the op's `actor` is
+  required (not allowed to differ). It is accepted only when the actor holds the permission in the op's `pack_v`; it **never satisfies a
+  two-person rule** and never makes an actor without the permission pass: an op that cites a self-confirmation by an actor lacking the permission is
+  `approval_flag` `self`. An `approval.grant` whose requester equals the approver is `approval_flag` `self`, whoever holds the permission.
+  The other conditions (verdict `valid`, same origin and `sid`, intent and permission, action hash, 0 to 120 seconds, single citer) are those above.
 - **Hub.** Its structural check is the same without the proof: an approval is cited, the approver is in the pack with the permission and
   is not the requester.
 
@@ -252,6 +261,12 @@ are attributed and never held as `actor_unknown`.
   `kds.status` (bump, forward-only rank), `kds.recall`, `menu.availability.set` and `series.close`. Every other intent needs a member
   (`pin` or `strong`). An intent with `proof.kind: action` never lists `device` (`make lint-intents` refuses it); neither may one with an `override`
   or a `sensitive` permission, which need a member.
+
+## Device-session lifetime (`x-provisional`, round 5)
+A `device` session (a KDS; no member, no PIN) has no PIN-session idle rule and is **exempt from the 16-hour limit of a `pin` session**. It is
+re-opened (`session.open` type `device`, a new `sid`) at the start of each business day, that is on the first op after the device sees a
+new open business day or, with none, after 26 hours, and it lasts at most **26 hours**; an op whose session is older is judged as one of
+a closed session (`actor_unknown` does not apply: the actor is the device). The shell re-opens it without a person.
 
 ## Manual-book entries and the foreign-series rule (ADR-0003 A1.5, ADR-0014 A1.6 item 4; soak finding F7)
 A legal number whose series code the issuing device does not hold is a `foreign_series` hold (ADR-0003 A1.5). A **paper-book number

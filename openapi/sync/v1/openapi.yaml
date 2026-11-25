@@ -131,6 +131,8 @@ paths:
       - sync
       x-permission: sync.push
       summary: Slots above the caller's vector, up to a seal boundary; held slots as placeholders.
+      description: Items carry `pii` for a pos, waiter, personal or hub caller of the same outlet and never for a caller whose credential kind
+        is kds, which gets the commitments in the sealed body only (ADR-0014 A3.1). One rule on the envelope; the hub applies it too.
       parameters:
       - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
       requestBody:
@@ -182,6 +184,8 @@ paths:
       - sync
       x-permission: sync.push
       summary: Materialised rows, void set and vector, for bootstrap (simplest form).
+      description: A row carries `pii_c` (pii field to commitment) always and `pii` (values and salts, as in Item.pii) only for a caller whose
+        credential kind is pos, waiter, personal or hub; a kds caller gets no `pii` (ADR-0014 A3.1).
       responses:
         '200':
           description: Snapshot.
@@ -357,6 +361,12 @@ paths:
                   seq: 2
                   flag: unsealed
                   detected_at: '2026-11-24T13:07:11.120Z'
+                - origin: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                  stream: outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  seq: 3
+                  flag: approval_flag
+                  reason: mismatch
+                  detected_at: '2026-11-24T13:08:11.120Z'
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
   /sync/v1/series-register:
@@ -764,7 +774,10 @@ components:
         its commitment in body.pii_c was made with, under the key "~s:" followed by the field name (base64url, no padding, 16 bytes).
         A node keeps only the fields whose commitment verifies, drops the rest and keeps value and salt together, and the gateway
         publishes both on the bus (events/sync/op.v1) so the owning service can verify too (O2-12). A field name that starts with "~s:"
-        is reserved. At most 16384 bytes of canonical JSON. sync.pii.erase removes values and salts; the commitments stay.'
+        is reserved. At most 16384 bytes of canonical JSON. sync.pii.erase removes values and salts; the commitments stay. Served on pull
+        and snapshot to same-outlet devices of kind pos, waiter, personal and hub; a node answering a puller whose credential kind is kds
+        removes the whole object (ADR-0014 A3.1). A pushed op carries it to any upstream. Convergence hashes cover the commitments,
+        never these values (ADR-0014 A3.2).'
       additionalProperties:
         type: object
         description: The rows of one entity, by row id.
@@ -881,6 +894,8 @@ components:
             $ref: '#/components/schemas/OpBody'
           maxLength: 262144
         pii:
+          description: Personal data of the op (values and salts). Absent from every pull and snapshot answer to a kds puller; carried
+            to pos, waiter, personal and hub devices of the same outlet (ADR-0014 A3.1). Erased fields are absent.
           $ref: '#/components/schemas/Pii'
       required:
       - origin
@@ -939,7 +954,10 @@ components:
           minimum: 1
         approval:
           type: string
-          description: Approval id.
+          description: 'Approval id. Cited by an op of an intent with `override: true` whose actor lacks the permission (ADR-0014 A3.3);
+            the `approval.grant` record of that id binds intent, permission, target row and action hash. Valid and matching: the op is
+            accepted with no flag. Not yet arrived: `pending`. Failing: `approval_flag` with a reason. `permission_flag` only when no
+            approval is cited.'
         proof:
           type: string
           description: Opaque PIN-derived proof; only the cloud checks it. Only on `session.open` of a `pin` session and on
@@ -1184,13 +1202,15 @@ components:
           description: Outlet.
         brand_id:
           type: string
-          description: Brand.
+          description: Brand of the outlet, read by identity from tenancy at activation and signed here (ADR-0014 A3.4). The hub and LAN
+            peers judge a device's `brand:<id>` stream binding from it alone. An outlet never changes brand.
         kind:
           type: string
-          description: Device kind.
+          description: Device kind. Decides whether a node serves the device `pii` (not to kds).
           enum:
           - pos
           - waiter
+          - personal
           - kds
           - hub
         kid:
@@ -1210,6 +1230,7 @@ components:
       - device_id
       - tenant_id
       - outlet_id
+      - brand_id
       - kind
       - kid
       - pub
@@ -1577,7 +1598,8 @@ components:
           description: Rows.
           items:
             type: object
-            description: 'Row: e, id, f, gone.'
+            description: 'Row: e, id, f, gone; and for an entity with pii fields `pii_c` (field to commitment) and, except for a kds caller, `pii`
+              (field to value, with `~s:<field>` salts).'
             additionalProperties: true
         voids:
           type: array
@@ -1644,7 +1666,18 @@ components:
                 description: Sequence.
               flag:
                 type: string
-                description: The mark.
+                description: "The mark. `permission_flag` is raised only for an actor without the permission who cites no approval, or an
+                  intent that is not `override: true`; `approval_flag` for a cited approval that fails a check (ADR-0014 A3.3)."
+              reason:
+                type: string
+                description: Why an `approval_flag` was raised. Absent on any other flag.
+                enum:
+                - proof_invalid
+                - mismatch
+                - reused
+                - expired
+                - approver_not_permitted
+                - self
               detected_at:
                 type: string
                 description: When it was flagged.

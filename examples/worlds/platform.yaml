@@ -40,6 +40,7 @@ entries:
 - {name: device_pos_1, id: '4a5e', kind: device, facts: {name: Counter 1, kind: pos}, note: the only device; origin of every sync example}
 - {name: device_pos_2, id: '4a5f', kind: device, facts: {name: Counter 2, kind: pos}, note: adopts device_pos_1 after key loss (device-key-recovered world)}
 - {name: device_recovery, id: '4aa2', kind: device_recovery, note: key-loss recovery of device_pos_1}
+- {name: recovery_code, id: '4aa3', kind: recovery_code, facts: {code: 7QK3M9XD, kind: pos}, note: single-use recovery code bound to device_pos_1}
 - {name: binding, id: '4a6e', kind: binding}
 - {name: activation_code, id: '4a75', kind: activation_code, facts: {code: 7QK3M9XD, kind: pos}}
 - {name: pin_reset_authorisation, id: '4a76', kind: pin_reset_authorisation}

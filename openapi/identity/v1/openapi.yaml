@@ -482,6 +482,57 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
           $ref: '#/components/responses/ApprovalRequired'
+  /v1/devices/{device_id}/recovery-codes:
+    post:
+      operationId: createDeviceRecoveryCode
+      summary: Create a single-use recovery code for a device that lost its key
+      description: 'Key-loss recovery, step 2 of ADR-0002 A1.3 item 2 (ADR-0005 section 4). An owner with `device.recover` picks the device in the
+        device list, in their own app or the back office, and creates a recovery code: the format and limits of an activation code (8 characters,
+        10 minutes, single use), bound to the old device id. strong_only: refused in pin and device sessions, and for 24 hours on a binding
+        under caution unless approved. The owner''s session never touches the affected device; vendor support can neither create nor approve one.
+        The code is redeemed at `activateDevice` by the new installation, which creates a new key pair: identity then, in one transaction,
+        marks the old device revoked with reason `key_lost`, registers a new device (same outlet and kind, new id) with new series codes,
+        writes the recovery record (`getDeviceRecovery`, single use) and issues the pack, whose credential carries `recovers` = the old id.
+        Only a device that is not yet revoked can be recovered; a device already revoked, drained or recovered answers 409.
+        A second code for the same device replaces the first (the earlier one lapses). Creation is rate limited per outlet per day.'
+      tags:
+      - identity
+      x-permission: device.recover
+      x-outlet-scoped: true
+      parameters:
+      - name: device_id
+        in: path
+        required: true
+        description: The old device that lost its key.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      - $ref: ../../../common/components.yaml#/components/parameters/ApprovalToken
+      responses:
+        '201':
+          description: The code, shown once. A replay with the same Idempotency-Key returns the same code.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecoveryCode'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4aa3
+                code: 7QK3M9XD
+                old_device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                kind: pos
+                expires_at: '2026-11-24T13:10:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ApprovalRequired'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '429':
+          $ref: ../../../common/components.yaml#/components/responses/TooManyRequests
   /v1/activation-codes/{activation_code_id}:
     delete:
       operationId: revokeActivationCode
@@ -531,6 +582,8 @@ paths:
       operationId: activateDevice
       summary: Activate a device with an activation code
       description: The owners of the organisation are notified with device name, kind, outlet and key_protection.
+        In the same step identity reads the outlet's `brand_id` from tenancy (every kind, `kds` and `hub` included), stores it on the device row
+        and signs it into the credential and the pack (ADR-0014 A3.4); tenancy unreachable is 503 and nothing is registered.
         A pending series registration that is unverified does not block registration, only billing. Recovery when the
         response was lost after the device registered, the device already holds its key, so it signs in with a device token
         (createDeviceToken) and fetches its pack with getDeviceOfflinePack; or it repeats this call with the same device id and public key under a new
@@ -598,6 +651,8 @@ paths:
                         y: x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0
                       outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
                       kind: pos
+                      kid: dev-4a5e-1
+                      brand_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6a
                     members:
                     - member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
                       display_name: Asha
@@ -651,12 +706,15 @@ paths:
           $ref: '#/components/responses/ActivationInvalid'
         '429':
           $ref: ../../../common/components.yaml#/components/responses/TooManyRequests
+        '503':
+          $ref: '#/components/responses/TenancyUnavailable'
   /v1/devices:
     post:
       operationId: registerDevice
       summary: Register a device from a signed-in member
       description: strong_only, with the 24-hour caution rule (A2.2). Device kind and outlet come from
-        the registering member, never from a later client claim.
+        the registering member, never from a later client claim. Identity reads the outlet's `brand_id` from tenancy and signs it
+        into the credential (ADR-0014 A3.4); tenancy unreachable is 503 and nothing is registered.
       tags:
       - identity
       x-permission: device.register
@@ -713,6 +771,8 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
         '429':
           $ref: ../../../common/components.yaml#/components/responses/TooManyRequests
+        '503':
+          $ref: '#/components/responses/TenancyUnavailable'
     get:
       operationId: listDevices
       summary: List devices
@@ -889,6 +949,8 @@ paths:
                       y: x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0
                     outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
                     kind: pos
+                    kid: dev-4a5e-1
+                    brand_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6a
                   members:
                   - member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
                     display_name: Asha
@@ -1482,6 +1544,7 @@ paths:
                   - device.read
                   - device.register
                   - device.activation_code.create
+                  - device.recover
                   - device.revoke
                   - member.read
                   - member.manage
@@ -1835,6 +1898,14 @@ paths:
                 - key: device.activation_code.create
                   service: identity
                   description_key: perm.device.activation_code.create
+                  sensitive: false
+                  strong_only: true
+                  owner_grant: true
+                  support_viewable: false
+                  support_actable: false
+                - key: device.recover
+                  service: identity
+                  description_key: perm.device.recover
                   sensitive: false
                   strong_only: true
                   owner_grant: true
@@ -2344,6 +2415,28 @@ paths:
               - series_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6c
                 fy: '2627'
                 last_number: 123
+              - series_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a95
+                fy: '2627'
+                last_number: 0
+              statement:
+                origin: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                streams:
+                - stream: outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  seq: 42
+                  h: 2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881
+                series:
+                - series_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6c
+                  code: A7K
+                  fy: '2627'
+                  last_number: 123
+                - series_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a95
+                  code: A7M
+                  fy: '2627'
+                  last_number: 0
+                by: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                kid: dev-4a5e-1
+                at: '2026-11-24T13:05:11Z'
+                sig: aIYOIXaYv_eMlGk6dtvRvIKBcQGlQQWjczUR3menYCf7rQ0FlCPwrYPbbI3fESRZ3AoTC0LHWsIUjOEwwxhOFw
       responses:
         '200':
           description: Device state becomes drained; the 15-minute wipe delay starts on the server clock. Identity verifies the
@@ -2464,7 +2557,9 @@ paths:
       operationId: getDeviceCredential
       summary: The identity-signed credential of a device, in any state
       description: 'Sync gateway directory question (ADR-0005 A3.2 row 1). Answers the credential as the pack carries it, whatever
-        the device state. One key per device id for life (ADR-0002 S7), so the gateway caches it without expiry; 404 is not cached.'
+        the device state. One key per device id for life (ADR-0002 S7), so the gateway caches it without expiry; 404 is not cached.
+        Never answers a credential without `brand_id`: a device row that has none yet (created before ADR-0014 A3.4) is filled once by a
+        start-up job that asks tenancy, and until then this answers 503 `tenancy.unavailable`.'
       tags:
       - internal
       x-permission: device.directory.read
@@ -2502,6 +2597,8 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/Forbidden
         '404':
           $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '503':
+          $ref: '#/components/responses/TenancyUnavailable'
   /internal/v1/devices/{device_id}/packs/{pack_v}/grants:
     get:
       operationId: getPackGrants
@@ -4901,6 +4998,34 @@ components:
           $ref: '#/components/schemas/DeviceKind'
         expires_at:
           $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+    RecoveryCode:
+      type: object
+      description: A key-loss recovery code; the code itself is shown once (ADR-0002 A1.3 item 2).
+      required:
+      - id
+      - code
+      - old_device_id
+      - outlet_id
+      - kind
+      - expires_at
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        code:
+          type: string
+          description: 8 characters from a 32-symbol alphabet (40 bits), 10 minutes, single use; redeemed at activateDevice.
+          pattern: ^[0-9A-HJKMNP-TV-Z]{8}$
+          example: 7QK3M9XD
+        old_device_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+          description: The device that lost its key; the code is bound to it.
+        outlet_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        kind:
+          $ref: '#/components/schemas/DeviceKind'
+          description: Kind the new device takes (the old device's).
+        expires_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
     ActivationCodeSummary:
       type: object
       description: An activation code without its value, as the owner sees it.
@@ -4963,7 +5088,8 @@ components:
       properties:
         activation_code:
           type: string
-          description: The code from createActivationCode.
+          description: The code from createActivationCode, or a recovery code from createDeviceRecoveryCode (then the new device takes the old
+            device's outlet and kind, the old device becomes revoked with reason key_lost and `recovery` is present in the answer).
           pattern: ^[0-9A-HJKMNP-TV-Z]{8}$
           example: 7QK3M9XD
         id:
@@ -5108,12 +5234,16 @@ components:
           $ref: ../../../common/components.yaml#/components/schemas/Id
         device:
           type: object
-          description: The device's own credential.
+          description: The device's own credential, as identity signs it for the sync gateway (the same `kid`, `brand_id` and `kind`
+            as `getDeviceCredential`). The offline shell stamps `kid` into the seals and endorsements it makes and `brand_id` into the
+            stream it may write (ADR-0005 A3.2 row 1, ADR-0014 A3.4).
           required:
           - device_id
           - public_key
           - outlet_id
+          - brand_id
           - kind
+          - kid
           properties:
             device_id:
               $ref: ../../../common/components.yaml#/components/schemas/Id
@@ -5121,8 +5251,16 @@ components:
               $ref: '#/components/schemas/PublicJwk'
             outlet_id:
               $ref: ../../../common/components.yaml#/components/schemas/Id
+            brand_id:
+              $ref: ../../../common/components.yaml#/components/schemas/Id
+              description: Brand of the outlet, read from tenancy at activation and fixed for the device's life (ADR-0014 A3.4).
             kind:
               $ref: '#/components/schemas/DeviceKind'
+            kid:
+              type: string
+              description: Key id of the device's own credential, the one the gateway holds for `device_id` (one key per device id for life,
+                ADR-0002 S7). A seal, endorsement or drain statement the device makes names this `kid`.
+              example: dev-4a5e-1
         members:
           type: array
           description: Members allowed at the outlet.
@@ -5206,6 +5344,9 @@ components:
           $ref: '#/components/schemas/Device'
         offline_pack:
           $ref: '#/components/schemas/OfflinePack'
+        recovery:
+          $ref: '#/components/schemas/DeviceRecovery'
+          description: 'Present only when the code was a recovery code: the record that ties the new device to the old one (state open).'
     RevokeDevice:
       type: object
       description: Revoke a device. Terminal; the device keeps only the drain path.
@@ -5286,6 +5427,8 @@ components:
             $ref: '#/components/schemas/DrainSeries'
         statement:
           $ref: ../../../common/components.yaml#/components/schemas/DrainStatement
+          description: "The device-signed drain statement the report rests on. `series` must list exactly the series identity issued to the
+            device (a billing device holds a pair: its tax-invoice series and its credit-note series), each with the statement's own number."
     DrainSeries:
       type: object
       description: The last document number of one series, as the device stated it.
@@ -5942,11 +6085,12 @@ components:
     DeviceCredential:
       type: object
       description: The identity-signed credential of a device as the offline pack carries it (ADR-0005 A3.2 row 1). `not_after` is
-        not part of this answer; the gateway ignores it.
+        not part of this answer; the gateway ignores it. `brand_id` is always present (ADR-0014 A3.4).
       required:
       - device_id
       - tenant_id
       - outlet_id
+      - brand_id
       - kind
       - kid
       - pub
@@ -5960,6 +6104,9 @@ components:
           $ref: ../../../common/components.yaml#/components/schemas/Id
         brand_id:
           $ref: ../../../common/components.yaml#/components/schemas/Id
+          description: Brand of the outlet, read from tenancy when the device was activated, stored on the device row and signed into the
+            credential; never re-read (ADR-0014 A3.4). The gateway caches the credential with no expiry and judges a device's stream binding
+            from it, not from a tenancy call.
         kind:
           $ref: '#/components/schemas/DeviceKind'
         kid:
@@ -7085,6 +7232,21 @@ components:
                 title: Device revoked
                 status: 403
                 code: device_revoked
+    TenancyUnavailable:
+      description: Identity could not read the outlet's brand from tenancy (unreachable, 5xx or timeout; ADR-0014 A3.4 item 1). Nothing was
+        registered and no credential was issued. Retry with the same Idempotency-Key, which is safe.
+      headers:
+        Retry-After:
+          $ref: ../../../common/components.yaml#/components/headers/RetryAfter
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../../../common/components.yaml#/components/schemas/Problem
+          example:
+            type: urn:hostry:problem:tenancy.unavailable
+            title: Tenancy unavailable
+            status: 503
+            code: tenancy.unavailable
     ApprovalRequired:
       description: The operation is blocked while the binding is under caution (24 hours) or needs an
         approval token (ADR-0005 A2.2). File the request with createApprovalRequest and repeat with the
