@@ -1,7 +1,7 @@
 # api-specs tooling. CLI tools are installed locally (no global changes):
 #   Go tools into .tools/bin via `make tools`; Node tools run through pinned npx.
 SHELL := /bin/bash
-SERVICES := identity tenancy admin
+SERVICES := identity tenancy admin catalog orders billing
 SPECS := $(foreach s,$(SERVICES),openapi/$(s)/v1/openapi.yaml)
 LINT_SPECS := $(SPECS) examples/ping/openapi.yaml
 BASE ?= origin/main
@@ -15,18 +15,22 @@ OPENAPI_TS_VERSION := 7.13.0
 TOOLS := $(CURDIR)/.tools/bin
 export PATH := $(TOOLS):$(PATH)
 
-.PHONY: tools lint lint-events lint-specs breaking bundle generate generate-go generate-ts test clean
+.PHONY: tools lint lint-events lint-specs lint-entities breaking bundle generate generate-go generate-ts test clean
 
 tools:
 	GOBIN=$(TOOLS) go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@$(OAPI_CODEGEN_VERSION)
 	GOBIN=$(TOOLS) go install github.com/oasdiff/oasdiff@$(OASDIFF_VERSION)
 
 # Spectral (Hostry rules in .spectral.yaml) + event schema and example validation.
-lint: lint-events lint-specs
+lint: lint-events lint-specs lint-entities
 	npx --yes @stoplight/spectral-cli@$(SPECTRAL_VERSION) lint --fail-severity=warn $(LINT_SPECS)
 
 lint-events:
 	go run ./cmd/validate-events events
+
+# Synced entity schemas: one owner each, policies, references, pii (ADR-0002 S6, ADR-0014 R1).
+lint-entities:
+	go run ./cmd/validate-entities entities
 
 # Cross-document conventions: permission catalogue, realms, x-service-callers, x-vendor-audit.
 lint-specs:

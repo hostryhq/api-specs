@@ -9,7 +9,7 @@ import (
 
 // Every service contract must load with its external $refs and validate, examples included.
 func TestServiceSpecsAreValid(t *testing.T) {
-	for _, svc := range []string{"identity", "tenancy", "admin"} {
+	for _, svc := range []string{"identity", "tenancy", "admin", "catalog", "orders", "billing"} {
 		t.Run(svc, func(t *testing.T) {
 			loader := openapi3.NewLoader()
 			loader.IsExternalRefsAllowed = true

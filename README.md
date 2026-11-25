@@ -10,11 +10,15 @@ common/components.yaml              shared Problem, Money, Id, phone/GSTIN/ticke
 common/permissions.yaml             permission catalogue (flags), vendor roles, link scopes
 events/_envelope.v1.yaml            ADR-0011 envelope (JSON Schema)
 events/<service>/<entity>.<verb>.v<N>.yaml   one schema per event; declares x-publisher / x-subscribers
+common/exceptions.yaml              shared detector-result (Exception) schema for catalog, orders, billing
+common/vendor.yaml                  vendor approval grant header and If-Match for /internal/v1/vendor writes
+entities/<product>/<entity>.yaml    synced entity schemas: owner service, stream, conflict policy per field (README inside)
+tax/                                tax calculation spec (calc_v), rule-set schema, conformance vectors, Go reference
 contracttest/                       Go harness: runs a spec's examples against any base URL
 contract-tests/<service>/           per-service suite (real service or its double/)
 examples/ping/                      tiny spec + double proving the harness
 ```
-Status of each document is `info.x-status` (`draft`, `stable`, `deprecated`). Identity, tenancy and admin are `stable` v1.
+Status of each document is `info.x-status` (`draft`, `stable`, `deprecated`). Identity, tenancy, admin, catalog, orders and billing are `stable` v1 (catalog, orders and billing and the Admin A1 additions to tenancy are Phase 2 drafts of the contract, stable in the sense that servers and doubles are built against them).
 Tenant-facing paths are under `/v1`; operations for other services and for the admin service are under `/internal/v1`
 (ADR-0005 section 9) and declare `x-service-callers`. Wire details fixed with go-auth: user, vendor and support tokens in
 `Authorization: Bearer`, service token in `Hostry-Service-Token`, approval token in `Hostry-Approval`, any refused token is
@@ -35,7 +39,7 @@ Tools install locally (`make tools` puts Go tools in `.tools/bin`; Node tools ru
 
 | Target | Does |
 |---|---|
-| `make lint` | Spectral on all specs + event schemas and examples + `validate-specs` (catalogue flags, realms, callers, vendor-audit marker) |
+| `make lint` | Spectral on all specs + event schemas and examples + `validate-specs` (catalogue flags, realms, callers, vendor-audit marker) + `validate-entities` (entity owners, policies, references, pii) |
 | `make breaking` | oasdiff against `BASE` (default `origin/main`); breaking changes fail |
 | `make generate` | bundle, then Go (`gen/go/<service>/`, oapi-codegen: types, net/http server, client) and TypeScript (`gen/ts/<service>.d.ts`, openapi-typescript) |
 | `make test` | `go vet` and tests, including the harness self-test |
