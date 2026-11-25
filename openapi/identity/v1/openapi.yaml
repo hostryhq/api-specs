@@ -700,6 +700,16 @@ paths:
                       kid: o-2026-09
                       alg: ES256
                       use: sig
+                    entitlements:
+                      entitlements_v: 2
+                      plan_key: table_service
+                      plan_version: 1
+                      features:
+                      - restaurant.core
+                      limits:
+                        outlets: 1
+                      organisation_status: active
+                      as_of: '2026-11-24T13:05:11.120Z'
         '409':
           $ref: '#/components/responses/RegistrationUnverified'
         '422':
@@ -998,6 +1008,16 @@ paths:
                     kid: o-2026-09
                     alg: ES256
                     use: sig
+                  entitlements:
+                    entitlements_v: 2
+                    plan_key: table_service
+                    plan_version: 1
+                    features:
+                    - restaurant.core
+                    limits:
+                      outlets: 1
+                    organisation_status: active
+                    as_of: '2026-11-24T13:05:11.120Z'
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
