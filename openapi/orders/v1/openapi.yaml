@@ -1,0 +1,1443 @@
+openapi: 3.1.0
+info:
+  title: Hostry orders API
+  version: 1.0.0
+  description: 'What was asked for and its fulfilment: seatings, orders, order lines, KOTs and open checks, projected
+    from the sync stream into orders'' own database (ADR-0014 R1, R3). Ordering, KOT routing, the KDS, present (pre-bill),
+    cancels, moves and merges all happen on devices as sync ops; this API is the cloud read side: exceptions from
+    the detectors, the cancellation, kitchen-time, KOT, present and open-check reports (each report lives wholly
+    in one service, R7), read access to checks, a projection digest for the T9 convergence test and one internal
+    read for billing. It never writes a synced row. The tenant is always the caller''s organisation from the token;
+    outlet-scoped calls take X-Outlet-Id. Business date is explicit and never derived from a timestamp. Entity fields:
+    entities/restaurant/. Display joins to other owners'' reference entities (station, table name, day state) come from read-only replicas (ADR-0014 A2.4, replicated_to) that may lag, so a joined field is absent until the replica row arrives and a client never shows a placeholder id.'
+  x-status: stable
+  x-example-worlds:
+    base: Outlet 4a61, table 5152 (T1) with open seating 6031. Open check 6001 (dine_in, label Guest 2, presented
+      once; one live sent line 6011 Paneer Tikka Full with Extra cheese x2 at 26000 each, now ready, list total 52000;
+      and line 6012 Paneer Tikka Full with Extra cheese x1, started and cancelled as wastage at 13:05:11, which is not
+      counted as a live line), KOT 6021 (P1-0007, printed, carrying both lines, so line_count 2), station 5131, and one
+      present record. Reason code 5161 is the wastage reason. No exception exists. The caller is a manager.
+    orphan-line: Base plus an open exception 6041 (orphan_line, subject order_line 6011).
+    digest-day: Outlet 4a61, business date 2026-11-24 holds exactly the rows of examples/digests/orders-digest-day.json (check 6001, order 6051, lines 6011 and 6012, KOT 6021) and no other day-scoped orders row.
+    kitchen-times-day: Outlet 4a61, business date 2026-11-24, station 5131, 42 ticket lines reached ready (line 6011 among them), median 420 seconds, 95th percentile 980 seconds, and one line (6012) was cancelled after the kitchen had started it.
+    no-open-checks: Outlet 4a61 with no open check (every check billed or cancelled). The caller is the billing
+      service.
+servers:
+- url: /
+tags:
+- name: orders
+  description: Checks, exceptions, reports.
+- name: internal
+  description: Operations for other Hostry services.
+security:
+- bearerAuth: []
+paths:
+  /v1/checks:
+    get:
+      operationId: listChecks
+      summary: List checks
+      description: Read access for owner mode and tests; devices read their local copy. Open checks first.
+      tags:
+      - orders
+      x-permission: order.edit
+      x-outlet-scoped: true
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/OutletScope
+      - name: status
+        in: query
+        required: false
+        description: Filter by status.
+        schema:
+          type: string
+          enum:
+          - open
+          - billed
+          - closed_internal
+        example: open
+      - name: order_type
+        in: query
+        required: false
+        description: Filter by order type.
+        schema:
+          type: string
+          enum:
+          - dine_in
+          - takeaway
+          - counter
+        example: dine_in
+      - name: seating_id
+        in: query
+        required: false
+        description: Filter by seating.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6031
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: A page of checks.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckPage'
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6001
+                  outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  seating_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6031
+                  label: Guest 2
+                  order_type: dine_in
+                  status: open
+                  cancelled: false
+                  present_count: 1
+                  created_at: '2026-11-24T13:05:11.120Z'
+                  line_count: 1
+                  list_total:
+                    amount_paise: 52000
+                    currency: INR
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/checks/{check_id}:
+    get:
+      operationId: getCheck
+      summary: Get a check with its lines
+      tags:
+      - orders
+      x-permission: order.edit
+      parameters:
+      - name: check_id
+        in: path
+        required: true
+        description: Check id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6001
+      responses:
+        '200':
+          description: The check.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckDetail'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6001
+                outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                seating_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6031
+                label: Guest 2
+                order_type: dine_in
+                status: open
+                cancelled: false
+                present_count: 1
+                created_at: '2026-11-24T13:05:11.120Z'
+                line_count: 1
+                list_total:
+                  amount_paise: 52000
+                  currency: INR
+                lines:
+                - order_line_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6011
+                  item_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5101
+                  name: Paneer Tikka
+                  qty_milli: 2000
+                  unit_price:
+                    amount_paise: 24000
+                    currency: INR
+                  modifier_delta:
+                    amount_paise: 2000
+                    currency: INR
+                  tax_class: fnb_standard
+                  state: sent
+                  kitchen_status: ready
+                - order_line_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6012
+                  item_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5101
+                  name: Paneer Tikka
+                  qty_milli: 1000
+                  unit_price:
+                    amount_paise: 24000
+                    currency: INR
+                  modifier_delta:
+                    amount_paise: 2000
+                    currency: INR
+                  tax_class: fnb_standard
+                  state: cancelled
+                  kitchen_status: preparing
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+  /v1/exceptions:
+    get:
+      operationId: listOrderExceptions
+      summary: List orders exceptions
+      description: 'Detector findings: orphan_line (a line reached a check already billed on another device), unresolved_line_at_close
+        (a line neither billed, cancelled nor carried over for a closed day), grace_cancel_started (a grace cancel
+        of a line the kitchen had already started, never undone), cancel_allowance_exceeded (more grace cancels
+        than allowed across offline devices), two_seatings_one_table, late_ticket, presented_check_unresolved. Resolving
+        is an op from a device, never a call here.'
+      tags:
+      - orders
+      x-permission: exceptions.view
+      x-outlet-scoped: true
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/OutletScope
+      - name: status
+        in: query
+        required: false
+        description: Filter by status.
+        schema:
+          type: string
+          enum:
+          - open
+          - resolved
+          - superseded
+        example: open
+      - name: kind
+        in: query
+        required: false
+        description: Filter by finding kind.
+        schema:
+          type: string
+        example: orphan_line
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: A page, newest first.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExceptionPage'
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6041
+                  kind: orphan_line
+                  severity: warning
+                  status: open
+                  subject_kind: order_line
+                  subject_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6011
+                  outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  business_date: '2026-11-24'
+                  detected_at: '2026-11-24T13:05:11.120Z'
+                  detail_key: exception.orphan_line
+                  params:
+                    check_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6001
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+      x-example-world: orphan-line
+  /v1/exceptions/{exception_id}:
+    get:
+      operationId: getOrderException
+      summary: Get one orders exception
+      tags:
+      - orders
+      x-permission: exceptions.view
+      parameters:
+      - name: exception_id
+        in: path
+        required: true
+        description: Exception id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6041
+      responses:
+        '200':
+          description: The finding.
+          content:
+            application/json:
+              schema:
+                $ref: ../../../common/exceptions.yaml#/components/schemas/Exception
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6041
+                kind: orphan_line
+                severity: warning
+                status: open
+                subject_kind: order_line
+                subject_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6011
+                outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                business_date: '2026-11-24'
+                detected_at: '2026-11-24T13:05:11.120Z'
+                detail_key: exception.orphan_line
+                params:
+                  check_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6001
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+      x-example-world: orphan-line
+  /v1/projection-digests:
+    get:
+      operationId: getOrdersProjectionDigest
+      x-example-world: digest-day
+      summary: Digest of the orders projection of a business day
+      description: 'Test and reconciliation aid (ADR-0014 T9): the digest must equal the one a device computes from
+        its local orders entities for the same business day.'
+      tags:
+      - orders
+      x-permission: report.view.outlet
+      x-outlet-scoped: true
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/OutletScope
+      - name: business_date
+        in: query
+        required: false
+        description: Business date to digest.
+        schema:
+          type: string
+          format: date
+        example: '2026-11-24'
+      responses:
+        '200':
+          description: The digest.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectionDigest'
+              example:
+                outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                business_date: '2026-11-24'
+                algorithm: sha256-canon-v1
+                state_hash: 5c768628ec1395f9d7e8c0c38c78865c32728ec83782f879647a6dc17f62f9c2
+                entities:
+                - entity: check
+                  row_count: 1
+                  hash: 4b720c8156ea3dfda477277e0395bdb9d9a46ba91d701347a4c87fd2d5bcfc78
+                - entity: kot
+                  row_count: 1
+                  hash: 20a802bef95d08902c72a1932164b9a9dfa1b3e80018b4c1f2c707b758978128
+                - entity: order
+                  row_count: 1
+                  hash: ed1d9cddf7e72b2d3938059cd26309dda21f1f010af355698238d1b22631657e
+                - entity: order_line
+                  row_count: 2
+                  hash: 87cf421fb2ced4e70781ed8fcd86fe0fee8253b84e48d508d3dd8a1a0afdb623
+                computed_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/reports/cancellations:
+    get:
+      operationId: getCancellationReport
+      summary: Cancellations, voids and grace cancels
+      description: 'Report 7 (orders part): who, when, reason, approver, value, wastage flag. Needs the internet
+        (RM-R5); offline the app shows the device''s open-day version. Operational reports use business date (RM-R4).
+        Cursor-paged; totals cover the whole range.'
+      tags:
+      - orders
+      x-permission: report.view.outlet
+      x-outlet-scoped: true
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/OutletScope
+      - name: from
+        in: query
+        required: false
+        description: First business date (inclusive).
+        schema:
+          type: string
+          format: date
+        example: '2026-11-24'
+      - name: to
+        in: query
+        required: false
+        description: Last business date (inclusive); at most 92 days after from.
+        schema:
+          type: string
+          format: date
+        example: '2026-11-24'
+      - name: kind
+        in: query
+        required: false
+        description: Filter by kind.
+        schema:
+          type: string
+          enum:
+          - void
+          - cancel
+          - grace_cancel
+        example: cancel
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: The report page.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CancellationReport'
+              example:
+                outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                from: '2026-11-24'
+                to: '2026-11-24'
+                basis: business_date
+                items:
+                - kind: cancel
+                  order_line_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6012
+                  check_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6001
+                  item_name: Paneer Tikka
+                  qty_milli: 1000
+                  list_value:
+                    amount_paise: 26000
+                    currency: INR
+                  reason_code_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5161
+                  member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
+                  wastage: true
+                  kitchen_status: preparing
+                  cancelled_at: '2026-11-24T13:05:11.120Z'
+                  business_date: '2026-11-24'
+                totals:
+                  count: 1
+                  list_value:
+                    amount_paise: 26000
+                    currency: INR
+                  wastage_value:
+                    amount_paise: 26000
+                    currency: INR
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/reports/kitchen-times:
+    get:
+      operationId: getKitchenTimeReport
+      x-example-world: kitchen-times-day
+      summary: Kitchen preparation times
+      description: Median and 95th percentile preparation time per station and day. Needs the internet (RM-R5);
+        offline the app shows the device's open-day version. Operational reports use business date (RM-R4). Cursor-paged;
+        totals cover the whole range.
+      tags:
+      - orders
+      x-permission: report.view.outlet
+      x-outlet-scoped: true
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/OutletScope
+      - name: from
+        in: query
+        required: false
+        description: First business date (inclusive).
+        schema:
+          type: string
+          format: date
+        example: '2026-11-24'
+      - name: to
+        in: query
+        required: false
+        description: Last business date (inclusive); at most 92 days after from.
+        schema:
+          type: string
+          format: date
+        example: '2026-11-24'
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: The report page.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KitchenTimeReport'
+              example:
+                outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                from: '2026-11-24'
+                to: '2026-11-24'
+                basis: business_date
+                items:
+                - station_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5131
+                  business_date: '2026-11-24'
+                  line_count: 42
+                  median_prep_seconds: 420
+                  p95_prep_seconds: 980
+                  cancelled_after_start: 1
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/reports/kot-log:
+    get:
+      operationId: getKotLog
+      summary: KOT log
+      description: 'Report 12: KOT history including moves, merges, cancels, recalls, handovers and reprints. Needs
+        the internet (RM-R5); offline the app shows the device''s open-day version. Operational reports use business
+        date (RM-R4). Cursor-paged; totals cover the whole range.'
+      tags:
+      - orders
+      x-permission: report.view.outlet
+      x-outlet-scoped: true
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/OutletScope
+      - name: from
+        in: query
+        required: false
+        description: First business date (inclusive).
+        schema:
+          type: string
+          format: date
+        example: '2026-11-24'
+      - name: to
+        in: query
+        required: false
+        description: Last business date (inclusive); at most 92 days after from.
+        schema:
+          type: string
+          format: date
+        example: '2026-11-24'
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: The report page.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KotLogReport'
+              example:
+                outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                from: '2026-11-24'
+                to: '2026-11-24'
+                basis: business_date
+                items:
+                - kot_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6021
+                  kot_no: P1-0007
+                  kind: original
+                  station_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5131
+                  check_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6001
+                  line_count: 2
+                  sent_at: '2026-11-24T13:05:11.120Z'
+                  member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
+                  device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                  printed: true
+                  reprint_count: 0
+                  business_date: '2026-11-24'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/reports/open-checks:
+    get:
+      operationId: getOpenChecksReport
+      summary: Open and carried-over checks
+      description: Report 11; the from and to bound the business date a check was opened on. Needs the internet
+        (RM-R5); offline the app shows the device's open-day version. Operational reports use business date (RM-R4).
+        Cursor-paged; totals cover the whole range.
+      tags:
+      - orders
+      x-permission: report.view.outlet
+      x-outlet-scoped: true
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/OutletScope
+      - name: from
+        in: query
+        required: false
+        description: First business date (inclusive).
+        schema:
+          type: string
+          format: date
+        example: '2026-11-24'
+      - name: to
+        in: query
+        required: false
+        description: Last business date (inclusive); at most 92 days after from.
+        schema:
+          type: string
+          format: date
+        example: '2026-11-24'
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: The report page.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpenChecksReport'
+              example:
+                outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                from: '2026-11-24'
+                to: '2026-11-24'
+                basis: business_date
+                items:
+                - check_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6001
+                  seating_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6031
+                  table_name: T1
+                  label: Guest 2
+                  opened_business_date: '2026-11-24'
+                  carried_over: false
+                  presented: true
+                  line_count: 1
+                  list_total:
+                    amount_paise: 52000
+                    currency: INR
+                totals:
+                  count: 1
+                  list_total:
+                    amount_paise: 52000
+                    currency: INR
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/reports/present-log:
+    get:
+      operationId: getPresentLog
+      summary: Present log
+      description: 'Report 14: every check_present, changes after it and presents with no bill. Needs the internet
+        (RM-R5); offline the app shows the device''s open-day version. Operational reports use business date (RM-R4).
+        Cursor-paged; totals cover the whole range.'
+      tags:
+      - orders
+      x-permission: report.view.outlet
+      x-outlet-scoped: true
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/OutletScope
+      - name: from
+        in: query
+        required: false
+        description: First business date (inclusive).
+        schema:
+          type: string
+          format: date
+        example: '2026-11-24'
+      - name: to
+        in: query
+        required: false
+        description: Last business date (inclusive); at most 92 days after from.
+        schema:
+          type: string
+          format: date
+        example: '2026-11-24'
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: The report page.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PresentLogReport'
+              example:
+                outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                from: '2026-11-24'
+                to: '2026-11-24'
+                basis: business_date
+                items:
+                - check_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6001
+                  present_count: 1
+                  content_hash: 5d41402abc4b2a76b9719d911017c592
+                  total:
+                    amount_paise: 52000
+                    currency: INR
+                  mode: printed
+                  member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
+                  device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                  presented_at: '2026-11-24T13:05:11.120Z'
+                  changes_after: 0
+                  billed: false
+                  business_date: '2026-11-24'
+                totals:
+                  presents: 1
+                  presents_without_bill: 1
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /internal/v1/outlets/{outlet_id}/open-check-count:
+    get:
+      operationId: getOpenCheckCount
+      summary: Count open checks of an outlet
+      description: 'An unknown outlet has no open check, so the answer is 0, never 404. Called by billing before it accepts a change of number_at (only with no open check, RM-O21).
+        Not on the trading path. x-provisional: a synchronous service-to-service read; ADR-0014 R1 forbids it on
+        the trading path only.'
+      tags:
+      - internal
+      x-permission: orders.check_count.read
+      x-service-callers:
+      - billing
+      x-provisional: Synchronous read for a settings guard; to be replaced by an event-fed table if ADR-0014 is
+        amended.
+      security:
+      - serviceAuth: []
+      parameters:
+      - name: outlet_id
+        in: path
+        required: true
+        description: Outlet id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+      responses:
+        '200':
+          description: The count.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpenCheckCount'
+              example:
+                outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                open_checks: 0
+                as_of: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+      x-example-world: no-open-checks
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: ES256 tenant-realm access token issued by identity (ADR-0005). One tenant per token. Support
+        tokens are accepted only together with the admin service token.
+    vendorBearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: ES256 vendor-realm access token. Refused by every tenant-facing operation.
+    serviceAuth:
+      type: apiKey
+      in: header
+      name: Hostry-Service-Token
+      description: 60-second ES256 service token (ADR-0005 section 9). Operations under /internal/v1 accept it only
+        from the callers in x-service-callers.
+  schemas:
+    OrderType:
+      type: string
+      description: 'How the order is served: dine_in (a table), takeaway (labelled Parcel in the English UI), counter.'
+      enum:
+      - dine_in
+      - takeaway
+      - counter
+      example: dine_in
+    KitchenStatus:
+      type: string
+      description: Forward-only kitchen progress of a ticket line (rank policy).
+      enum:
+      - new
+      - preparing
+      - ready
+      - served
+      example: ready
+    CheckLine:
+      type: object
+      description: 'One order line as it stands on a check: a snapshot of what was ordered, never recomputed from
+        the menu (RM-M6).'
+      properties:
+        order_line_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        item_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        name:
+          type: string
+          description: Item name snapshot in English.
+          example: Paneer Tikka
+        qty_milli:
+          type: integer
+          description: Quantity in thousandths of a unit (1000 is one); whole units in the Phase 2 UI.
+          format: int64
+          minimum: 1
+          example: 2000
+        unit_price:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        modifier_delta:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        tax_class:
+          type: string
+          description: Tax class snapshot.
+          example: fnb_standard
+        state:
+          type: string
+          description: draft until sent to the kitchen; cancelled when an order_line_cancel covers the full quantity.
+          enum:
+          - draft
+          - sent
+          - cancelled
+          example: sent
+        kitchen_status:
+          $ref: '#/components/schemas/KitchenStatus'
+      required:
+      - order_line_id
+      - item_id
+      - name
+      - qty_milli
+      - unit_price
+      - modifier_delta
+      - tax_class
+      - state
+    Check:
+      type: object
+      description: The open, unnumbered grouping of order lines that will be billed together (ADR-0014 R2). The
+        UI calls it a bill. A presented check is still open (A1.5).
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        outlet_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        seating_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        label:
+          type: string
+          description: Optional label of the bill on the table.
+          maxLength: 20
+          example: Guest 2
+        order_type:
+          $ref: '#/components/schemas/OrderType'
+        status:
+          type: string
+          description: open; billed once a bill exists (bill_id set); closed_internal when closed as staff meal,
+            owner consumption, sample or complimentary (provisional, ADR needed O2-1).
+          enum:
+          - open
+          - billed
+          - closed_internal
+          example: open
+        cancelled:
+          type: boolean
+          description: True when a check_cancel fact exists (before numbering, with reason).
+        present_count:
+          type: integer
+          description: How many times the pre-bill was presented (RM-O24).
+          minimum: 0
+          example: 1
+        bill_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        token_no:
+          type: integer
+          description: Display token number for counter and takeaway orders; not a legal number.
+          minimum: 1
+          example: 14
+        created_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+        line_count:
+          type: integer
+          description: Lines not cancelled.
+          minimum: 0
+          example: 1
+        list_total:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+      required:
+      - id
+      - outlet_id
+      - order_type
+      - status
+      - cancelled
+      - present_count
+      - created_at
+      - line_count
+      - list_total
+    CheckDetail:
+      allOf:
+      - $ref: '#/components/schemas/Check'
+      - type: object
+        description: A check with its lines.
+        required:
+        - lines
+        properties:
+          lines:
+            type: array
+            description: Lines, oldest first.
+            items:
+              $ref: '#/components/schemas/CheckLine'
+    CheckPage:
+      allOf:
+      - $ref: ../../../common/components.yaml#/components/schemas/PageCursor
+      - type: object
+        description: A page of Check items.
+        required:
+        - items
+        properties:
+          items:
+            type: array
+            description: Items, in the order stated by the operation.
+            items:
+              $ref: '#/components/schemas/Check'
+    ExceptionPage:
+      allOf:
+      - $ref: ../../../common/components.yaml#/components/schemas/PageCursor
+      - type: object
+        description: A page of orders exceptions.
+        required:
+        - items
+        properties:
+          items:
+            type: array
+            description: Newest first.
+            items:
+              $ref: ../../../common/exceptions.yaml#/components/schemas/Exception
+    CancellationRow:
+      type: object
+      description: One void, cancel or grace cancel of an order line (report 7, orders part).
+      properties:
+        kind:
+          type: string
+          description: 'void: never sent; cancel: sent, needed permission or approval; grace_cancel: kitchen status
+            new within cancel_grace_seconds.'
+          enum:
+          - void
+          - cancel
+          - grace_cancel
+          example: cancel
+        order_line_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        check_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        item_name:
+          type: string
+          description: Item name snapshot.
+          example: Paneer Tikka
+        qty_milli:
+          type: integer
+          description: Cancelled quantity in thousandths.
+          format: int64
+          minimum: 1
+          example: 1000
+        list_value:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        reason_code_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        member_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        approver_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        wastage:
+          type: boolean
+          description: True when the kitchen status was preparing or ready at cancel (RM-O7).
+        kitchen_status:
+          $ref: '#/components/schemas/KitchenStatus'
+        cancelled_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+        business_date:
+          type: string
+          description: Business date of the cancel.
+          format: date
+          example: '2026-11-24'
+      required:
+      - kind
+      - order_line_id
+      - check_id
+      - item_name
+      - qty_milli
+      - list_value
+      - wastage
+      - kitchen_status
+      - cancelled_at
+      - business_date
+    CancellationReport:
+      allOf:
+      - $ref: ../../../common/components.yaml#/components/schemas/PageCursor
+      - type: object
+        description: One void, cancel or grace cancel of an order line (report 7, orders part).
+        properties:
+          outlet_id:
+            $ref: ../../../common/components.yaml#/components/schemas/Id
+          from:
+            type: string
+            description: First business date included.
+            format: date
+            example: '2026-11-24'
+          to:
+            type: string
+            description: Last business date included.
+            format: date
+            example: '2026-11-24'
+          basis:
+            type: string
+            description: 'Date basis of the report: business_date for operational reports.'
+            enum:
+            - business_date
+            example: business_date
+          items:
+            type: array
+            description: Rows, oldest first.
+            items:
+              $ref: '#/components/schemas/CancellationRow'
+          totals:
+            type: object
+            description: Totals over the whole range, not only this page.
+            properties:
+              count:
+                type: integer
+                description: Cancels in range.
+                minimum: 0
+                example: 1
+              list_value:
+                $ref: ../../../common/components.yaml#/components/schemas/Money
+              wastage_value:
+                $ref: ../../../common/components.yaml#/components/schemas/Money
+            required:
+            - count
+            - list_value
+            - wastage_value
+        required:
+        - outlet_id
+        - from
+        - to
+        - basis
+        - items
+        - totals
+    KotLogRow:
+      type: object
+      description: One KOT in the kitchen-ticket history (report 12), including moves, cancels, recalls and reprints.
+      properties:
+        kot_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        kot_no:
+          type: string
+          description: 'Display number: device prefix plus a per-business-date counter; may have gaps.'
+          example: P1-0007
+        kind:
+          type: string
+          description: Ticket kind.
+          enum:
+          - original
+          - cancel
+          - moved
+          - recall
+          example: original
+        station_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        check_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        line_count:
+          type: integer
+          description: Lines on the ticket.
+          minimum: 1
+          example: 2
+        sent_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+        member_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        device_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        printed:
+          type: boolean
+          description: True when a kot_print acknowledgement exists.
+        handover:
+          type: string
+          description: 'Set when a kot_handover exists: the order was given by hand or by word; no original is printed
+            for it (RM-K15).'
+          enum:
+          - by_hand
+          - verbal
+        reprint_count:
+          type: integer
+          description: Reprints, each marked DUPLICATE.
+          minimum: 0
+          example: 0
+        business_date:
+          type: string
+          description: Business date of the send.
+          format: date
+          example: '2026-11-24'
+      required:
+      - kot_id
+      - kot_no
+      - kind
+      - check_id
+      - line_count
+      - sent_at
+      - printed
+      - reprint_count
+      - business_date
+    KotLogReport:
+      allOf:
+      - $ref: ../../../common/components.yaml#/components/schemas/PageCursor
+      - type: object
+        description: One KOT in the kitchen-ticket history (report 12), including moves, cancels, recalls and reprints.
+        properties:
+          outlet_id:
+            $ref: ../../../common/components.yaml#/components/schemas/Id
+          from:
+            type: string
+            description: First business date included.
+            format: date
+            example: '2026-11-24'
+          to:
+            type: string
+            description: Last business date included.
+            format: date
+            example: '2026-11-24'
+          basis:
+            type: string
+            description: 'Date basis of the report: business_date for operational reports.'
+            enum:
+            - business_date
+            example: business_date
+          items:
+            type: array
+            description: Rows, oldest first.
+            items:
+              $ref: '#/components/schemas/KotLogRow'
+        required:
+        - outlet_id
+        - from
+        - to
+        - basis
+        - items
+    KitchenTimeRow:
+      type: object
+      description: Preparation time per station and business date (new to ready), from the kot_line status history.
+      properties:
+        station_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        business_date:
+          type: string
+          description: Business date.
+          format: date
+          example: '2026-11-24'
+        line_count:
+          type: integer
+          description: Ticket lines that reached ready.
+          minimum: 0
+          example: 42
+        median_prep_seconds:
+          type: integer
+          description: Median seconds from new to ready.
+          minimum: 0
+          example: 420
+        p95_prep_seconds:
+          type: integer
+          description: 95th percentile seconds from new to ready.
+          minimum: 0
+          example: 980
+        cancelled_after_start:
+          type: integer
+          description: Lines cancelled after the kitchen started (wastage).
+          minimum: 0
+          example: 1
+      required:
+      - business_date
+      - line_count
+      - median_prep_seconds
+      - p95_prep_seconds
+      - cancelled_after_start
+    KitchenTimeReport:
+      allOf:
+      - $ref: ../../../common/components.yaml#/components/schemas/PageCursor
+      - type: object
+        description: Preparation time per station and business date (new to ready), from the kot_line status history.
+        properties:
+          outlet_id:
+            $ref: ../../../common/components.yaml#/components/schemas/Id
+          from:
+            type: string
+            description: First business date included.
+            format: date
+            example: '2026-11-24'
+          to:
+            type: string
+            description: Last business date included.
+            format: date
+            example: '2026-11-24'
+          basis:
+            type: string
+            description: 'Date basis of the report: business_date for operational reports.'
+            enum:
+            - business_date
+            example: business_date
+          items:
+            type: array
+            description: Rows, oldest first.
+            items:
+              $ref: '#/components/schemas/KitchenTimeRow'
+        required:
+        - outlet_id
+        - from
+        - to
+        - basis
+        - items
+    PresentLogRow:
+      type: object
+      description: One check_present with what changed after it (report 14); presents with no bill are the owner's
+        pilferage check (RM-O24 item 4).
+      properties:
+        check_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        present_count:
+          type: integer
+          description: 1 for the first Present, then 2, 3.
+          minimum: 1
+          example: 1
+        content_hash:
+          type: string
+          description: Hash of the check content shown.
+          example: 5d41402abc4b2a76b9719d911017c592
+        total:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        mode:
+          type: string
+          description: printed or displayed on a guest-facing screen.
+          enum:
+          - printed
+          - displayed
+          example: printed
+        member_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        device_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        presented_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+        changes_after:
+          type: integer
+          description: Changes recorded after this present, each with a reason.
+          minimum: 0
+          example: 0
+        billed:
+          type: boolean
+          description: Whether the check ended billed.
+        business_date:
+          type: string
+          description: Business date of the present.
+          format: date
+          example: '2026-11-24'
+      required:
+      - check_id
+      - present_count
+      - content_hash
+      - total
+      - mode
+      - presented_at
+      - changes_after
+      - billed
+      - business_date
+    PresentLogReport:
+      allOf:
+      - $ref: ../../../common/components.yaml#/components/schemas/PageCursor
+      - type: object
+        description: One check_present with what changed after it (report 14); presents with no bill are the owner's
+          pilferage check (RM-O24 item 4).
+        properties:
+          outlet_id:
+            $ref: ../../../common/components.yaml#/components/schemas/Id
+          from:
+            type: string
+            description: First business date included.
+            format: date
+            example: '2026-11-24'
+          to:
+            type: string
+            description: Last business date included.
+            format: date
+            example: '2026-11-24'
+          basis:
+            type: string
+            description: 'Date basis of the report: business_date for operational reports.'
+            enum:
+            - business_date
+            example: business_date
+          items:
+            type: array
+            description: Rows, oldest first.
+            items:
+              $ref: '#/components/schemas/PresentLogRow'
+          totals:
+            type: object
+            description: Totals over the whole range, not only this page.
+            properties:
+              presents:
+                type: integer
+                description: Presents in range.
+                minimum: 0
+                example: 1
+              presents_without_bill:
+                type: integer
+                description: Presented checks that did not end billed.
+                minimum: 0
+                example: 1
+            required:
+            - presents
+            - presents_without_bill
+        required:
+        - outlet_id
+        - from
+        - to
+        - basis
+        - items
+        - totals
+    OpenCheckRow:
+      type: object
+      description: 'An open or carried-over check (report 11): not billed, not cancelled at the report moment.'
+      properties:
+        check_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        seating_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        table_name:
+          type: string
+          description: Table name snapshot.
+          example: T4
+        label:
+          type: string
+          description: Check label.
+          example: Guest 2
+        opened_business_date:
+          type: string
+          description: Business date the check was opened.
+          format: date
+          example: '2026-11-24'
+        carried_over:
+          type: boolean
+          description: True when opened on an earlier business date.
+        presented:
+          type: boolean
+          description: Whether a pre-bill was presented.
+        line_count:
+          type: integer
+          description: Lines not cancelled.
+          minimum: 0
+          example: 3
+        list_total:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+      required:
+      - check_id
+      - label
+      - opened_business_date
+      - carried_over
+      - presented
+      - line_count
+      - list_total
+    OpenChecksReport:
+      allOf:
+      - $ref: ../../../common/components.yaml#/components/schemas/PageCursor
+      - type: object
+        description: 'An open or carried-over check (report 11): not billed, not cancelled at the report moment.'
+        properties:
+          outlet_id:
+            $ref: ../../../common/components.yaml#/components/schemas/Id
+          from:
+            type: string
+            description: First business date included.
+            format: date
+            example: '2026-11-24'
+          to:
+            type: string
+            description: Last business date included.
+            format: date
+            example: '2026-11-24'
+          basis:
+            type: string
+            description: 'Date basis of the report: business_date for operational reports.'
+            enum:
+            - business_date
+            example: business_date
+          items:
+            type: array
+            description: Rows, oldest first.
+            items:
+              $ref: '#/components/schemas/OpenCheckRow'
+          totals:
+            type: object
+            description: Totals over the whole range, not only this page.
+            properties:
+              count:
+                type: integer
+                description: Open checks.
+                minimum: 0
+                example: 1
+              list_total:
+                $ref: ../../../common/components.yaml#/components/schemas/Money
+            required:
+            - count
+            - list_total
+        required:
+        - outlet_id
+        - from
+        - to
+        - basis
+        - items
+        - totals
+    EntityDigest:
+      type: object
+      description: Hash of the canonical state of one entity for a business day.
+      properties:
+        entity:
+          type: string
+          description: Synced entity name.
+          example: order_line
+        row_count:
+          type: integer
+          description: Rows included.
+          minimum: 0
+          example: 120
+        hash:
+          type: string
+          description: Lowercase hex SHA-256 over the canonical row texts of the entity, ascending id, each followed by a line feed.
+          example: 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08
+      required:
+      - entity
+      - row_count
+      - hash
+    ProjectionDigest:
+      type: object
+      description: 'Digest of this service''s projection of one outlet business day, to compare with a device''s local state (ADR-0014 tests T2, T9, T11). Algorithm sha256-canon-v1 (sync/protocol-v1.md, Projection digest): the rows of the entities this service owns that belong to the business day (a business_date equal to it, or a parent that has one), tombstoned rows left out. A row is the canonical JSON (RFC 8785, integers only) of an object holding id and every schema field the row has set, without pii fields and without absent fields. An entity digest is the lower-case hex SHA-256 over the row texts in ascending id order, each followed by a line feed; state_hash is the SHA-256 over the line ''<entity>, line feed, row_count, line feed, hash, line feed'' for each listed entity in ascending name order. Only entities with at least one row are listed. examples/digests holds the rows of the example world and CI recomputes the example from them.'
+      properties:
+        outlet_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        business_date:
+          type: string
+          description: Business date digested.
+          format: date
+          example: '2026-11-24'
+        algorithm:
+          type: string
+          description: Digest algorithm id.
+          enum:
+          - sha256-canon-v1
+          example: sha256-canon-v1
+        state_hash:
+          type: string
+          description: Lower-case hex SHA-256 over the entity digests in ascending entity-name order (see the schema description).
+          example: 2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae
+        entities:
+          type: array
+          description: Per-entity digests, entity name ascending.
+          items:
+            $ref: '#/components/schemas/EntityDigest'
+        computed_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+      required:
+      - outlet_id
+      - business_date
+      - algorithm
+      - state_hash
+      - entities
+      - computed_at
+    OpenCheckCount:
+      type: object
+      description: How many checks of the outlet are open (not billed, cancelled or closed internally).
+      properties:
+        outlet_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        open_checks:
+          type: integer
+          description: Open checks.
+          minimum: 0
+          example: 0
+        as_of:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+      required:
+      - outlet_id
+      - open_checks
+      - as_of

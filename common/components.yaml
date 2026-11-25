@@ -11,13 +11,64 @@ components:
     Id:
       type: string
       description: Client-generated, time-sortable UUIDv7 in lower-case canonical form (ADR-0003 policy; ULID is not accepted).
-      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+        The row id of an entity whose entity file declares a deterministic id (id.rule uuidv5, ADR-0014) is a UUIDv5 in the
+        same form, so two devices that write the same natural key converge on one row.
+      pattern: '^[0-9a-f]{8}-[0-9a-f]{4}-[57][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
       example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b
     Timestamp:
       type: string
       format: date-time
       description: RFC 3339 instant in UTC.
       example: '2026-11-24T13:05:11.120Z'
+    EntitlementSnapshot:
+      type: object
+      description: 'What an organisation is entitled to at one moment (ADR-0003 section 7, ADR-0008 S5), the shape carried by tenancy `getEntitlements` and by the `entitlements` claim of the offline pack. It never gates trading (ADR-0014 T10): an absent, stale or expired snapshot changes which optional features an app offers, never whether a sale, print or day close completes. Billing state (overdue, unpaid) is not part of it.'
+      required: [entitlements_v, features, limits, organisation_status, as_of]
+      properties:
+        entitlements_v:
+          type: integer
+          minimum: 1
+          description: Version of the snapshot, per organisation, increased by every plan change and every organisation status change. A device keeps the highest version it has seen.
+          example: 3
+        plan_key:
+          type: string
+          description: Plan key of the current subscription. Absent when the organisation has no subscription.
+          example: table_service
+        plan_version:
+          type: integer
+          minimum: 1
+          description: Plan version of the current subscription. Absent when there is no subscription.
+          example: 1
+        features:
+          type: array
+          description: Feature keys granted, sorted. An app ignores a key it does not know and treats a key that is not listed as not granted.
+          items:
+            type: string
+            description: Feature key, lower_snake with dots.
+            example: restaurant.core
+        limits:
+          type: object
+          description: Quantities the plan includes, by name. Informational on a device, a limit is never enforced against a sale. Unknown names are ignored.
+          additionalProperties:
+            type: integer
+            minimum: 0
+            description: Included quantity.
+          example: {outlets: 1}
+        organisation_status:
+          type: string
+          description: Lifecycle status of the organisation. `suspended` takes effect on a device only when it holds no day in progress (ADR-0014 A1.2, BR-A1-71).
+          enum: [trial, active, suspended, closed]
+          example: active
+        valid_until:
+          type: string
+          format: date-time
+          description: Instant after which the snapshot is stale and the device refreshes it when online. Absent in A1 because plan entitlements carry no expiry (BR-A1-61). Stale never removes a feature or blocks trading.
+          example: '2026-12-31T00:00:00Z'
+        as_of:
+          type: string
+          format: date-time
+          description: Instant the snapshot was read from tenancy, UTC.
+          example: '2026-11-24T13:05:11.120Z'
     Money:
       type: object
       description: Amount in integer paise. Never a float.
@@ -69,6 +120,85 @@ components:
       minLength: 10
       maxLength: 500
       example: Owner phoned to report a lost tablet.
+    DrainStatement:
+      type: object
+      description: 'The device-signed list of everything a revoked device holds and its last document numbers (ADR-0005 A3.3,
+        domain tag `hostry-drain-v1`). Ordinary drain: `by` = `origin`, signed with the revoked device''s key. Key loss: `by` = the
+        adopting device, `rec` = the recovery id, signed with the new key.'
+      properties:
+        origin:
+          type: string
+          description: The drained device.
+        streams:
+          type: array
+          description: Every stream in which the device's log holds an own-origin op, with its head.
+          items:
+            type: object
+            description: Head of one stream.
+            properties:
+              stream:
+                type: string
+                description: Stream.
+              seq:
+                type: integer
+                description: Last own-origin seq in the stream.
+                format: int64
+              h:
+                type: string
+                description: Hash of that op.
+            required:
+            - stream
+            - seq
+            - h
+        series:
+          type: array
+          description: Every series in the device's pack, in the fields of a `series_close` record; 0 when never used.
+          items:
+            type: object
+            description: Last number of one series.
+            properties:
+              series_id:
+                type: string
+                description: Series id.
+              code:
+                type: string
+                description: Three-character series code.
+              fy:
+                type: string
+                description: Financial year, four digits.
+              last_number:
+                type: integer
+                description: Last running number allocated from the series, 0 when never used.
+                format: int64
+                minimum: 0
+            required:
+            - series_id
+            - code
+            - fy
+            - last_number
+        by:
+          type: string
+          description: Signing device id.
+        rec:
+          type: string
+          description: Recovery record id (key loss only).
+        kid:
+          type: string
+          description: Signing key id.
+        at:
+          type: string
+          description: Signing time, RFC 3339 UTC.
+        sig:
+          type: string
+          description: ES256 of "hostry-drain-v1\n" + canonical JSON of the statement without `sig`.
+      required:
+      - origin
+      - streams
+      - series
+      - by
+      - kid
+      - at
+      - sig
     PageCursor:
       type: object
       description: Cursor pagination field shared by every list response (compose with allOf).
@@ -111,6 +241,10 @@ components:
           type: string
           description: Stable machine-readable error code (also the suffix of `type`); doubles as the i18n key base.
           example: not_found
+        reason:
+          type: string
+          description: Optional sub-code that refines `code`, for example approval_not_executable carries not_approved, lapsed, executed, not_approver or subject_changed.
+          example: not_approved
         errors:
           type: array
           description: Field-level validation errors.
@@ -161,7 +295,11 @@ components:
         body without repeating the effect. The same key with a different request returns 422
         (code idempotency.mismatch); the same key while the first request is still in progress
         returns 409 (code idempotency.in_progress); an invalid key returns 422
-        (code idempotency.key_invalid).
+        (code idempotency.key_invalid). Records expire after 24 hours. An operation whose response
+        carries a one-time secret (token, refresh token, code, code half, grant, offline pack) never has
+        that response stored: its replay returns 409 (code idempotency.replay_secret) and the client
+        repeats the operation with a new key. Token-issuing operations (sessions, refresh, device and
+        drain tokens) are not recorded; a replay runs again and meets the credential checks.
       schema:
         type: string
         minLength: 1
@@ -186,7 +324,7 @@ components:
         is always taken from the token, never from a header, query or body field.
       schema:
         $ref: '#/components/schemas/Id'
-      example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5c
+      example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
     VendorLimit:
       name: limit
       in: query
@@ -215,8 +353,11 @@ components:
       required: false
       description: >-
         Per-operation approval token (ADR-0005 A2.2). ES256, typ approval, 5 minutes, single use;
-        claims include op (the operationId) and bh (hash of the request body), so it releases only
-        that one request. Needed when the binding is under caution and the operation is blocked.
+        claims include op (the operationId), bh (hash of the request body) and th (target hash), so it releases only
+        that one request on that one target. th is the lower-case hex SHA-256 over the UTF-8 text METHOD, a newline, the
+        request path with its ids exactly as sent (no query string), a newline and the 64 hex digits of bh (no sha256:
+        prefix), for example "POST\n/v1/members\n<bh hex>"; the verifier recomputes it from the request it received
+        and refuses a token whose th differs (403 approval.target_mismatch). Needed when the binding is under caution and the operation is blocked.
       schema:
         type: string
       example: tok_example_approval
@@ -269,6 +410,15 @@ components:
             status: 422
             code: validation
             errors: [{field: name, code: required, message: must not be empty}]
+    EmitUnavailable:
+      description: The cloud sync gateway cannot take the emit now (unreachable, 5xx, timeout, or not ready after a restore; ADR-0014 A2.2 item 7). Nothing changed anywhere. Retry with the same Idempotency-Key, which is safe even if the first call did land. One code for every service.
+      headers:
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+          example: {type: 'urn:hostry:problem:emit.unavailable', title: Cloud emit unavailable, status: 503, code: emit.unavailable}
     TooManyRequests:
       description: Rate limit exceeded; honour Retry-After.
       headers:

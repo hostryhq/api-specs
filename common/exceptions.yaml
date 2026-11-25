@@ -1,0 +1,76 @@
+# Shared exceptions (detector results) schema (ADR-0014 R3 "Detectors"). Referenced as
+# ../../../common/exceptions.yaml#/components/schemas/... by catalog, orders and billing.
+# An exception is a derived finding, never an editable record: the remedy is always a new op
+# (refund, credit note, move, cancel with reason), and the finding closes itself when the detector no longer fires.
+openapi: 3.1.0
+info:
+  title: Hostry shared exceptions components
+  version: 1.0.0
+  description: Detector results shared by the restaurant-domain services. Not a service API.
+paths: {}
+components:
+  schemas:
+    ExceptionSeverity:
+      type: string
+      description: info is for the manager's awareness, warning needs a look, high is a money or tax risk and notifies the owner.
+      enum: [info, warning, high]
+      example: high
+    ExceptionStatus:
+      type: string
+      description: open while the detector still fires; resolved once the resolving op arrived; superseded when a later fact made it moot.
+      enum: [open, resolved, superseded]
+      example: open
+    Exception:
+      type: object
+      description: One detector finding. `kind` values are stable per owning service and listed in that service's contract.
+      required: [id, kind, severity, status, subject_kind, subject_id, outlet_id, detected_at, detail_key]
+      properties:
+        id:
+          $ref: './components.yaml#/components/schemas/Id'
+        kind:
+          type: string
+          description: Stable finding code, for example payments_exceed_total or orphan_line.
+          example: payments_exceed_total
+        severity:
+          $ref: '#/components/schemas/ExceptionSeverity'
+        status:
+          $ref: '#/components/schemas/ExceptionStatus'
+        subject_kind:
+          type: string
+          description: Synced entity the finding is about (bill, order_line, check, seating, member, series).
+          example: bill
+        subject_id:
+          type: string
+          description: Id of the subject row (an entity id, or a series code for register findings).
+          example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5101
+        outlet_id:
+          $ref: './components.yaml#/components/schemas/Id'
+        business_date:
+          type: string
+          format: date
+          description: Business date the finding belongs to, when it has one.
+          example: '2026-11-24'
+        detected_at:
+          $ref: './components.yaml#/components/schemas/Timestamp'
+        resolved_at:
+          $ref: './components.yaml#/components/schemas/Timestamp'
+        resolved_by_ref:
+          type: string
+          description: Op identity (origin/stream/seq) or entity id of the fact that resolved it (a refund, credit note or move).
+          example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5102
+        reason:
+          type: string
+          description: 'Why the detector fired, when a kind has more than one cause. `missing`: the approval or document the subject needed never arrived
+            (for example the approval a re-bill past its allowance cites). Absent when the kind has a single cause.'
+          enum: [missing]
+          example: missing
+        detail_key:
+          type: string
+          description: i18n key of the plain-language explanation; params carry ids and numbers only.
+          example: exception.payments_exceed_total
+        params:
+          type: object
+          description: Values for the i18n key (ids, paise amounts, counts). No names, no free text.
+          additionalProperties:
+            type: [string, integer]
+          example: {total_paise: 84000, paid_paise: 168000}

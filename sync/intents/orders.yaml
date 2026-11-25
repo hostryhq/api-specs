@@ -1,0 +1,854 @@
+# Sync intent registry, orders (ADR-0002 S4, ADR-0005 section 7 and A2, ADR-0014 R1). Source of truth for the client can() table, the
+# gateway check (ADR-0002 S11) and the hub structural check (S8). Checked by `make lint-intents` (cmd/validate-intents);
+# keys and rules are in sync/intents/README.md. Generated once from a table, edited by hand from here.
+registry: sync-intents
+registry_v: 1
+group: orders
+description: 'Floor and kitchen intents: seatings, orders, checks, tickets, KDS, discounts and comps on a check.'
+intents:
+- intent: seating.open
+  intent_v: 1
+  class: trading
+  owner: orders
+  description: Open a table (or counter) occupancy.
+  permission: order.create
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    seating:
+    - insert
+  idempotency: Seating id is a client UUIDv7. Two devices opening the same table while partitioned create two seatings; the
+    table-occupied detector raises an exception for a manager. Replay of one op is a no-op.
+- intent: check.create
+  intent_v: 1
+  class: trading
+  owner: orders
+  description: Open the unnumbered check that lines will be billed together on.
+  permission: order.create
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    check:
+    - insert
+  idempotency: Every inserted row id is a client UUIDv7 carried in the op; an op is identified by (origin, stream, seq), so
+    a replayed op is ignored and never inserts a second row.
+- intent: order.create
+  intent_v: 1
+  class: trading
+  owner: orders
+  description: Create an order on a seating or a counter token.
+  permission: order.create
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    order:
+    - insert
+  idempotency: Every inserted row id is a client UUIDv7 carried in the op; an op is identified by (origin, stream, seq), so
+    a replayed op is ignored and never inserts a second row.
+- intent: order.line.add
+  intent_v: 1
+  class: trading
+  owner: orders
+  description: Add a line with its modifiers to an order, in the draft state.
+  permission: order.edit
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    order_line:
+    - insert
+    order_line_modifier:
+    - insert
+  idempotency: Every inserted row id is a client UUIDv7 carried in the op; an op is identified by (origin, stream, seq), so
+    a replayed op is ignored and never inserts a second row.
+- intent: order.line.edit
+  intent_v: 1
+  class: trading
+  owner: orders
+  description: 'Change a draft or sent line: quantity (delta), seat and note.'
+  permission: order.edit
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    order_line:
+    - set
+    - delta
+  idempotency: Quantity is a signed delta, the sum of all deltas is the value; other fields are last-writer-wins. Replay of
+    one op is a no-op.
+- intent: order.line.void
+  intent_v: 1
+  class: trading
+  owner: orders
+  description: 'Remove a line that was never sent: no reason, no approval (spec RM-O6). Appended as a fact; nothing is deleted.'
+  permission: order.edit
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    order_line_cancel:
+    - insert
+  idempotency: Every inserted row id is a client UUIDv7 carried in the op; an op is identified by (origin, stream, seq), so
+    a replayed op is ignored and never inserts a second row.
+- intent: order.line.cancel
+  intent_v: 1
+  class: trading
+  owner: orders
+  description: 'Cancel a sent line after the grace window or once the kitchen has started: reason code required, cancel ticket
+    printed, wastage flag when preparation began.'
+  permission: order.line.cancel
+  proof:
+    kind: action
+    binds:
+    - order_line_id
+    - qty_milli
+    - reason_code_id
+  override: true
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    kot:
+    - insert
+    order_line_cancel:
+    - insert
+  idempotency: Every inserted row id is a client UUIDv7 carried in the op; an op is identified by (origin, stream, seq), so
+    a replayed op is ignored and never inserts a second row.
+- intent: order.line.cancel.grace
+  intent_v: 1
+  class: trading
+  owner: orders
+  description: 'Allowance: cancel a sent line while its kitchen status is still new and inside the grace window. No second
+    person, a reason, counted per member per shift.'
+  permission: order.line.cancel.grace
+  proof:
+    kind: session
+  override: false
+  allowance:
+    counter: cancel_grace
+    limit_setting: cancel_grace_seconds
+    checked_by: device and again by orders as a detector
+  above_allowance:
+    use_intent: order.line.cancel
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    kot:
+    - insert
+    order_line_cancel:
+    - insert
+  idempotency: Every inserted row id is a client UUIDv7 carried in the op; an op is identified by (origin, stream, seq), so
+    a replayed op is ignored and never inserts a second row.
+- intent: order.items.move
+  intent_v: 1
+  class: trading
+  owner: orders
+  description: Move lines to an existing check (same seating, another table, or a free table that opens a seating). No new
+    ticket to cook; the kitchen gets an information notice (a moved-kind ticket).
+  permission: order.items.move
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    order_line:
+    - set
+    kot:
+    - insert
+  idempotency: Every inserted row id is a client UUIDv7 carried in the op; an op is identified by (origin, stream, seq), so
+    a replayed op is ignored and never inserts a second row.
+- intent: order.table.move
+  intent_v: 1
+  class: trading
+  owner: orders
+  description: Move a whole seating to a free table; bills, lines and tickets keep their identity.
+  permission: order.table.move
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    seating_move:
+    - insert
+  idempotency: Every inserted row id is a client UUIDv7 carried in the op; an op is identified by (origin, stream, seq), so
+    a replayed op is ignored and never inserts a second row.
+- intent: order.table.merge
+  intent_v: 1
+  class: trading
+  owner: orders
+  description: Merge two occupied tables into one seating on the kept table; the absorbed seating ranks to closed.
+  permission: order.table.merge
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    seating_merge:
+    - insert
+    seating:
+    - rank
+  idempotency: Every inserted row id is a client UUIDv7 carried in the op; an op is identified by (origin, stream, seq), so
+    a replayed op is ignored and never inserts a second row.
+- intent: bill.new
+  intent_v: 1
+  class: trading
+  owner: orders
+  description: Open an extra check on a seating (several bills on one table).
+  permission: bill.new
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    check:
+    - insert
+  idempotency: Every inserted row id is a client UUIDv7 carried in the op; an op is identified by (origin, stream, seq), so
+    a replayed op is ignored and never inserts a second row.
+- intent: bill.split
+  intent_v: 1
+  class: trading
+  owner: orders
+  description: 'Split by item or by seat: selected lines (or part of a line quantity) move to a new check on the same seating.
+    Sent lines stay sent.'
+  permission: bill.split
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    check:
+    - insert
+    order_line:
+    - insert
+    - set
+    - delta
+  idempotency: Every inserted row id is a client UUIDv7 carried in the op; an op is identified by (origin, stream, seq), so
+    a replayed op is ignored and never inserts a second row.
+- intent: bill.merge
+  intent_v: 1
+  class: trading
+  owner: orders
+  description: 'Merge two open checks of one seating: lines move to the kept check, the other is cancelled by a check_cancel
+    fact. Settled bills cannot be merged.'
+  permission: bill.merge
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    check_cancel:
+    - insert
+    check:
+    - set
+    order_line:
+    - set
+  idempotency: Every inserted row id is a client UUIDv7 carried in the op; an op is identified by (origin, stream, seq), so
+    a replayed op is ignored and never inserts a second row.
+- intent: bill.cancel
+  intent_v: 1
+  class: trading
+  owner: orders
+  description: 'Cancel a whole open check after a KOT: permission and reason code. Appended as a fact.'
+  permission: bill.cancel
+  proof:
+    kind: action
+    binds:
+    - check_id
+    - reason_code_id
+  override: true
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    check_cancel:
+    - insert
+  idempotency: Every inserted row id is a client UUIDv7 carried in the op; an op is identified by (origin, stream, seq), so
+    a replayed op is ignored and never inserts a second row.
+- intent: bill.request
+  intent_v: 1
+  class: trading
+  owner: orders
+  description: '"Bill, please": a row the counter acts on.'
+  permission: bill.request
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    bill_request:
+    - insert
+  idempotency: Every inserted row id is a client UUIDv7 carried in the op; an op is identified by (origin, stream, seq), so
+    a replayed op is ignored and never inserts a second row.
+- intent: bill.present
+  intent_v: 1
+  class: trading
+  owner: orders
+  description: Print or show the unnumbered pre-bill and record what the guest was shown; never takes a number in settle mode.
+  permission: bill.present
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    check_present:
+    - insert
+  idempotency: Every inserted row id is a client UUIDv7 carried in the op; an op is identified by (origin, stream, seq), so
+    a replayed op is ignored and never inserts a second row.
+- intent: bill.present.change
+  intent_v: 1
+  class: trading
+  owner: orders
+  description: Record a change made to a check after it was presented, with reason, listed per member (spec RM-O24).
+  permission: order.edit
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    check_present_change:
+    - insert
+  idempotency: Every inserted row id is a client UUIDv7 carried in the op; an op is identified by (origin, stream, seq), so
+    a replayed op is ignored and never inserts a second row.
+- intent: bill.discount.apply
+  intent_v: 1
+  class: trading
+  owner: orders
+  description: Discount on a check or a line up to the outlet limit (a setting owned by billing).
+  permission: bill.discount.apply
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    check:
+    - set
+    order_line:
+    - set
+  idempotency: Mutations are per field group, last writer by (hlc, origin); replaying the same op re-applies the same (hlc,
+    origin) and is a no-op. A lww_review field carries prev, so a concurrent edit is kept and sent to a manager, never merged
+    silently.
+- intent: bill.discount.over_limit
+  intent_v: 1
+  class: trading
+  owner: orders
+  description: Discount above the outlet limit; the permission is the boolean, the limit is configuration.
+  permission: bill.discount.over_limit
+  proof:
+    kind: action
+    binds:
+    - discount_kind
+    - discount_value
+  override: true
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    check:
+    - set
+    order_line:
+    - set
+  idempotency: Mutations are per field group, last writer by (hlc, origin); replaying the same op re-applies the same (hlc,
+    origin) and is a no-op. A lww_review field carries prev, so a concurrent edit is kept and sent to a manager, never merged
+    silently.
+- intent: bill.line.comp
+  intent_v: 1
+  class: trading
+  owner: orders
+  description: Comp one line at any value, with a reason code.
+  permission: bill.line.comp
+  proof:
+    kind: action
+    binds:
+    - comp
+    - comp_reason_code_id
+  override: true
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    order_line:
+    - set
+  idempotency: Mutations are per field group, last writer by (hlc, origin); replaying the same op re-applies the same (hlc,
+    origin) and is a no-op. A lww_review field carries prev, so a concurrent edit is kept and sent to a manager, never merged
+    silently.
+- intent: bill.line.comp.allowance
+  intent_v: 1
+  class: trading
+  owner: orders
+  description: 'Allowance: comp a line within the shift value limit, with a reason from the outlet short list.'
+  permission: bill.line.comp.allowance
+  proof:
+    kind: session
+  override: false
+  allowance:
+    counter: comp_value_paise
+    limit_setting: comp_allowance_paise
+    checked_by: device and again by orders as a detector
+  above_allowance:
+    use_intent: bill.line.comp
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    order_line:
+    - set
+  idempotency: Mutations are per field group, last writer by (hlc, origin); replaying the same op re-applies the same (hlc,
+    origin) and is a no-op. A lww_review field carries prev, so a concurrent edit is kept and sent to a manager, never merged
+    silently.
+- intent: bill.service_charge.remove
+  intent_v: 1
+  class: trading
+  owner: orders
+  description: Remove the service or packing charge from one check.
+  permission: bill.service_charge.remove
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    check:
+    - set
+  idempotency: Mutations are per field group, last writer by (hlc, origin); replaying the same op re-applies the same (hlc,
+    origin) and is a no-op. A lww_review field carries prev, so a concurrent edit is kept and sent to a manager, never merged
+    silently.
+- intent: bill.customer_details.edit
+  intent_v: 1
+  class: trading
+  owner: orders
+  description: Customer name, phone and GSTIN before settlement.
+  permission: bill.customer_details.edit
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    check:
+    - set
+  pii_fields:
+  - customer_name
+  - customer_phone
+  - customer_gstin
+  idempotency: Mutations are per field group, last writer by (hlc, origin); replaying the same op re-applies the same (hlc,
+    origin) and is a no-op. A lww_review field carries prev, so a concurrent edit is kept and sent to a manager, never merged
+    silently.
+- intent: kot.send
+  intent_v: 1
+  class: trading
+  owner: orders
+  description: 'Send draft lines to the kitchen: one ticket, its lines, and the lines rank from draft to sent. Delivery is
+    to hub or cloud, not the kitchen seeing it.'
+  permission: order.edit
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    kot:
+    - insert
+    kot_line:
+    - insert
+    order_line:
+    - rank
+  idempotency: Ticket and ticket-line ids are client UUIDv7 in the op; replay is a no-op. A second send of the same order
+    lines creates no second ticket because the line state is rank-forward (draft to sent).
+- intent: kds.recall
+  intent_v: 1
+  class: trading
+  owner: orders
+  description: 'Recall a ticket on the kitchen display: appends a new ticket that references the old one, shown as RECALL.
+    Statuses never move backwards.'
+  permission: kds.bump
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - device
+  - pin
+  device_kinds:
+  - kds
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    kot:
+    - insert
+  idempotency: Every inserted row id is a client UUIDv7 carried in the op; an op is identified by (origin, stream, seq), so
+    a replayed op is ignored and never inserts a second row.
+- intent: seating.close
+  intent_v: 1
+  class: trading
+  owner: orders
+  description: Close a seating, which frees the table, when every bill on it is paid, credited or cancelled and no open check
+    holds lines (spec RM-O15). Recorded by the device that completed the last payment or cancel.
+  permission: order.edit
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    seating:
+    - rank
+  idempotency: Seating status is rank-forward (open, billed, closed); a replayed or concurrent close is a no-op.
+- intent: kot.handover
+  intent_v: 1
+  class: trading
+  owner: orders
+  description: Record a ticket given by hand or by word; the printing device then never prints an original (RM-K15).
+  permission: kot.handover
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    kot_handover:
+    - insert
+  idempotency: Every inserted row id is a client UUIDv7 carried in the op; an op is identified by (origin, stream, seq), so
+    a replayed op is ignored and never inserts a second row.
+- intent: kot.reprint
+  intent_v: 1
+  class: trading
+  owner: orders
+  description: Reprint a ticket, marked DUPLICATE and logged.
+  permission: kot.reprint
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    kot_print:
+    - insert
+  idempotency: Every inserted row id is a client UUIDv7 carried in the op; an op is identified by (origin, stream, seq), so
+    a replayed op is ignored and never inserts a second row.
+- intent: kot.print.ack
+  intent_v: 1
+  class: trading
+  owner: orders
+  description: The printing device records the outcome of a ticket print job.
+  permission: order.edit
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    kot_print:
+    - insert
+  idempotency: Every inserted row id is a client UUIDv7 carried in the op; an op is identified by (origin, stream, seq), so
+    a replayed op is ignored and never inserts a second row.
+- intent: kds.status
+  intent_v: 1
+  class: trading
+  owner: orders
+  description: 'Kitchen display moves a ticket line forward: new, preparing, ready, served.'
+  permission: kds.bump
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - device
+  - pin
+  device_kinds:
+  - kds
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    kot_line:
+    - rank
+  idempotency: 'Status is forward-only (rank): a late or replayed lower status is ignored; the highest rank wins.'
+- intent: check.close_internal
+  intent_v: 1
+  class: trading
+  owner: orders
+  description: Close a check as staff meal, owner use, sample or guest complimentary with no invoice and no sale number; billing
+    keeps the internal document.
+  permission: check.close_internal
+  proof:
+    kind: session
+  override: false
+  allowance:
+    counter: internal_closure
+    limit_setting: internal_closure_per_shift
+    checked_by: device and again by orders as a detector
+  above_allowance:
+    use_intent: bill.line.comp
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    check:
+    - rank
+    internal_consumption:
+    - insert
+  idempotency: Every inserted row id is a client UUIDv7 carried in the op; an op is identified by (origin, stream, seq), so
+    a replayed op is ignored and never inserts a second row.
+  x-provisional: Owner of internal_consumption is billing (founder default O2-1, ADR needed); the allowance limit key is provisional.
+- intent: menu.open_item
+  intent_v: 1
+  class: trading
+  owner: orders
+  description: 'Allowance (Should): a one-off charge with a reason, price limit and report row.'
+  permission: menu.open_item
+  proof:
+    kind: session
+  override: false
+  allowance:
+    counter: open_item
+    limit_setting: open_item_price_limit_paise
+    checked_by: device and again by orders as a detector
+  above_allowance:
+    use_intent: bill.line.comp
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    order_line:
+    - insert
+  idempotency: Every inserted row id is a client UUIDv7 carried in the op; an op is identified by (origin, stream, seq), so
+    a replayed op is ignored and never inserts a second row.
+  x-provisional: Above-allowance route is not stated in the spec; set by this registry, confirm with product.

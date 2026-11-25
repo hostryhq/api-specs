@@ -1,0 +1,107 @@
+# Vendor approval grant and conditional-write headers for /internal/v1/vendor operations that execute
+# a two-person approval in the serving service (ADR-0014 A1.3, ADR-0013 V2 item 3 and V7). Referenced as
+# ../../../common/vendor.yaml#/components/... Not a service API.
+openapi: 3.1.0
+info:
+  title: Hostry vendor approval components
+  version: 1.0.0
+  description: Headers and responses for vendor operations executed under a signed single-use approval grant.
+paths: {}
+components:
+  parameters:
+    VendorApprovalGrant:
+      name: Hostry-Vendor-Approval
+      in: header
+      required: true
+      description: >-
+        Signed, single-use vendor approval grant from identity (ADR-0014 A1.3, A2.6): a compact JWS, ES256, signed with identity's
+        vendor-realm key (`kid` in the header), 5 minutes. Claims are in the schema VendorApprovalGrantClaims; the subject hash is
+        defined there and checked by the shared vectors in common/vendor-grant.vectors.v1.json. The executing service verifies in
+        this order: signature and kid; typ, realm and aud (the service itself); exp; kind (the one this operation executes); org
+        (equals the path organisation; the literal platform for a platform-wide kind); approver (equals the subject of the bearer vendor token, which holds the
+        kind's approve permission); the subject hash, recomputed from the path and the service's own stored state, never from a
+        value the caller sends; then jti is inserted into approval_grant_used in the action's own transaction. Refusals are 403
+        with code grant.required (no header), grant.invalid (signature, kid, typ, realm, aud, kind, org or approver), grant.expired
+        (exp), grant.subject_mismatch or grant.used. The grant never reaches a browser. approval_id is a parameter of the admin
+        facade only; an executing service takes it from the grant.
+      schema:
+        type: string
+      example: eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6InZlbmRvci1yZWFsbS0xIn0.eyJpc3MiOiJodHRwczovL2lkZW50aXR5Lmhvc3RyeS5pbnZhbGlkL3ZlbmRvciIsInJlYWxtIjoidmVuZG9yIiwiYXVkIjoidGVuYW5jeSIsInR5cCI6InZlbmRvcl9hcHByb3ZhbCIsImp0aSI6IjAxOTBhMWIyLWMzZDQtN2U1Zi04YTliLTBjMWQyZTNmNGFiMiIsImFwcHJvdmFsX2lkIjoiMDE5MGExYjItYzNkNC03ZTVmLThhOWItMGMxZDJlM2Y0YTZkIiwia2luZCI6Im9yZ19zdXNwZW5kIiwib3JnIjoiMDE5MGExYjItYzNkNC03ZTVmLThhOWItMGMxZDJlM2Y0YTYwIiwicmVxdWVzdGVyIjoiMDE5MGExYjItYzNkNC03ZTVmLThhOWItMGMxZDJlM2Y0YTY2IiwiYXBwcm92ZXIiOiIwMTkwYTFiMi1jM2Q0LTdlNWYtOGE5Yi0wYzFkMmUzZjRhNzgiLCJzdWJqZWN0X2hhc2giOiJhODJhNjhiMmI4ODU5NjhmNWQ1Y2ZmYzEwODE5Y2I0NzI3MjMyZjBmNmRmM2MyMmU1MzgwZjkyNGZkMDk3Zjc0IiwiaWF0IjoxNzk1NTI1NTcxLCJleHAiOjE3OTU1MjU4NzF9.qhs1FZkoNZmloYKP3Fpu35Gl-RxAwRYu4gHfYZfoRfw-kNSChKTpeBh8rmSOU_Dm8bkJZ3pyYP7Mwnm60bC2pA
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      description: Entity tag of the version being edited (from the last read); a stale tag returns 412 with code precondition_failed.
+      schema:
+        type: string
+      example: '"1"'
+  schemas:
+    VendorApprovalGrantClaims:
+      type: object
+      description: Claims of the vendor approval grant (ADR-0014 A2.6 item 1). The header is {alg ES256, typ JWT, kid}. Unknown claims are ignored.
+      required: [iss, realm, aud, typ, jti, approval_id, kind, org, requester, approver, subject_hash, iat, exp]
+      properties:
+        iss:
+          type: string
+          description: Identity's vendor-realm issuer.
+        realm:
+          type: string
+          description: Always vendor.
+          const: vendor
+        aud:
+          type: string
+          description: The executing service.
+          enum: [tenancy, billing]
+        typ:
+          type: string
+          description: Always vendor_approval.
+          const: vendor_approval
+        jti:
+          type: string
+          description: UUIDv7; the grant id that is recorded as used.
+        approval_id:
+          type: string
+          description: The approval record.
+        kind:
+          type: string
+          description: The approval kind. The kinds identity executes itself (sign-in code, owner recovery, device revoke over quota) carry no grant; the request body hash binds them.
+          enum: [org_suspend, org_reinstate, org_close, tax_rule_set_publish]
+        org:
+          type: string
+          description: Organisation id, or the literal platform for a platform-wide action (tax_rule_set_publish), so the verifier can always require a non-empty org (O2-9). Not part of the subject hash.
+        requester:
+          type: string
+          description: Vendor user who filed the request.
+        approver:
+          type: string
+          description: Vendor user who approved it; equals the subject of the bearer token that executes.
+        subject_hash:
+          type: string
+          description: >-
+            Lower-case hex SHA-256 over the UTF-8 bytes of the kind and its fields joined by a single newline, with no trailing
+            newline. org_suspend: "org_suspend\n<organisation id>\nsuspended". org_reinstate: "org_reinstate\n<organisation id>\nactive".
+            org_close: "org_close\n<organisation id>\nclosed". tax_rule_set_publish: "tax_rule_set_publish\n<rule-set id>\n<content hash>\n<effective date>".
+            Ids are lower-case UUID text with hyphens; the content hash is the lower-case hex stored at signing; the effective
+            date is YYYY-MM-DD as stored on the signed version. A change to a kind's field list is a new kind name. A request is
+            filed with the fields, not a hash; identity computes the hash when it issues a grant; the executing service recomputes it.
+          pattern: '^[0-9a-f]{64}$'
+        iat:
+          type: integer
+          description: Issued at, Unix seconds.
+        exp:
+          type: integer
+          description: iat plus 300 seconds.
+      example:
+        iss: https://identity.hostry.invalid/vendor
+        realm: vendor
+        aud: tenancy
+        typ: vendor_approval
+        jti: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4ab2
+        approval_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6d
+        kind: org_suspend
+        org: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+        requester: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+        approver: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a78
+        subject_hash: a82a68b2b885968f5d5cffc10819cb4727232f0f6df3c22e5380f924fd097f74
+        iat: 1795525571
+        exp: 1795525871

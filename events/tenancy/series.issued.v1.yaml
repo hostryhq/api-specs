@@ -1,0 +1,70 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: urn:hostry:events:tenancy.series.issued:v1
+title: tenancy.series.issued v1
+description: "Identity issued a document series to a device under the outlet registration. Ids and codes only (ADR-0014 A2.5, A2.8); billing registers the series so its register knows which numbers to expect."
+x-publisher: tenancy
+x-subscribers:
+- billing
+- sync
+allOf:
+- $ref: urn:hostry:events:envelope:v1
+- type: object
+  properties:
+    type:
+      const: tenancy.series.issued
+    v:
+      const: 1
+    source:
+      const: tenancy
+    data:
+      type: object
+      required:
+      - series_id
+      - code
+      - doc_type
+      - tax_registration_id
+      - outlet_id
+      - device_id
+      properties:
+        series_id:
+          type: string
+          description: The document series.
+        code:
+          type: string
+          description: Series code, 3 characters from the registry alphabet.
+          pattern: ^[A-HJ-NP-Z2-9]{3}$
+        doc_type:
+          type: string
+          description: Document type of the series.
+          enum:
+          - tax_invoice
+          - credit_note
+          - bill_of_supply
+          - plain_bill
+        tax_registration_id:
+          type: string
+          description: The registration the series belongs to.
+        outlet_id:
+          type: string
+          description: The outlet.
+        device_id:
+          type: string
+          description: The device that holds the series.
+examples:
+- id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f9131
+  type: tenancy.series.issued
+  v: 1
+  source: tenancy
+  tenant_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+  outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+  key: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6c
+  key_seq: 1
+  occurred_at: '2026-11-24T13:25:11.120Z'
+  actor: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
+  data:
+    series_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6c
+    code: A7K
+    doc_type: tax_invoice
+    tax_registration_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+    outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+    device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e

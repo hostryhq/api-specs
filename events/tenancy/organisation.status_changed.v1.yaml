@@ -1,0 +1,58 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: urn:hostry:events:tenancy.organisation.status_changed:v1
+title: tenancy.organisation.status_changed v1
+description: An organisation was suspended, reinstated or closed (ADR-0003 section 8, ADR-0014 A1.2). Suspended
+  reaches devices in the entitlement snapshot and takes effect there only when the device holds no day in progress.
+x-publisher: tenancy
+x-subscribers:
+- identity
+allOf:
+- $ref: urn:hostry:events:envelope:v1
+- type: object
+  properties:
+    type:
+      const: tenancy.organisation.status_changed
+    v:
+      const: 1
+    source:
+      const: tenancy
+    data:
+      type: object
+      required:
+      - status
+      - previous_status
+      - approval_id
+      properties:
+        status:
+          type: string
+          description: New status.
+          enum:
+          - trial
+          - active
+          - suspended
+          - closed
+        previous_status:
+          type: string
+          description: Status before.
+          enum:
+          - trial
+          - active
+          - suspended
+          - closed
+        approval_id:
+          type: string
+          description: Vendor approval that authorised it.
+examples:
+- id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f900b
+  type: tenancy.organisation.status_changed
+  v: 1
+  source: tenancy
+  tenant_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+  key: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+  key_seq: 1
+  occurred_at: '2026-11-24T13:05:11.120Z'
+  actor: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+  data:
+    status: suspended
+    previous_status: active
+    approval_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6d

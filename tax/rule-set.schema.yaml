@@ -1,0 +1,88 @@
+# JSON Schema of a tax rule set document (ADR-0014 R6.3, Admin A1 section 5.8). A rule set is Hostry's data: versioned,
+# effective-dated, CA-reviewed, published by two vendor staff through svc-billing, and emitted to every organisation's tenant
+# stream as one tax_rule_set row plus tax_rule rows (entities/restaurant). Owners never type rates.
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: urn:hostry:tax:rule-set:v1
+title: Hostry tax rule set v1
+type: object
+required: [name, effective_date, calc_v, rules]
+properties:
+  name:
+    type: string
+    description: Label shown in the admin panel.
+    maxLength: 80
+  effective_date:
+    type: string
+    format: date
+    description: First IST invoice date the version applies to. At least the configured lead time ahead when published; immutable once signed.
+  calc_v:
+    type: integer
+    description: Calculation version the set is meant for (tax/README.md).
+    minimum: 1
+  rules:
+    type: array
+    description: One mapping per (tax class, regime, specified premises, order channel) in use.
+    minItems: 1
+    items:
+      type: object
+      description: A rule row.
+      required: [tax_class, regime, specified_premises, order_channel, doc_type, gst_applies, cgst_bp, sgst_bp, igst_bp]
+      additionalProperties: false
+      properties:
+        tax_class:
+          type: string
+          description: Tax class key the owner assigns to items (never a rate).
+          pattern: '^[a-z][a-z0-9_]{1,31}$'
+        regime:
+          type: string
+          description: Registration regime.
+          enum: [regular, composition, unregistered]
+        specified_premises:
+          type: boolean
+          description: The outlet's specified-premises flag for the financial year.
+        order_channel:
+          type: string
+          description: Order channel.
+          enum: [dine_in, takeaway, counter, eco]
+        doc_type:
+          type: string
+          description: Document the regime produces.
+          enum: [tax_invoice, bill_of_supply, plain_bill]
+        gst_applies:
+          type: boolean
+          description: False for non-GST items and for composition and unregistered.
+        cgst_bp:
+          type: integer
+          description: CGST in basis points; a whole number.
+          minimum: 0
+          maximum: 2800
+        sgst_bp:
+          type: integer
+          description: SGST in basis points; equals cgst_bp for an intra-state supply.
+          minimum: 0
+          maximum: 2800
+        igst_bp:
+          type: integer
+          description: IGST in basis points; 0 in Phase 2 (intra-state only, RM-T8).
+          const: 0
+        sac:
+          type: string
+          description: SAC or HSN code, 4 to 8 digits; not shipped until the CA advises.
+          pattern: '^[0-9]{4,8}$'
+  signoff:
+    type: object
+    description: CA sign-off record, required to sign.
+    required: [reviewer_name, signed_on, reference_note]
+    properties:
+      reviewer_name:
+        type: string
+        description: Reviewer's name.
+        minLength: 2
+      signed_on:
+        type: string
+        format: date
+        description: Date of sign-off.
+      reference_note:
+        type: string
+        description: Where the advice is recorded.
+        minLength: 10

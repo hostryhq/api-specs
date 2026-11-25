@@ -35,7 +35,7 @@ allOf:
           - pin_changed
           - removed
 examples:
-- id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a83
+- id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f9103
   type: identity.member.changed
   v: 1
   source: identity

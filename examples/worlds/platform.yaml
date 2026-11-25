@@ -1,0 +1,101 @@
+# Shared example world: platform domain (identity, tenancy, admin). ADR-0003, ADR-0005, ADR-0013.
+# Every id, GSTIN, series code, member and device that appears in a spec example, event example or entity file of the
+# platform services is declared here once. `make lint-worlds` (cmd/validate-worlds) fails an example that uses an id
+# nobody declared, a GSTIN with a wrong check character, a series code outside the registry alphabet, an id whose kind
+# does not fit the field it sits in, or an entity whose facts (name, code, GSTIN ...) differ between two examples.
+# Ids are written as the 4 trailing hex digits; the full id is `id_prefix` + digits (UUIDv7).
+world: platform
+id_prefix: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f
+series_alphabet: ABCDEFGHJKLMNPQRSTUVWXYZ23456789
+entries:
+# ---- the organisation -----------------------------------------------------------------------------------------
+- {name: org, id: '4a60', kind: organisation, facts: {name: Example Hospitality}}
+- {name: brand, id: '4a6a', kind: brand, facts: {name: Example Hospitality}}
+- {name: outlet, id: '4a61', kind: outlet, facts: {name: Main Restaurant, state_code: '33'}, note: the only outlet of the restaurant worlds}
+- {name: registration, id: '4a6b', kind: registration, facts: {legal_name: Example Hospitality Pvt Ltd, gstin: 33ABCDE1234F1Z7, state_code: '33'}}
+- {name: series_invoice, id: '4a6c', kind: series, facts: {code: A7K}, note: tax_invoice series of device pos_1 under registration}
+- {name: series_credit, id: '4a95', kind: series, facts: {code: A7M}, note: credit_note series of device pos_1}
+- {name: bill_book, id: '8051', kind: series, facts: {code: BKB}, note: entry-only paper bill book}
+# ---- a second organisation (links) and spare rows used by create operations -------------------------------------
+- {name: org_counterparty, id: '4a63', kind: organisation, facts: {name: Example Restaurants}}
+- {name: outlet_counterparty, id: '4a94', kind: outlet}
+- {name: brand_new, id: '4a91', kind: brand, facts: {name: Example Bakery}, note: created by createBrand}
+- {name: outlet_new, id: '4a92', kind: outlet, facts: {name: Garden Restaurant, state_code: '33'}, note: created by createOutlet}
+- {name: registration_spare, id: '4a93', kind: registration, facts: {legal_name: Example Hospitality Karnataka Pvt Ltd, gstin: 29ABCDE1234F1ZW, state_code: '29'}}
+- {name: registration_counterparty, id: '4aa1', kind: registration, facts: {gstin: 33AAAAA0000A1Z9, state_code: '33'}, note: the counterparty organisation's verified registration}
+# ---- members, roles, devices --------------------------------------------------------------------------------------
+- {name: member_asha, id: '4a64', kind: member, facts: {display_name: Asha}, note: owner; also cashier at the outlet; the caller of the restaurant worlds}
+- {name: member_ravi, id: '4a9e', kind: member, facts: {display_name: Ravi}, note: staff member and cashier}
+- {name: member_latha, id: '4a9d', kind: member, facts: {display_name: Latha}, note: created by createMember}
+- {name: role_owner, id: '4a9a', kind: role, facts: {name: Owner}}
+- {name: role_cashier, id: '4a65', kind: role, facts: {name: Cashier}}
+- {name: role_waiter, id: '4a9b', kind: role, facts: {name: Waiter}}
+- {name: role_kitchen, id: '4a8f', kind: role, facts: {name: Kitchen}, note: created by createRole}
+- {name: assignment_asha_owner, id: '4a6f', kind: role_assignment}
+- {name: assignment_asha_cashier, id: '4a8b', kind: role_assignment}
+- {name: assignment_ravi_cashier, id: '4a9f', kind: role_assignment}
+- {name: assignment_ravi_owner, id: '4a8d', kind: role_assignment, note: co-owner world}
+- {name: assignment_ravi_waiter, id: '4a8c', kind: role_assignment, note: created by assignRole}
+- {name: assignment_new, id: '4a8e', kind: role_assignment}
+- {name: device_pos_1, id: '4a5e', kind: device, facts: {name: Counter 1, kind: pos}, note: the only device; origin of every sync example}
+- {name: device_pos_2, id: '4a5f', kind: device, facts: {name: Counter 2, kind: pos}, note: adopts device_pos_1 after key loss (device-key-recovered world)}
+- {name: device_recovery, id: '4aa2', kind: device_recovery, note: key-loss recovery of device_pos_1}
+- {name: recovery_code, id: '4aa3', kind: recovery_code, facts: {code: 7QK3M9XD, kind: pos}, note: single-use recovery code bound to device_pos_1}
+- {name: binding, id: '4a6e', kind: binding}
+- {name: activation_code, id: '4a75', kind: activation_code, facts: {code: 7QK3M9XD, kind: pos}}
+- {name: pin_reset_authorisation, id: '4a76', kind: pin_reset_authorisation}
+- {name: revocation, id: '4a77', kind: revocation}
+- {name: otp_challenge, id: '4a5b', kind: otp_challenge}
+- {name: session_asha, id: '4a5d', kind: session}
+- {name: owner_invitation, id: '4a67', kind: invitation}
+- {name: owner_recovery, id: '4a99', kind: owner_recovery}
+- {name: approval, id: '4a70', kind: approval, note: identity approval request (member side)}
+# ---- vendor realm -------------------------------------------------------------------------------------------------
+- {name: vendor_priya, id: '4a66', kind: vendor_user, facts: {display_name: Priya, role: support, email: staff@example.invalid}}
+- {name: vendor_arun, id: '4a78', kind: vendor_user, facts: {display_name: Arun, role: platform_admin, email: admin@example.invalid}}
+- {name: vendor_karthik, id: '4a88', kind: vendor_user, facts: {display_name: Karthik, email: new.staff@example.invalid}, note: created by createVendorUser}
+- {name: vendor_approval, id: '4a6d', kind: vendor_approval}
+- {name: vendor_grant, id: '4ab2', kind: vendor_grant, note: jti of the example vendor approval grant (common/vendor-grant.vectors.v1.json)}
+- {name: support_session, id: '4a68', kind: support_session}
+- {name: audit_support_session, id: '4a69', kind: audit_entry, note: support.session.started}
+- {name: audit_device_revoked, id: '4a8a', kind: audit_entry, note: vendor.device.revoked}
+- {name: audit_vendor_access, id: '4a9c', kind: audit_entry, note: tenancy vendor access record}
+# ---- links (one id per object; the worlds vary only its state) ---------------------------------------------------------
+- {name: link, id: '4a62', kind: link}
+- {name: link_grant, id: '4a72', kind: link_grant}
+- {name: link_amendment, id: '4a73', kind: link_amendment}
+- {name: link_activity_proposed, id: '4a96', kind: link_activity}
+- {name: link_activity_accepted, id: '4a97', kind: link_activity}
+- {name: link_activity_confirmed, id: '4a98', kind: link_activity}
+# ---- Hostry's own subscription ledger (tenancy) ---------------------------------------------------------------------
+- {name: subscription, id: '8011', kind: subscription}
+- {name: charge, id: '8021', kind: charge}
+- {name: payment, id: '8031', kind: tenancy_payment}
+- {name: payment_reversal, id: '8032', kind: tenancy_payment}
+- {name: billing_config, id: '8041', kind: billing_config}
+# ---- events published by the platform services; one id per event example ------------------------------------------------
+- {name: ev_device_registered, id: '9101', kind: event}
+- {name: ev_device_revoked, id: '9102', kind: event}
+- {name: ev_member_changed, id: '9103', kind: event}
+- {name: ev_session_revoked, id: '9104', kind: event}
+- {name: ev_link_proposed, id: '9111', kind: event}
+- {name: ev_link_accepted, id: '9112', kind: event}
+- {name: ev_link_confirmed, id: '9113', kind: event}
+- {name: ev_link_declined, id: '9114', kind: event}
+- {name: ev_link_expired, id: '9115', kind: event}
+- {name: ev_link_suspended, id: '9116', kind: event}
+- {name: ev_link_resumed, id: '9117', kind: event}
+- {name: ev_link_revoked, id: '9118', kind: event}
+- {name: ev_link_amended, id: '9119', kind: event}
+- {name: ev_organisation_created, id: '9121', kind: event}
+- {name: ev_organisation_updated, id: '9122', kind: event}
+- {name: ev_outlet_created, id: '9123', kind: event}
+- {name: ev_outlet_updated, id: '9124', kind: event}
+- {name: ev_vendor_access, id: '9125', kind: event}
+- {name: ev_vendor_access_executed, id: '9126', kind: event}
+- {name: ev_subscription_changed, id: '900a', kind: event}
+- {name: ev_organisation_status_changed, id: '900b', kind: event}
+- {name: ev_series_issued, id: '9131', kind: event}
+- {name: ev_series_closed, id: '9132', kind: event}
+- {name: ev_device_drained, id: '9133', kind: event}
+- {name: ev_manual_book_registered, id: '9134', kind: event}

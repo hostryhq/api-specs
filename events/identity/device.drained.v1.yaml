@@ -1,0 +1,67 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: urn:hostry:events:identity.device.drained:v1
+title: identity.device.drained v1
+description: "A revoked device drained its unsent operations (quarantine upload, ADR-0005 section 4). `series` is copied from the drain statement the device signed itself (hostry-drain-v1, ADR-0005 A3.3): the device supplies the numbers, identity only attests that the device said so. It is empty only for a device that never held a series (kds, hub). Billing reconciles from it (ADR-0014 A2.5 item 2); tenancy does not consume it."
+x-publisher: identity
+x-subscribers:
+- billing
+- tenancy
+allOf:
+- $ref: urn:hostry:events:envelope:v1
+- type: object
+  properties:
+    type:
+      const: identity.device.drained
+    v:
+      const: 1
+    source:
+      const: identity
+    data:
+      type: object
+      required:
+      - device_id
+      - drained_at
+      - series
+      properties:
+        device_id:
+          type: string
+          description: The revoked device.
+        drained_at:
+          type: string
+          description: When the drain finished.
+          format: date-time
+        series:
+          type: array
+          description: The last number the device held per series.
+          items:
+            type: object
+            description: One series.
+            required:
+            - series_id
+            - last_number
+            properties:
+              series_id:
+                type: string
+                description: The series.
+              fy:
+                type: string
+                description: Financial year of the series, four digits, as stated by the device (ADR-0005 A3.3). Optional so that older publishers stay valid; present from this version of the statement.
+                pattern: ^[0-9]{4}$
+              last_number:
+                type: integer
+                description: Highest running number the device allocated.
+                minimum: 0
+examples:
+- id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f9133
+  type: identity.device.drained
+  v: 1
+  source: identity
+  tenant_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+  outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+  key: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+  key_seq: 3
+  occurred_at: '2026-11-24T13:25:11.120Z'
+  data:
+    device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+    drained_at: '2026-11-24T13:20:11.120Z'
+    series: [{series_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6c, fy: '2627', last_number: 123}]

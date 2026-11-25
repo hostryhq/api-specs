@@ -1,7 +1,7 @@
 # api-specs tooling. CLI tools are installed locally (no global changes):
 #   Go tools into .tools/bin via `make tools`; Node tools run through pinned npx.
 SHELL := /bin/bash
-SERVICES := identity tenancy admin
+SERVICES := identity tenancy admin catalog orders billing sync
 SPECS := $(foreach s,$(SERVICES),openapi/$(s)/v1/openapi.yaml)
 LINT_SPECS := $(SPECS) examples/ping/openapi.yaml
 BASE ?= origin/main
@@ -15,18 +15,34 @@ OPENAPI_TS_VERSION := 7.13.0
 TOOLS := $(CURDIR)/.tools/bin
 export PATH := $(TOOLS):$(PATH)
 
-.PHONY: tools lint lint-events lint-specs breaking bundle generate generate-go generate-ts test clean
+.PHONY: tools lint lint-digests lint-events lint-specs lint-entities lint-intents lint-worlds breaking bundle generate generate-go generate-ts test clean
 
 tools:
 	GOBIN=$(TOOLS) go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@$(OAPI_CODEGEN_VERSION)
 	GOBIN=$(TOOLS) go install github.com/oasdiff/oasdiff@$(OASDIFF_VERSION)
 
 # Spectral (Hostry rules in .spectral.yaml) + event schema and example validation.
-lint: lint-events lint-specs
+lint: lint-events lint-specs lint-entities lint-intents lint-worlds lint-digests
 	npx --yes @stoplight/spectral-cli@$(SPECTRAL_VERSION) lint --fail-severity=warn $(LINT_SPECS)
 
 lint-events:
 	go run ./cmd/validate-events events
+
+# Synced entity schemas: one owner each, policies, references, pii (ADR-0002 S6, ADR-0014 R1).
+lint-entities:
+	go run ./cmd/validate-entities entities
+
+# Sync intent registry: classes, catalogue permissions, proofs, sessions, entities and numbering (ADR-0002 S4, ADR-0005 A2).
+lint-intents:
+	go run ./cmd/validate-intents .
+
+# Every example agrees with the shared example worlds in examples/worlds: ids, kinds, GSTINs, series codes, facts.
+lint-worlds:
+	go run ./cmd/validate-worlds .
+
+# Projection digest examples recomputed from the rows of their example world (sha256-canon-v1, sync/protocol-v1.md).
+lint-digests:
+	go run ./cmd/validate-digests .
 
 # Cross-document conventions: permission catalogue, realms, x-service-callers, x-vendor-audit.
 lint-specs:

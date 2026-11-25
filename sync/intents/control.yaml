@@ -1,0 +1,174 @@
+# Sync intent registry, identity (ADR-0002 S4, ADR-0005 section 7 and A2, ADR-0014 R1). Source of truth for the client can() table, the
+# gateway check (ADR-0002 S11) and the hub structural check (S8). Checked by `make lint-intents` (cmd/validate-intents);
+# keys and rules are in sync/intents/README.md. Generated once from a table, edited by hand from here.
+registry: sync-intents
+registry_v: 1
+group: identity
+description: Session, approval and device control intents.
+intents:
+- intent: session.open
+  intent_v: 1
+  class: control
+  owner: identity
+  description: Open a session on a device (ADR-0005 section 7). The op carries the session proof (an HMAC made while the PIN
+    was typed) and the actor's `pin_v` for a pin session, and its `at` is the opening time the proof binds (ADR-0005 A3.1); a strong session names identity's own session id; a device session names no member.
+  permission: null
+  permission_reason: A session is the proof for every later op; the actor must be in the pack issued to the device (ADR-0005
+    section 7 question 3).
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  - device
+  device_kinds:
+  - pos
+  - waiter
+  - kds
+  - personal
+  streams:
+  - outlet
+  numbering: none
+  entities: {}
+  records:
+  - session
+  idempotency: Session id is a client UUIDv7; identity keeps one row per sid; a replayed open is ignored and a sid seen with
+    another member or device is refused.
+- intent: approval.grant
+  intent_v: 1
+  class: control
+  owner: identity
+  description: 'Manager override at the counter (ADR-0005 section 8): approval id, permission, target, action hash over the intent, permission, requester, target, approval id, reason and the
+    `values` of the fields the registry names (`proof.binds`) as the citing op records them, requester, approver, pin_v and the action proof. One action, 2 minutes. Requester and approver differ (a
+    two-person approval); confirming one''s own PIN is `approval.self_confirm`. The op body carries the approver''s `pin_v` beside
+    the proof (ADR-0005 A3.1).'
+  permission: null
+  permission_reason: The approver must hold the cited permission and differ from the requester; the gateway checks this against
+    the pack.
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: none
+  entities: {}
+  records:
+  - approval
+  idempotency: Approval id is a client UUIDv7. Exactly one op may cite it; a second citing op is unverified. A replayed grant
+    is ignored.
+- intent: approval.self_confirm
+  intent_v: 1
+  class: control
+  owner: identity
+  description: 'A member confirms their own PIN on a sensitive action they may do themselves (ADR-0005 section 8, own sensitive action):
+    the same `approval` record and action proof as approval.grant, with requester = approver = the actor. Never satisfies a two-person
+    rule; an op that cites it needs the actor to hold the permission (otherwise `approval_flag` `self`). One action, 2 minutes.'
+  permission: null
+  permission_reason: The actor must hold the cited permission themselves; the gateway checks this against the pack.
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: none
+  entities: {}
+  records:
+  - approval
+  idempotency: Approval id is a client UUIDv7. Exactly one op may cite it; a second citing op is unverified. A replayed confirmation is ignored.
+  x-provisional: Added by round 5 so that requester = approver is allowed only here and never in approval.grant; confirm with security-reviewer.
+- intent: series.activate
+  intent_v: 1
+  class: control
+  owner: identity
+  description: Offline activation of a dormant billing series on a waiter device when the only POS has failed (spec RM-O25).
+    Own PIN or a manager approval.
+  permission: series.activate
+  proof:
+    kind: action
+    binds:
+    - device_id
+    - series_id
+  override: true
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: none
+  entities: {}
+  records:
+  - series_activation
+  idempotency: One activation per (device, series); a replay is ignored; the gateway refuses numbers in a series the device
+    was never given (ADR-0003 A1.5).
+  x-provisional: The permission series.activate is added to the catalogue by this change; confirm with security-reviewer and
+    ADR-0005 owner.
+- intent: series.close
+  intent_v: 1
+  class: control
+  owner: identity
+  description: "The device's own statement that a series it holds is closed: when a pack tells a device the series is closed it stops allocating from it and records its last number in the same local transaction (ADR-0014 A2.5 item 2). Record shape: one mutation {e: series_close, k: insert, id: <series id>, f: {code: the 3-character series code, fy: the four-digit financial year, last_number: the last running number the device allocated from the series, an integer >= 0 (0 when it never allocated)}}. Billing reads it with the series.activate records from the sync.op.series event and publishes billing.series.reconciled (billing is the publisher, O2-10) when its register holds every number up to last_number."
+  permission: null
+  permission_reason: A device statement about its own series, made automatically when the pack closes the series; no person acts and the gateway checks the series was issued to the device.
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  - device
+  device_kinds:
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: none
+  entities: {}
+  records:
+  - series_close
+  idempotency: One statement per (device, series); a replay is ignored and a second statement with a different last number is refused and alerted. For a revoked device the statement is its drain record (ADR-0005 section 4), published by identity as identity.device.drained.
+- intent: device.clock.confirm
+  intent_v: 1
+  class: control
+  owner: identity
+  description: A manager confirms the date and time after a clock skew banner (spec RM-X3); later ops are flagged as under
+    a manual clock.
+  permission: device.clock.confirm
+  proof:
+    kind: action
+    binds:
+    - device_id
+    - confirmed_time
+  override: false
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - waiter
+  - kds
+  - personal
+  streams:
+  - outlet
+  numbering: none
+  entities: {}
+  records:
+  - clock_confirmation
+  idempotency: One confirmation per (device, high-water mark); a replay is ignored.
+  x-provisional: The permission device.clock.confirm is added to the catalogue by this change (named in the spec table, absent
+    from the catalogue).

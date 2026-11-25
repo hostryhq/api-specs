@@ -174,9 +174,22 @@ func (h *harness) checkOperation(ctx context.Context, path, method string, item 
 			switch {
 			case err != nil:
 				fail("replay failed: %v", err)
+			case s2 == 409 && problemCode(b2) == "idempotency.replay_secret":
+				// The original response carried a one-time secret (token, code, half, pack). It is never
+				// stored, so the replay is refused and the secret is not returned again (SR-H4).
+				if strings.Contains(string(b2), "token") && !strings.Contains(string(b2), "replay_secret") {
+					fail("replay_secret answer carries a secret")
+				}
+			case rerunOps[op.OperationID]:
+				// Token-issuing operations are not recorded: the replay runs again and meets the credential
+				// checks (reuse detection, spent code), so any answer except a server error or an
+				// idempotency mismatch is acceptable.
+				if s2 >= 500 || problemCode(b2) == "idempotency.mismatch" {
+					fail("replay of %s returned %d %s", op.OperationID, s2, problemCode(b2))
+				}
 			case s2 != status:
 				fail("idempotent replay returned status %d, want %d", s2, status)
-			case !jsonEqual2(body, b2):
+			case !jsonEqual2(stripOneTime(expResp, body), stripOneTime(expResp, b2)):
 				fail("idempotent replay returned a different body")
 			}
 		}
@@ -404,4 +417,63 @@ func truncate(b []byte) string {
 		return string(b[:200]) + "..."
 	}
 	return string(b)
+}
+
+// stripOneTime removes from a top-level JSON object the response properties marked x-one-time-secret in the spec, and the
+// flag named by their withheld_flag. A one-time secret (an invitation code) is shown once and never stored, so a replay
+// legitimately omits it; everything else must be identical.
+func stripOneTime(resp *openapi3.Response, body []byte) []byte {
+	if resp == nil {
+		return body
+	}
+	var drop []string
+	for _, mt := range resp.Content {
+		if mt.Schema == nil || mt.Schema.Value == nil {
+			continue
+		}
+		for name, ref := range mt.Schema.Value.Properties {
+			if ref.Value == nil {
+				continue
+			}
+			ext, ok := ref.Value.Extensions["x-one-time-secret"]
+			if !ok {
+				continue
+			}
+			drop = append(drop, name)
+			if m, ok := ext.(map[string]any); ok {
+				if f, ok := m["withheld_flag"].(string); ok {
+					drop = append(drop, f)
+				}
+			}
+		}
+	}
+	if len(drop) == 0 {
+		return body
+	}
+	var m map[string]any
+	if json.Unmarshal(body, &m) != nil {
+		return body
+	}
+	for _, d := range drop {
+		delete(m, d)
+	}
+	out, err := json.Marshal(m)
+	if err != nil {
+		return body
+	}
+	return out
+}
+
+// rerunOps are the token-issuing operations whose replay is not answered from a stored response.
+var rerunOps = map[string]bool{
+	"createSession": true, "refreshSession": true, "createDeviceToken": true, "createDrainToken": true,
+	"createVendorSession": true, "renewVendorSession": true,
+}
+
+func problemCode(b []byte) string {
+	var p struct {
+		Code string `json:"code"`
+	}
+	_ = json.Unmarshal(b, &p)
+	return p.Code
 }

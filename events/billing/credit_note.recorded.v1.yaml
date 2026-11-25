@@ -1,0 +1,83 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: urn:hostry:events:billing.credit_note.recorded:v1
+title: billing.credit_note.recorded v1
+description: billing projected a credit note and recomputed it. Ids, dates and an amount only.
+x-publisher: billing
+x-subscribers:
+- analytics
+allOf:
+- $ref: urn:hostry:events:envelope:v1
+- type: object
+  properties:
+    type:
+      const: billing.credit_note.recorded
+    v:
+      const: 1
+    source:
+      const: billing
+    data:
+      type: object
+      required:
+      - credit_note_id
+      - bill_id
+      - outlet_id
+      - business_date
+      - invoice_date
+      - total_paise
+      - late
+      - verification
+      properties:
+        credit_note_id:
+          type: string
+          description: The credit note.
+        bill_id:
+          type: string
+          description: The original bill.
+        outlet_id:
+          type: string
+          description: The outlet.
+        business_date:
+          type: string
+          description: Business date.
+          format: date
+        invoice_date:
+          type: string
+          description: Invoice date.
+          format: date
+        total_paise:
+          type: integer
+          description: Total in paise.
+          minimum: 0
+        late:
+          type: boolean
+          description: A late document.
+        verification:
+          type: string
+          description: Result of the recomputation; `pending` while billing has not yet verified the document.
+          enum:
+          - pending
+          - verified
+          - mismatch
+          - stale_rules
+          - profile_mismatch
+          - manual_entry
+examples:
+- id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f9003
+  type: billing.credit_note.recorded
+  v: 1
+  source: billing
+  tenant_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+  outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+  key: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7011
+  key_seq: 1
+  occurred_at: '2026-11-24T13:05:11.120Z'
+  actor: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
+  data:
+    credit_note_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7011
+    bill_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001
+    outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+    business_date: '2026-11-24'
+    invoice_date: '2026-11-24'
+    total_paise: 50400
+    late: false
+    verification: verified

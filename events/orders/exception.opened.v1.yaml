@@ -1,0 +1,68 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: urn:hostry:events:orders.exception.opened:v1
+title: orders.exception.opened v1
+description: An orders detector raised an exception (orphan line, unresolved line at close, grace cancel of a started
+  line, allowance exceeded, two seatings on one table, late ticket, presented check not resolved). Ids and a code
+  only.
+x-publisher: orders
+x-subscribers: []
+allOf:
+- $ref: urn:hostry:events:envelope:v1
+- type: object
+  properties:
+    type:
+      const: orders.exception.opened
+    v:
+      const: 1
+    source:
+      const: orders
+    data:
+      type: object
+      required:
+      - exception_id
+      - kind
+      - severity
+      - subject_kind
+      - subject_id
+      properties:
+        exception_id:
+          type: string
+          description: The exception.
+        kind:
+          type: string
+          description: Finding code.
+        severity:
+          type: string
+          description: Severity.
+          enum:
+          - info
+          - warning
+          - high
+        subject_kind:
+          type: string
+          description: Entity concerned.
+        subject_id:
+          type: string
+          description: Row concerned.
+        business_date:
+          type: string
+          description: Business date, when it has one.
+          format: date
+examples:
+- id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f9009
+  type: orders.exception.opened
+  v: 1
+  source: orders
+  tenant_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+  outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+  key: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6041
+  key_seq: 1
+  occurred_at: '2026-11-24T13:05:11.120Z'
+  actor: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
+  data:
+    exception_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6041
+    kind: orphan_line
+    severity: warning
+    subject_kind: order_line
+    subject_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6011
+    business_date: '2026-11-24'

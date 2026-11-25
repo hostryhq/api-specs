@@ -1,0 +1,73 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: urn:hostry:events:sync.quarantine.recorded:v1
+title: sync.quarantine.recorded v1
+description: "Published by the sync gateway in the transaction that holds a slot in quarantine. An op arrived and was held in quarantine. Id-only (ADR-0014 A2.1 item 4): series code, number and document type, never the content of the op, so billing can show a held number in its register as held instead of a gap."
+x-publisher: sync
+x-subscribers:
+- billing
+allOf:
+- $ref: urn:hostry:events:envelope:v1
+- type: object
+  required:
+  - key_seq
+  properties:
+    type:
+      const: sync.quarantine.recorded
+    v:
+      const: 1
+    source:
+      const: sync
+    data:
+      type: object
+      required:
+      - origin
+      - stream
+      - seq
+      - reason
+      properties:
+        origin:
+          type: string
+          description: Origin node.
+        stream:
+          type: string
+          description: Stream id.
+        seq:
+          type: integer
+          description: Sequence number of the held op.
+          minimum: 1
+        reason:
+          type: string
+          description: Coarse code of why it is held, for example unsealed_tail, chain_broken, foreign_series, fork, malformed.
+        series_code:
+          type: string
+          description: Series code of the legal number the op carries, when it carries one.
+          pattern: ^[A-HJ-NP-Z2-9]{3}$
+        number:
+          type: string
+          description: The legal number as printed, <code>/<FY>/<running>, when the op carries one.
+        document_type:
+          type: string
+          description: Document type of that number.
+          enum:
+          - tax_invoice
+          - bill_of_supply
+          - plain_bill
+          - credit_note
+examples:
+- id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f9202
+  type: sync.quarantine.recorded
+  v: 1
+  source: sync
+  tenant_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+  outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+  key: outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61|0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+  key_seq: 3
+  occurred_at: '2026-11-24T13:07:11.120Z'
+  data:
+    origin: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+    stream: outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+    seq: 3
+    reason: unsealed_tail
+    series_code: A7K
+    number: A7K/2627/000002
+    document_type: tax_invoice

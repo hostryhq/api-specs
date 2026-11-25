@@ -1,0 +1,463 @@
+# Sync intent registry, billing (ADR-0002 S4, ADR-0005 section 7 and A2, ADR-0014 R1). Source of truth for the client can() table, the
+# gateway check (ADR-0002 S11) and the hub structural check (S8). Checked by `make lint-intents` (cmd/validate-intents);
+# keys and rules are in sync/intents/README.md. Generated once from a table, edited by hand from here.
+registry: sync-intents
+registry_v: 1
+group: billing
+description: Legal documents, tender, shifts and business days.
+intents:
+- intent: bill.finalize
+  intent_v: 1
+  class: trading
+  owner: billing
+  description: 'Take the invoice number: the first payment, Issue invoice, or Present in print mode. One op creates the bill,
+    its lines and tax lines, any payment, and marks the check billed. Immutable afterwards; corrections are a credit note
+    or a re-bill.'
+  permission: bill.finalize
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: allocated
+  documents:
+  - tax_invoice
+  - bill_of_supply
+  - plain_bill
+  entities:
+    bill:
+    - insert
+    bill_line:
+    - insert
+    bill_tax_line:
+    - insert
+    payment:
+    - insert
+    check:
+    - set
+    - rank
+    seating:
+    - rank
+  pii_fields:
+  - customer_name
+  - customer_gstin
+  idempotency: The bill id is a client UUIDv7 and the number is allocated from the device series in the same local transaction
+    as the op; replay never allocates again. The same number under a different bill id is refused as duplicate_document and
+    the number is kept by the first op.
+- intent: bill.manual_entry
+  intent_v: 1
+  class: trading
+  owner: billing
+  description: Type in a paper bill-book bill after a power cut. The book keeps its own number (entry-only series); Hostry
+    never gives that supply a second number.
+  permission: bill.manual_entry
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  streams:
+  - outlet
+  numbering: typed
+  documents:
+  - tax_invoice
+  - bill_of_supply
+  - plain_bill
+  entities:
+    bill:
+    - insert
+    bill_line:
+    - insert
+    bill_tax_line:
+    - insert
+    payment:
+    - insert
+  pii_fields:
+  - customer_name
+  - customer_gstin
+  idempotency: The bill id is a UUIDv5 of (series, financial year, number), so the same page typed twice on two devices converges
+    on one bill.
+- intent: payment.record
+  intent_v: 1
+  class: trading
+  owner: billing
+  description: Record how a guest paid a numbered bill (a further share, or a bill issued before paying). Tender is recorded,
+    not collected.
+  permission: payment.record
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    payment:
+    - insert
+  idempotency: Every inserted row id is a client UUIDv7 carried in the op; an op is identified by (origin, stream, seq), so
+    a replayed op is ignored and never inserts a second row.
+- intent: payment.refund
+  intent_v: 1
+  class: trading
+  owner: billing
+  description: Return recorded money for a payment.
+  permission: payment.refund
+  proof:
+    kind: action
+    binds:
+    - bill_id
+    - payment_id
+    - amount_paise
+  override: true
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    refund:
+    - insert
+  idempotency: Every inserted row id is a client UUIDv7 carried in the op; an op is identified by (origin, stream, seq), so
+    a replayed op is ignored and never inserts a second row.
+- intent: creditnote.issue
+  intent_v: 1
+  class: trading
+  owner: billing
+  description: Reduce the value of a numbered bill by a credit note that cites it.
+  permission: bill.credit_note.create
+  proof:
+    kind: action
+    binds:
+    - bill_id
+    - total_paise
+  override: true
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: allocated
+  documents:
+  - credit_note
+  entities:
+    credit_note:
+    - insert
+    credit_note_line:
+    - insert
+    credit_note_tax_line:
+    - insert
+  pii_fields:
+  - customer_name
+  - customer_gstin
+  idempotency: The credit note id is a client UUIDv7 and its number is allocated from the device credit-note series in the
+    same local transaction; replay never allocates again.
+- intent: bill.rebill
+  intent_v: 1
+  class: trading
+  owner: billing
+  description: 'One op for an unpaid numbered bill: a full credit note plus the replacement bills (split, GSTIN, discount,
+    removed item), so no node sees half of it.'
+  permission: bill.rebill
+  proof:
+    kind: session
+  override: false
+  allowance:
+    counter: rebill
+    limit_setting: rebill_allowance_per_shift
+    checked_by: device and again by billing as a detector
+  above_allowance:
+    use_intent: bill.rebill.approved
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: allocated
+  documents:
+  - credit_note
+  - tax_invoice
+  - bill_of_supply
+  - plain_bill
+  entities:
+    credit_note:
+    - insert
+    credit_note_line:
+    - insert
+    credit_note_tax_line:
+    - insert
+    bill:
+    - insert
+    bill_line:
+    - insert
+    bill_tax_line:
+    - insert
+  pii_fields:
+  - customer_name
+  - customer_gstin
+  idempotency: All new ids are client UUIDv7 and share one rebill_group_id; every number is allocated in the one local transaction;
+    replay never allocates again.
+  x-provisional: Above the allowance, and for a bill with a payment, the spec says "a manager's approval"; it is taken as one for bill.credit_note.create and
+    carried by bill.rebill.approved (an action proof binding the original bill and the value change). Confirm with security-reviewer.
+- intent: bill.rebill.approved
+  intent_v: 1
+  class: trading
+  owner: billing
+  description: 'The same single op as bill.rebill (a full credit note plus the replacement bills) taken with a manager''s approval: a re-bill after
+    payment, or one past the member''s re-bill allowance per shift. The approval is the sensitive permission of the credit note; it names the original bill
+    and the value change, so it cannot be cited for another bill or a different replacement value.'
+  permission: bill.credit_note.create
+  proof:
+    kind: action
+    binds:
+    - bill_id
+    - rebill_group_id
+    - total_paise
+    - replacement_total_paise
+  override: true
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: allocated
+  documents:
+  - credit_note
+  - tax_invoice
+  - bill_of_supply
+  - plain_bill
+  entities:
+    credit_note:
+    - insert
+    credit_note_line:
+    - insert
+    credit_note_tax_line:
+    - insert
+    bill:
+    - insert
+    bill_line:
+    - insert
+    bill_tax_line:
+    - insert
+  pii_fields:
+  - customer_name
+  - customer_gstin
+  idempotency: As bill.rebill. The citing op records `bill_id` (the original bill, `credit_note.bill_id`), `rebill_group_id`, `total_paise` (the credit note total,
+    the value withdrawn) and `replacement_total_paise` (the sum of the replacement bills' `total_paise` in the group), and the approval's action hash is over those
+    values (sync/protocol-v1.md, Approval citation). A re-bill that lowers the value, or repeats a reduction, is a billing exception (rebill_value_reduced,
+    rebill_value_reduction_over_allowance, rebill_value_reduction_repeated) whether or not it was approved.
+  x-provisional: replacement_total_paise is a derived sum that both the device and the gateway compute from the group's bills; confirm with security-reviewer that
+    it is a bindable value, and that a re-bill after payment is always approved (bill.rebill is refused by the device once the bill has a payment).
+- intent: drawer.cash_move
+  intent_v: 1
+  class: trading
+  owner: billing
+  description: Cash in or out of the drawer with a reason.
+  permission: drawer.cash_move
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    cash_event:
+    - insert
+  idempotency: Every inserted row id is a client UUIDv7 carried in the op; an op is identified by (origin, stream, seq), so
+    a replayed op is ignored and never inserts a second row.
+- intent: drawer.open_no_sale
+  intent_v: 1
+  class: trading
+  owner: billing
+  description: Open the drawer with no sale; reason and audit.
+  permission: drawer.open_no_sale
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    cash_event:
+    - insert
+  idempotency: Every inserted row id is a client UUIDv7 carried in the op; an op is identified by (origin, stream, seq), so
+    a replayed op is ignored and never inserts a second row.
+- intent: shift.open
+  intent_v: 1
+  class: trading
+  owner: billing
+  description: Open a member's turn at a cash drawer with the opening float.
+  permission: shift.open
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    shift:
+    - insert
+  idempotency: Every inserted row id is a client UUIDv7 carried in the op; an op is identified by (origin, stream, seq), so
+    a replayed op is ignored and never inserts a second row.
+- intent: shift.close
+  intent_v: 1
+  class: trading
+  owner: billing
+  description: Close the member's own shift with the counted amount; the variance is recorded.
+  permission: shift.close
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    shift:
+    - rank
+    shift_close:
+    - insert
+  idempotency: Every inserted row id is a client UUIDv7 carried in the op; an op is identified by (origin, stream, seq), so
+    a replayed op is ignored and never inserts a second row.
+- intent: shift.close.any
+  intent_v: 1
+  class: trading
+  owner: billing
+  description: Close or force-close another member's shift ("not counted", with a reason).
+  permission: shift.close.any
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    shift:
+    - rank
+    shift_close:
+    - insert
+  idempotency: Every inserted row id is a client UUIDv7 carried in the op; an op is identified by (origin, stream, seq), so
+    a replayed op is ignored and never inserts a second row.
+- intent: day.open
+  intent_v: 1
+  class: trading
+  owner: billing
+  description: Open the outlet's business date. Two devices opening the same date while partitioned both record a day_open
+    fact.
+  permission: shift.open
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    business_day:
+    - insert
+    day_open:
+    - insert
+  idempotency: The row id is a deterministic UUIDv5 of its natural key (entity file id.name), so two devices that write the
+    same key converge on one row; a replayed op is ignored. Each device also records its own day_open fact.
+- intent: day.close
+  intent_v: 1
+  class: trading
+  owner: billing
+  description: Lock the business date and record the Z-report figures, including `cutoff_at`, the instant of closing that decides
+    which later documents are late (protocol-v1.md, Day close cutoff). A closed day is never reopened; late documents become
+    numbered revisions written by the cloud.
+  permission: day.close
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    business_day:
+    - rank
+    day_close:
+    - insert
+  idempotency: The business_day row is rank-forward (open to closed); a replayed or concurrent close is a no-op on the row
+    and each close fact is kept.
+- intent: bill.reprint
+  intent_v: 1
+  class: trading
+  owner: billing
+  description: Record that a finalised bill was reprinted or shown again; the paper is marked COPY and carries the original number, never a new one.
+  permission: bill.reprint
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  device_kinds:
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: none
+  entities:
+    bill_reprint:
+    - insert
+  idempotency: Every inserted row id is a client UUIDv7 carried in the op; an op is identified by (origin, stream, seq), so a replayed op is ignored and never inserts a second row.
+  x-provisional: Audit-only reprint log (entity bill_reprint); needs product confirmation.

@@ -26,7 +26,7 @@ allOf:
   - counterparty_tenant_id
   - link_id
 examples:
-- id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a84
+- id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f9114
   type: tenancy.link.declined
   v: 1
   source: tenancy

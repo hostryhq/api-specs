@@ -1,0 +1,49 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: urn:hostry:events:billing.series.reconciled:v1
+title: billing.series.reconciled v1
+description: "The document register holds every number of a closed series up to the last number its device stated (series.close or the drain record). Published once per series by billing (not by the sync gateway, O2-10), after it consumed the device's series.close op from sync.op.series (or the drain record from identity.device.drained) and its register is complete; tenancy fills tail_confirmed_at and last_number (ADR-0014 A2.5 item 2)."
+x-publisher: billing
+x-subscribers:
+- tenancy
+allOf:
+- $ref: urn:hostry:events:envelope:v1
+- type: object
+  properties:
+    type:
+      const: billing.series.reconciled
+    v:
+      const: 1
+    source:
+      const: billing
+    data:
+      type: object
+      required:
+      - series_id
+      - last_number
+      - gap_count
+      properties:
+        series_id:
+          type: string
+          description: The series.
+        last_number:
+          type: integer
+          description: The last running number the device stated.
+          minimum: 0
+        gap_count:
+          type: integer
+          description: Numbers up to last_number the register does not hold; a gap is an alert, never silent.
+          minimum: 0
+examples:
+- id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f9010
+  type: billing.series.reconciled
+  v: 1
+  source: billing
+  tenant_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+  outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+  key: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6c
+  key_seq: 1
+  occurred_at: '2026-11-24T13:25:11.120Z'
+  data:
+    series_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6c
+    last_number: 123
+    gap_count: 0

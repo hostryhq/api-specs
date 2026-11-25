@@ -1,0 +1,2114 @@
+openapi: 3.1.0
+info:
+  title: Hostry sync gateway and hub API
+  version: 1.0.0
+  x-status: stable
+  description: Wire contract of Sync Protocol v1 (ADR-0002, with Amendments A1, A2 and A2.8) and the internal cloud emit operation
+    (ADR-0014 A2.2). Device operations are spoken by the cloud sync gateway and by the LAN hub (the hub does not offer quarantine-upload
+    and the admin read-backs; it answers 404). Paths of the protocol sit under /sync/v1, an exception to the /v1 rule (ADR-0002
+    S10); the emit operation is under /internal/v1. Rules that JSON Schema cannot state (canonical form, hashing, chain, seal,
+    endorsement, attestation, LAN handshake proofs and session token, size limit, the sync.op event) are in sync/protocol-v1.md and are normative;
+    shared vectors are in sync/conformance/v1.json.
+  x-example-worlds:
+    base: Organisation 4a60, brand 4a6a, outlet 4a61, device 4a5e (pos) that has recorded two menu.availability.set ops (seq
+      1 and 2) on stream outlet:4a61 and signed a seal at seq 2 with the key whose public half is in the conformance example
+      pack; the gateway is epoch cloud-1 and holds both ops. Member Asha 4a64 is the actor. For emitOps the caller is the
+      catalog service and no emit with the example key exists yet.
+servers:
+- url: /
+tags:
+- name: sync
+  description: Device and hub sync.
+- name: admin
+  description: Member-token read-backs and quarantine decisions (cloud only).
+- name: internal
+  description: Operations for other Hostry services.
+security:
+- deviceBearer: []
+- lanSession: []
+paths:
+  /sync/v1/lan/hello:
+    post:
+      operationId: helloLan
+      tags:
+      - sync
+      x-permission: public
+      summary: 'LAN handshake, step 1: the device presents its credential and a nonce; the hub answers with its own and a proof.'
+      description: 'LAN only (the cloud answers 404). Spoken over TLS 1.3 to a hub that presents a self-signed certificate nobody checks; the device
+        has computed `spki` (SHA-256 of the certificate''s DER SubjectPublicKeyInfo) and sends nothing but this call until it has verified the answer
+        (ADR-0002 A3.1 items 3 and 4). The device checks: the hub credential''s signature against the identity keys in its own pack (current or next),
+        kind `hub`, same tenant and outlet, `not_after`, not in its revoked list, `hub_proof`, and that the proof''s `spki` is the one it saw. Any failure
+        and the device closes the connection. The hub keeps `nonce_h` for 30 seconds for step 2. Each call is a new handshake: an Idempotency-Key is accepted and ignored (a replayed answer would be a replayed nonce).
+        Wire form, messages and vectors: sync/protocol-v1.md (LAN handshake) and sync/conformance/v1.json (`lan_handshake`).'
+      security: []
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LanHelloRequest'
+            example:
+              credential: cred.jws.example
+              nonce_d: AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8
+      responses:
+        '200':
+          description: The hub's credential, nonce and proof.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LanHelloResponse'
+              example:
+                credential: cred.jws.example
+                nonce_h: ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8
+                hub_proof: proof.sig.example
+        '401':
+          description: The device's credential is not acceptable to the hub (signature, kind, outlet, `not_after`, revoked, or a `store` the hub refuses).
+          content:
+            application/problem+json:
+              schema:
+                $ref: ../../../common/components.yaml#/components/schemas/Problem
+              example:
+                type: urn:hostry:problem:lan_credential_refused
+                title: The credential is not acceptable
+                status: 401
+                code: lan_credential_refused
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+  /sync/v1/lan/session:
+    post:
+      operationId: openLanSession
+      tags:
+      - sync
+      x-permission: public
+      summary: 'LAN handshake, step 2: the device proves itself and receives the session token.'
+      description: 'The device has verified the hub (helloLan) and now signs its own proof over the same nonces, both device ids and the `spki` it saw.
+        The hub checks the device credential, the proof, and that the proof''s `spki` is its own certificate''s; a relay on the Wi-Fi presented its own
+        certificate to the device, so the two values differ and the hub refuses (401 `lan_proof_invalid`, nothing else is sent). The token is 256 random
+        bits, kept in hub memory only, bound to the device id, valid 15 minutes (900 seconds). Every other LAN call carries it in the
+        `Hostry-Lan-Session` header; `401 lan_session_expired` means a new handshake. The hub drops a device''s sessions when a pack refresh lists the
+        device revoked. A restart of the hub (new TLS key) also ends every session.'
+      security: []
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LanSessionRequest'
+            example:
+              nonce_d: AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8
+              nonce_h: ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8
+              device_proof: proof.sig.example
+      responses:
+        '200':
+          description: The LAN session.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LanSession'
+              example:
+                token: AwoRGB8mLTQ7QklQV15lbHN6gYiPlp2kq7K5wMfO1dw
+                expires_in: 900
+        '401':
+          description: Proof invalid (including a different `spki`), unknown or lapsed `nonce_h`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: ../../../common/components.yaml#/components/schemas/Problem
+              example:
+                type: urn:hostry:problem:lan_proof_invalid
+                title: The proof is not valid
+                status: 401
+                code: lan_proof_invalid
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+  /sync/v1/hello:
+    post:
+      operationId: helloSync
+      tags:
+      - sync
+      x-permission: sync.push
+      summary: 'Handshake: upstream time, restore epoch and the upstream vector.'
+      description: Idempotent. Also compares the caller's epoch and vector with the upstream (ADR-0002 A2.2 re-offer). A hub
+        answers with the epoch it last heard from the cloud.
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HelloRequest'
+            example:
+              protocol: 1
+              app_version: 1.0.0
+              schema_version: 1
+              vector:
+                0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e/outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61: 2
+              epoch: cloud-1
+      responses:
+        '200':
+          description: Handshake.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HelloResponse'
+              example:
+                protocol: 1
+                role: cloud
+                node_id: cloud-1
+                time: '2026-11-24T13:05:11.120Z'
+                epoch: cloud-1
+                vector:
+                  0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e/outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61: 2
+                min_supported_version: 1.0.0
+                snapshot_required: false
+                streams:
+                - outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+        '401':
+          description: Unauthorized. On a hub the problem code `lan_session_expired` means the LAN session token is missing, unknown or past its 15
+            minutes, and the device runs helloLan again (ADR-0002 A3.1 item 5). The same applies to every other operation on a hub.
+          content:
+            application/problem+json:
+              schema:
+                $ref: ../../../common/components.yaml#/components/schemas/Problem
+              examples:
+                unauthorized:
+                  value:
+                    type: urn:hostry:problem:unauthorized
+                    title: Unauthorized
+                    status: 401
+                    code: unauthorized
+                lan_session_expired:
+                  value:
+                    type: urn:hostry:problem:lan_session_expired
+                    title: The LAN session has expired
+                    status: 401
+                    code: lan_session_expired
+  /sync/v1/push:
+    post:
+      operationId: pushOps
+      tags:
+      - sync
+      x-permission: sync.push
+      summary: Deliver ops in per-origin sequence order; each (origin, stream) group ends at a sealed op.
+      description: 'Idempotent: a replay returns the same vector and holds, because the vector makes every request safe to
+        repeat. Idempotency-Key is accepted and ignored. Content-Encoding gzip is allowed. An op whose `body` is over 262144
+        bytes, or whose `pii` is over 16384 bytes, is refused as malformed and quarantined as an opaque body (protocol-v1,
+        size limit).'
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PushRequest'
+            example:
+              items:
+              - origin: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                stream: outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                seq: 1
+                h: 7a12848dfd8c7c9dce262261d97432158905aeb5f99798239d4583528921b057
+                body: '{"actor":"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64","at":"2026-11-24T13:05:11.120Z","clk":"sync","hlc":"01a1ee565e000000","intent":"menu.availability.set","intent_v":1,"muts":[{"e":"item_outlet","f":{"available":false},"id":"a7ac8341-e6c5-58a2-8a75-d00c40f77035","k":"set"}],"origin":"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e","ph":"9b47040fc954b008feead3268b905c243a183232441bf09e34e467054c975a12","seq":1,"stream":"outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61","tenant_id":"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60","v":1}'
+              - origin: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                stream: outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                seq: 2
+                h: 0b71e1e03d843c58287105ce8d23ee7fa18798cbf0acd98b1e3ed1f16984f8e4
+                body: '{"actor":"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64","at":"2026-11-24T13:06:11.120Z","clk":"sync","hlc":"01a1ee565e000001","intent":"menu.availability.set","intent_v":1,"muts":[{"e":"item_outlet","f":{"available":true},"id":"a7ac8341-e6c5-58a2-8a75-d00c40f77035","k":"set"}],"origin":"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e","ph":"7a12848dfd8c7c9dce262261d97432158905aeb5f99798239d4583528921b057","seq":2,"stream":"outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61","tenant_id":"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60","v":1}'
+              seals:
+              - origin: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                stream: outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                seq: 2
+                h: 0b71e1e03d843c58287105ce8d23ee7fa18798cbf0acd98b1e3ed1f16984f8e4
+                kid: dev-4a5e-1
+                sig: n-oto2B6z6BdDxfEgHunsutAtpicbslkAvPbrPeEAEYm1es3xZwn9JeNWEnPeYGWHpwpC3hBROmAsWZXM0Bdaw
+      responses:
+        '200':
+          description: Stored ops, the new vector, own held slots and refusals.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PushResponse'
+              example:
+                epoch: cloud-1
+                vector:
+                  0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e/outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61: 2
+                held: []
+                refused: []
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+  /sync/v1/pull:
+    post:
+      operationId: pullOps
+      tags:
+      - sync
+      x-permission: sync.push
+      summary: Slots above the caller's vector, up to a seal boundary; held slots as placeholders.
+      description: Items carry `pii` for a pos, waiter, personal or hub caller of the same outlet and never for a caller whose credential kind
+        is kds, which gets the commitments in the sealed body only (ADR-0014 A3.1). One rule on the envelope; the hub applies it too.
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PullRequest'
+            example:
+              vector: {}
+              streams:
+              - outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+              limit: 500
+      responses:
+        '200':
+          description: A batch of ops with seals, credentials and endorsements.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PullResponse'
+              example:
+                epoch: cloud-1
+                items:
+                - origin: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                  stream: outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  seq: 1
+                  h: 7a12848dfd8c7c9dce262261d97432158905aeb5f99798239d4583528921b057
+                  body: '{"actor":"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64","at":"2026-11-24T13:05:11.120Z","clk":"sync","hlc":"01a1ee565e000000","intent":"menu.availability.set","intent_v":1,"muts":[{"e":"item_outlet","f":{"available":false},"id":"a7ac8341-e6c5-58a2-8a75-d00c40f77035","k":"set"}],"origin":"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e","ph":"9b47040fc954b008feead3268b905c243a183232441bf09e34e467054c975a12","seq":1,"stream":"outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61","tenant_id":"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60","v":1}'
+                - origin: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                  stream: outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  seq: 2
+                  h: 0b71e1e03d843c58287105ce8d23ee7fa18798cbf0acd98b1e3ed1f16984f8e4
+                  body: '{"actor":"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64","at":"2026-11-24T13:06:11.120Z","clk":"sync","hlc":"01a1ee565e000001","intent":"menu.availability.set","intent_v":1,"muts":[{"e":"item_outlet","f":{"available":true},"id":"a7ac8341-e6c5-58a2-8a75-d00c40f77035","k":"set"}],"origin":"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e","ph":"7a12848dfd8c7c9dce262261d97432158905aeb5f99798239d4583528921b057","seq":2,"stream":"outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61","tenant_id":"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60","v":1}'
+                seals:
+                - origin: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                  stream: outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  seq: 2
+                  h: 0b71e1e03d843c58287105ce8d23ee7fa18798cbf0acd98b1e3ed1f16984f8e4
+                  kid: dev-4a5e-1
+                  sig: n-oto2B6z6BdDxfEgHunsutAtpicbslkAvPbrPeEAEYm1es3xZwn9JeNWEnPeYGWHpwpC3hBROmAsWZXM0Bdaw
+                more: false
+                own_held: []
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+  /sync/v1/snapshot:
+    get:
+      operationId: getSnapshot
+      tags:
+      - sync
+      x-permission: sync.push
+      summary: Materialised rows, void set and vector, for bootstrap (simplest form).
+      description: A row carries `pii_c` (pii field to commitment) always and `pii` (values and salts, as in Item.pii) only for a caller whose
+        credential kind is pos, waiter, personal or hub; a kds caller gets no `pii` (ADR-0014 A3.1).
+      responses:
+        '200':
+          description: Snapshot.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Snapshot'
+              example:
+                epoch: cloud-1
+                vector:
+                  0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e/outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61: 2
+                rows:
+                - e: item_outlet
+                  id: a7ac8341-e6c5-58a2-8a75-d00c40f77035
+                  f:
+                    available: true
+                  gone: false
+                voids: []
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+  /sync/v1/poke:
+    get:
+      operationId: pokeWait
+      tags:
+      - sync
+      x-permission: sync.push
+      summary: Long poll that carries no data; returns a counter that moves when the node has new ops.
+      description: The proof of concept uses a long poll instead of a WebSocket; the device then pulls.
+      parameters:
+      - name: after
+        in: query
+        required: false
+        description: Last counter seen.
+        schema:
+          type: integer
+          format: int64
+        example: 41
+      - name: wait
+        in: query
+        required: false
+        description: Seconds to wait (default 25).
+        schema:
+          type: integer
+          minimum: 0
+          maximum: 59
+        example: 25
+      responses:
+        '200':
+          description: Counter.
+          content:
+            application/json:
+              schema:
+                type: object
+                description: The change counter.
+                required:
+                - n
+                properties:
+                  n:
+                    type: integer
+                    format: int64
+                    description: Counter.
+              example:
+                n: 42
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+  /sync/v1/quarantine-upload:
+    post:
+      operationId: uploadQuarantine
+      tags:
+      - sync
+      x-permission: sync.drain
+      summary: Cloud only. The single endpoint a drain token may call (ADR-0005 section 4, ADR-0002 A1.3).
+      description: 'Drain token of a revoked device: its own-origin ops only; the last upload has no items and carries the signed `drain_statement` (ADR-0005 A3.3). Recovery drain token (subject `recovers:<old
+        device id>`, held by the new device): the old origin''s unconfirmed ops with stored seals and one attestation per
+        stream. Everything uploaded is stored in quarantine without judging its content. Any other token, endpoint or origin:
+        401/403, nothing stored.'
+      security:
+      - drainBearer: []
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PushRequest'
+            example:
+              items:
+              - origin: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                stream: outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                seq: 1
+                h: 7a12848dfd8c7c9dce262261d97432158905aeb5f99798239d4583528921b057
+                body: '{"actor":"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64","at":"2026-11-24T13:05:11.120Z","clk":"sync","hlc":"01a1ee565e000000","intent":"menu.availability.set","intent_v":1,"muts":[{"e":"item_outlet","f":{"available":false},"id":"a7ac8341-e6c5-58a2-8a75-d00c40f77035","k":"set"}],"origin":"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e","ph":"9b47040fc954b008feead3268b905c243a183232441bf09e34e467054c975a12","seq":1,"stream":"outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61","tenant_id":"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60","v":1}'
+              seals: []
+              attestations: []
+      responses:
+        '200':
+          description: Stored in quarantine.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PushResponse'
+              example:
+                epoch: cloud-1
+                vector:
+                  0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e/outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61: 1
+                held:
+                - origin: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                  stream: outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  seq: 1
+                  code: pending
+                refused: []
+                drained: true
+        '403':
+          description: The token is not a drain token for this origin.
+          content:
+            application/problem+json:
+              schema:
+                $ref: ../../../common/components.yaml#/components/schemas/Problem
+              example:
+                type: urn:hostry:problem:forbidden
+                title: Permission denied
+                status: 403
+                code: forbidden
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+  /sync/v1/quarantine:
+    get:
+      operationId: listQuarantine
+      tags:
+      - admin
+      x-permission: sync.quarantine.read
+      summary: Cloud only, member token. The held list with reasons (never sent to devices).
+      security:
+      - memberBearer: []
+      responses:
+        '200':
+          description: The list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuarantineList'
+              example:
+                items:
+                - origin: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                  stream: outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  seq: 3
+                  reason: unsealed_tail
+                  received_at: '2026-11-24T13:07:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+  /sync/v1/exceptions:
+    get:
+      operationId: listExceptions
+      tags:
+      - admin
+      x-permission: sync.exceptions.read
+      summary: Cloud only, member token. Flagged ops with their marks. The only place flags and attribution labels are readable;
+        never reachable with a device token (ADR-0002 A1.2 item 2).
+      security:
+      - memberBearer: []
+      responses:
+        '200':
+          description: The list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExceptionList'
+              example:
+                items:
+                - origin: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                  stream: outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  seq: 2
+                  flag: unsealed
+                  detected_at: '2026-11-24T13:07:11.120Z'
+                - origin: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                  stream: outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  seq: 3
+                  flag: approval_flag
+                  reason: mismatch
+                  detected_at: '2026-11-24T13:08:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+  /sync/v1/series-register:
+    get:
+      operationId: getSeriesRegister
+      tags:
+      - admin
+      x-permission: sync.register.read
+      summary: Cloud only, member token. Every legal number seen, with gaps, foreign claims and unknown series.
+      security:
+      - memberBearer: []
+      responses:
+        '200':
+          description: The list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SeriesRegisterList'
+              example:
+                items:
+                - series_code: A7K
+                  financial_year: '2627'
+                  last_number: 123
+                  gaps: 0
+                  foreign_claims: 0
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+  /sync/v1/alerts:
+    get:
+      operationId: listSyncAlerts
+      tags:
+      - admin
+      x-permission: sync.exceptions.read
+      summary: Cloud only, member token. Owner and vendor alerts raised by verdicts.
+      security:
+      - memberBearer: []
+      responses:
+        '200':
+          description: The list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertList'
+              example:
+                items: []
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+  /sync/v1/quarantine/release:
+    post:
+      operationId: releaseQuarantine
+      tags:
+      - admin
+      x-permission: sync.quarantine.manage
+      summary: Cloud only, member token. Release a held slot into normal processing; chain-broken, foreign-series and fork
+        need a support token in act mode; an unsealed tail needs device.recover.
+      security:
+      - memberBearer: []
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuarantineDecision'
+            example:
+              origin: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+              stream: outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+              seq: 3
+              reason: Checked with the owner, the device was restored from a backup.
+      responses:
+        '200':
+          description: Done.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ref'
+              example:
+                origin: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                stream: outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                seq: 3
+        '409':
+          description: The slot is not in a state this action may change.
+          content:
+            application/problem+json:
+              schema:
+                $ref: ../../../common/components.yaml#/components/schemas/Problem
+              example:
+                type: urn:hostry:problem:sync.not_releasable
+                title: Not releasable
+                status: 409
+                code: sync.not_releasable
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /sync/v1/quarantine/discard:
+    post:
+      operationId: discardQuarantine
+      tags:
+      - admin
+      x-permission: sync.quarantine.manage
+      summary: Cloud only, member token. Discard a held slot that carries no legal number (carried out as a void).
+      security:
+      - memberBearer: []
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuarantineDecision'
+            example:
+              origin: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+              stream: outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+              seq: 3
+              reason: Checked with the owner, the device was restored from a backup.
+      responses:
+        '200':
+          description: Done.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ref'
+              example:
+                origin: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                stream: outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                seq: 3
+        '409':
+          description: The slot is not in a state this action may change.
+          content:
+            application/problem+json:
+              schema:
+                $ref: ../../../common/components.yaml#/components/schemas/Problem
+              example:
+                type: urn:hostry:problem:sync.not_releasable
+                title: Not releasable
+                status: 409
+                code: sync.not_releasable
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /sync/v1/quarantine/confirm:
+    post:
+      operationId: confirmSyncQuarantine
+      tags:
+      - admin
+      x-permission: sync.quarantine.confirm
+      summary: Cloud only, support token in act mode. Hostry support confirms the cause of a chain-broken, foreign-series or fork hold; it releases nothing.
+      description: |-
+        ADR-0002 S11 ("released only after vendor support has confirmed the cause"). Only a support token in act mode holding `sync.quarantine.confirm` may call it; a tenant member holding the permission is refused 403, and support can never release or discard. The statement is bound to the held op: the body carries `h`, the hash of the exact op the supporter looked at, and a different `h` is 422 `sync.confirm_hash_required`. It marks the slot vendor-confirmed, so that the organisation's manager (`sync.quarantine.manage`) can then release it, raises an owner alert and is written to the tenant-visible audit log with the reason. Only the reasons chain_broken, foreign_series and fork can be confirmed; any other held slot is 409 `sync.decision_not_allowed`. Confirming twice answers 200 and changes nothing.
+      security:
+      - memberBearer: []
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuarantineConfirmation'
+            example:
+              origin: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+              stream: outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+              seq: 3
+              h: 7a12848dfd8c7c9dce262261d97432158905aeb5f99798239d4583528921b057
+              reason: Cause confirmed by callback with the owner, device restored from a backup.
+      responses:
+        '200':
+          description: Confirmed (or already confirmed).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ref'
+              example:
+                origin: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                stream: outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                seq: 3
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          description: The slot is not held for a reason that can be confirmed (`sync.decision_not_allowed`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: ../../../common/components.yaml#/components/schemas/Problem
+              example:
+                type: urn:hostry:problem:sync.decision_not_allowed
+                title: Decision not allowed
+                status: 409
+                code: sync.decision_not_allowed
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /internal/v1/emit:
+    post:
+      operationId: emitOps
+      tags:
+      - internal
+      x-permission: sync.emit
+      x-service-callers:
+      - catalog
+      - billing
+      summary: Write cloud-origin ops to devices (the only way a service does).
+      description: |-
+        The caller has already authorised the action online (its own `x-permission`, step-up or vendor grant); the gateway does not re-check the user. Who acts (ADR-0014 A2, O2-20): an interactive emit carries the user's token forwarded by the caller beside the service token, so the audit shows the user; a queued emit (from `emit_queue`, after the request ended) acts on service authority alone and names the actor in the op's `actor` and `authorised_by`. The gateway checks that the caller owns the intent, that the intent is cloud-origin (`device_kinds: [cloud]`), that every mutation is of an entity and kind the intent lists, that the stream belongs to the tenant, the size limit (262144 bytes of `body`, 16384 of `pii`) and the batch size (1 to 200 ops). It alone stamps `origin = cloud-<epoch>`, `seq`, `ph` and `hlc` and seals the batch with the op-signing key; a caller never chooses or holds any of these. The batch is atomic and in one tenant.
+
+        Idempotency is `(tenant_id, caller, key)` for each op, written in the transaction that stores it and kept as long as the op. The same key with the same content answers 200 with the original `origin`, `stream`, `seq` and `replayed: true`; the same key with other content is 422 `idempotency.mismatch`. A whole replayed batch is therefore a 200 with every op `replayed`. Every row an emit inserts has an id derived from its key (UUIDv5), so an emit repeated after a cloud restore converges on the same row. The `Idempotency-Key` header is accepted and ignored.
+
+        When the gateway is unreachable, answers 5xx or is not ready after a restore, an interactive caller answers its own client 503 `emit.unavailable` with `Retry-After` and changes nothing; a queued emission waits in the caller's `emit_queue`. A refusal listed below is a defect in the caller (it answers 500 `emit.rejected` and alerts), never a user error. The service token carries a tenant claim (O2-11: tokens for this operation are minted per tenant) and the body's `tenant_id` must equal it: a token without a tenant is 401, a different tenant is 403 `emit.tenant_mismatch`. The tenant stays a body field here (the one exception to the rule that it comes from the token alone) so that a mismatch is refused, never silently resolved.
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmitRequest'
+            example:
+              tenant_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+              ops:
+              - key: edit-0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4ab1
+                stream: brand:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6a
+                intent: menu.tax_class.set
+                intent_v: 1
+                muts:
+                - e: item
+                  id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5101
+                  k: set
+                  f:
+                    tax_class: fnb_standard
+                actor: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
+                authorised_by: menu.tax_class.edit
+      responses:
+        '200':
+          description: Every op is stored; `replayed` is true for an op the gateway already held.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmitResponse'
+              example:
+                ops:
+                - key: edit-0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4ab1
+                  origin: cloud-1
+                  stream: brand:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6a
+                  seq: 1
+                  replayed: false
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          description: The caller is not a service listed in x-service-callers, or the body tenant differs from the tenant claim of the token (`emit.tenant_mismatch`).
+          content:
+            application/problem+json:
+              schema:
+                $ref: ../../../common/components.yaml#/components/schemas/Problem
+              example:
+                type: urn:hostry:problem:forbidden
+                title: Permission denied
+                status: 403
+                code: forbidden
+        '422':
+          description: One of `idempotency.mismatch`, `emit.intent_unknown`, `emit.intent_not_cloud`, `emit.caller_not_owner`,
+            `emit.entity_not_allowed`, `emit.stream_not_in_tenant`, `emit.batch_size` or `op.too_large`. Nothing is stored.
+          content:
+            application/problem+json:
+              schema:
+                $ref: ../../../common/components.yaml#/components/schemas/Problem
+              example:
+                type: urn:hostry:problem:idempotency.mismatch
+                title: Idempotency key reused with other content
+                status: 422
+                code: idempotency.mismatch
+        '429':
+          description: The caller or tenant exceeds its emit rate. Nothing is stored; retry the same batch with the same keys after `Retry-After`. An
+            interactive caller answers its own client 503 `emit.unavailable`; a queued emission stays in the caller's `emit_queue` and is retried with jitter.
+          headers:
+            Retry-After:
+              $ref: ../../../common/components.yaml#/components/headers/RetryAfter
+          content:
+            application/problem+json:
+              schema:
+                $ref: ../../../common/components.yaml#/components/schemas/Problem
+              example:
+                type: urn:hostry:problem:emit.rate_limited
+                title: Emit rate limited
+                status: 429
+                code: emit.rate_limited
+        '503':
+          description: The gateway is not ready (restore in progress) or its store is unavailable. Retry with the same keys.
+          headers:
+            Retry-After:
+              $ref: ../../../common/components.yaml#/components/headers/RetryAfter
+          content:
+            application/problem+json:
+              schema:
+                $ref: ../../../common/components.yaml#/components/schemas/Problem
+              example:
+                type: urn:hostry:problem:emit.unavailable
+                title: Cloud emit unavailable
+                status: 503
+                code: emit.unavailable
+      security:
+      - serviceAuth: []
+  /internal/v1/pii/erase:
+    post:
+      operationId: erasePii
+      tags:
+      - internal
+      x-permission: sync.pii.erase
+      x-service-callers:
+      - billing
+      - orders
+      x-provisional: Who starts a data-subject erasure request (owner, support or a vendor admin flow) is not decided; billing and orders, the owners of the pii side tables (ADR-0014 A2.1 item 7), are the only callers until it is.
+      summary: Erase the personal data of earlier ops on every node (writes the cloud-signed `sync.pii.erase` op).
+      description: |-
+        The caller has already authorised the request online (its own permission, step-up and audit); the gateway does not re-check the user. The tenant is the tenant claim of the service token (a token without one is 401); no body field names it. For every target `{origin, stream, seq}` the gateway checks that the op exists, belongs to the tenant and that its stream does, then, in one transaction per target, writes the cloud-origin op of intent `sync.pii.erase` (one `pii_erase` record, id `stream|origin|seq`, sealed like any cloud-origin op, stamped by the gateway alone), removes the stored `pii` values and salts of the target op, and writes `sync.pii.erased` (ids only) for the owning services (ADR-0014 A2.1 item 7; sync/protocol-v1.md, Personal data).
+
+        Erasing a target twice answers the first erasure op with `replayed: true` and writes nothing. A target the gateway does not hold is 422 `erase.target_unknown` (nothing is written for any target of the request; the batch is atomic); a target with no personal data is erased all the same, so a node that later receives the op discards a late arrival. The commitments in the sealed body stay. GST retention (72 months) keeps the document: erasure is field-level. The erased values leave the internal queue within 7 days (ADR-0014 A2.1 item 7). `Idempotency-Key` is accepted and ignored: the target is the idempotency key.
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PiiErasureRequest'
+            example:
+              targets:
+              - origin: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                stream: outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                seq: 12
+      responses:
+        '200':
+          description: One entry per target, in request order. `replayed` is true when the target was already erased.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PiiErasureList'
+              example:
+                erasures:
+                - origin: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                  stream: outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  seq: 12
+                  erase_origin: cloud-1
+                  erase_seq: 5
+                  replayed: false
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          description: The caller is not a service listed in x-service-callers.
+          content:
+            application/problem+json:
+              schema:
+                $ref: ../../../common/components.yaml#/components/schemas/Problem
+              example:
+                type: urn:hostry:problem:forbidden
+                title: Permission denied
+                status: 403
+                code: forbidden
+        '422':
+          description: One of `erase.target_unknown`, `erase.batch_size` or `op.too_large`. Nothing is written.
+          content:
+            application/problem+json:
+              schema:
+                $ref: ../../../common/components.yaml#/components/schemas/Problem
+              example:
+                type: urn:hostry:problem:erase.target_unknown
+                title: Erase target not held
+                status: 422
+                code: erase.target_unknown
+        '503':
+          description: The gateway is not ready (restore in progress) or its store is unavailable. Retry; targets are idempotent.
+          headers:
+            Retry-After:
+              $ref: ../../../common/components.yaml#/components/headers/RetryAfter
+          content:
+            application/problem+json:
+              schema:
+                $ref: ../../../common/components.yaml#/components/schemas/Problem
+              example:
+                type: urn:hostry:problem:emit.unavailable
+                title: Cloud emit unavailable
+                status: 503
+                code: emit.unavailable
+      security:
+      - serviceAuth: []
+components:
+  securitySchemes:
+    deviceBearer:
+      type: http
+      scheme: bearer
+      description: 'Cloud: go-auth device token (typ device). On the LAN a bearer is never used (see lanSession).'
+    lanSession:
+      type: apiKey
+      in: header
+      name: Hostry-Lan-Session
+      description: LAN session token from openLanSession (256 random bits, base64url, 15 minutes, hub memory only). Replaces the per-request signed
+        assertion of earlier drafts (ADR-0002 A3.1 item 5).
+    drainBearer:
+      type: http
+      scheme: bearer
+      description: go-auth drain token.
+    memberBearer:
+      type: http
+      scheme: bearer
+      description: go-auth user or support token.
+    serviceAuth:
+      type: apiKey
+      in: header
+      name: Hostry-Service-Token
+      description: Service token; operations under /internal/v1 accept only this, from a caller in x-service-callers. For emitOps it carries a tenant claim (O2-11).
+  schemas:
+    Pii:
+      type: object
+      description: 'Personal data beside an op, outside the hash and erasable (O2-8; protocol-v1.md, Personal data). Shape entity name,
+        then row id, then field name, then value; a value is a string, boolean or integer. Next to each value travels the salt that
+        its commitment in body.pii_c was made with, under the key "~s:" followed by the field name (base64url, no padding, 16 bytes).
+        A node keeps only the fields whose commitment verifies, drops the rest and keeps value and salt together, and the gateway
+        publishes both on the bus (events/sync/op.v1) so the owning service can verify too (O2-12). A field name that starts with "~s:"
+        is reserved. At most 16384 bytes of canonical JSON. sync.pii.erase removes values and salts; the commitments stay. Served on pull
+        and snapshot to same-outlet devices of kind pos, waiter, personal and hub; a node answering a puller whose credential kind is kds
+        removes the whole object (ADR-0014 A3.1). A pushed op carries it to any upstream. Convergence hashes cover the commitments,
+        never these values (ADR-0014 A3.2).'
+      additionalProperties:
+        type: object
+        description: The rows of one entity, by row id.
+        additionalProperties:
+          type: object
+          description: The personal fields of one row, by field name, each with its salt.
+          additionalProperties:
+            type:
+            - string
+            - boolean
+            - integer
+            description: A field value, or the base64url salt of a field under the key "~s:<field>".
+      examples:
+      - check:
+          0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6001:
+            customer_name: Meera
+            '~s:customer_name': AAECAwQFBgcICQoLDA0ODw
+    PiiCommitments:
+      type: object
+      description: 'Salted per-field commitments to the personal data of the op, inside the hashed body (so the chain and seal
+        cover them and erasing the data never touches the chain). Shape entity, row id, field, then the lower-case hex SHA-256 over
+        the 16 salt bytes followed by the RFC 8785 canonical JSON text of the value. A plain hash of the value is never carried:
+        a phone number could be guessed back from it. The commitments stay after erasure and cannot be reopened without the salt.'
+      additionalProperties:
+        type: object
+        description: The rows of one entity, by row id.
+        additionalProperties:
+          type: object
+          description: The commitments of one row, by field name.
+          additionalProperties:
+            type: string
+            description: Commitment of one field.
+            pattern: ^[0-9a-f]{64}$
+    QuarantineDecision:
+      allOf:
+      - $ref: '#/components/schemas/Ref'
+      - type: object
+        description: A decision on a held slot; a reason is required and stays in the tenant-visible audit log.
+        properties:
+          reason:
+            type: string
+            description: Why, 1 to 200 characters. No personal data.
+            minLength: 1
+            maxLength: 200
+        required:
+        - reason
+    QuarantineConfirmation:
+      allOf:
+      - $ref: '#/components/schemas/Ref'
+      - type: object
+        description: Hostry support's confirmation of the cause of a hold, bound to the content it looked at.
+        properties:
+          h:
+            type: string
+            description: Hash of the held op (the `h` of the held slot), so the statement covers exactly what was inspected.
+            pattern: ^[0-9a-f]{64}$
+          reason:
+            type: string
+            description: What was checked and with whom, 1 to 200 characters.
+            minLength: 1
+            maxLength: 200
+        required:
+        - h
+        - reason
+    Vector:
+      type: object
+      description: Highest contiguous seq per `origin/stream` key (origin id, a slash, the stream id).
+      additionalProperties:
+        type: integer
+        format: int64
+      examples:
+      - 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e/outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61: 2
+    Ref:
+      type: object
+      description: A slot.
+      properties:
+        origin:
+          type: string
+          description: Origin node id (device id or cloud-<epoch>).
+        stream:
+          type: string
+          description: 'Stream id: outlet:<id>, brand:<id> or tenant:<id>.'
+        seq:
+          type: integer
+          description: Gapless per origin per stream, from 1.
+          format: int64
+      required:
+      - origin
+      - stream
+      - seq
+    Item:
+      type: object
+      description: One op, or one placeholder when `body` is absent.
+      properties:
+        origin:
+          type: string
+          description: Origin.
+        stream:
+          type: string
+          description: Stream.
+        seq:
+          type: integer
+          description: Sequence number.
+          format: int64
+        h:
+          type: string
+          description: Lowercase hex SHA-256 of the UTF-8 bytes of `body`.
+        body:
+          type: string
+          description: Canonical JSON text (RFC 8785, integers only) of the op body, as a JSON string; at most 262144 bytes.
+            Forwarded byte for byte, hashed as received. Absent on a placeholder.
+          contentMediaType: application/json
+          contentSchema:
+            $ref: '#/components/schemas/OpBody'
+          maxLength: 262144
+        pii:
+          description: Personal data of the op (values and salts). Absent from every pull and snapshot answer to a kds puller; carried
+            to pos, waiter, personal and hub devices of the same outlet (ADR-0014 A3.1). Erased fields are absent.
+          $ref: '#/components/schemas/Pii'
+      required:
+      - origin
+      - stream
+      - seq
+      - h
+    OpBody:
+      type: object
+      description: The parsed form of Item.body (ADR-0002 S4). Unknown fields are ignored.
+      properties:
+        v:
+          type: integer
+          description: Envelope version, 1.
+        origin:
+          type: string
+          description: Origin.
+        stream:
+          type: string
+          description: Stream.
+        seq:
+          type: integer
+          description: Sequence.
+        ph:
+          type: string
+          description: Hex hash of this origin's previous op in this stream; the first op chains to sha256("hostry-genesis-v1\n"
+            + origin + "\n" + stream).
+        hlc:
+          type: string
+          description: 16 lowercase hex characters, 48-bit ms and 16-bit counter.
+        clk:
+          type: string
+          description: Clock source.
+          enum:
+          - sync
+          - manual
+        tenant_id:
+          type: string
+          description: Echo of the tenant from the credential.
+        actor:
+          type: string
+          description: Member id for a `pin` or `strong` session; `device:<device id>` for a `device` session (KDS, no member; the id must
+            equal `origin`, see sync/protocol-v1.md, Attribution of device-session ops); `support:<vendor user>` or `service:<name>`
+            on cloud-origin ops. Any other text is refused as `actor_unknown`.
+        sid:
+          type: string
+          description: Session id.
+        pack_v:
+          type: integer
+          description: Offline pack version, an integer of at least 1 (ADR-0005 A3.1; it was text in an earlier draft of the unreleased
+            v1). On every device-origin op; cloud-origin ops carry none.
+          minimum: 1
+        pin_v:
+          type: integer
+          description: PIN version of the member the proof belongs to (the actor on `session.open`, the approver on `approval.grant`).
+            Present exactly where `proof` is (ADR-0005 A3.1).
+          minimum: 1
+        approval:
+          type: string
+          description: 'Approval id. Cited by an op of an intent with `override: true` whose actor lacks the permission (ADR-0014 A3.3);
+            the `approval.grant` record of that id binds intent, permission, target row and action hash. Valid and matching: the op is
+            accepted with no flag. Not yet arrived: `pending`. Failing: `approval_flag` with a reason. `permission_flag` only when no
+            approval is cited.'
+        proof:
+          type: string
+          description: Opaque PIN-derived proof; only the cloud checks it. Only on `session.open` of a `pin` session and on
+            `approval.grant`; ignored on any other intent (ADR-0005 A3.1).
+        intent:
+          type: string
+          description: Intent name from the registry (sync/intents).
+        intent_v:
+          type: integer
+          description: Intent version.
+        at:
+          type: string
+          description: RFC 3339 UTC with milliseconds, for example 2026-11-24T13:05:11.120Z.
+        doc:
+          type: object
+          description: Legal document number allocated by this op (ADR-0002 S7).
+          properties:
+            type:
+              type: string
+              description: Document type.
+              enum:
+              - tax_invoice
+              - bill_of_supply
+              - plain_bill
+              - credit_note
+            number:
+              type: string
+              description: <code>/<FY>/<running>, for example A7K/2627/000123.
+              maxLength: 16
+          required:
+          - type
+          - number
+        docs:
+          type: array
+          description: Every legal document number this op allocates, in the order allocated (O2-7). `doc` is the first of them, kept
+            for readers that know only one. An op that allocates one number carries `doc` and may omit `docs`; an op that allocates
+            several (bill.rebill is a credit note and a new bill) carries `docs`. The gateway and the series register read `docs`
+            when present, else `doc`. An op never takes a number twice from one series.
+          items:
+            type: object
+            description: One allocated document number.
+            properties:
+              type:
+                type: string
+                description: Document type.
+                enum:
+                - tax_invoice
+                - bill_of_supply
+                - plain_bill
+                - credit_note
+              number:
+                type: string
+                description: <code>/<FY>/<running>, for example A7K/2627/000123.
+                maxLength: 16
+            required:
+            - type
+            - number
+        pii_c:
+          $ref: '#/components/schemas/PiiCommitments'
+        muts:
+          type: array
+          description: Atomic generic mutations.
+          items:
+            $ref: '#/components/schemas/Mut'
+      required:
+      - v
+      - origin
+      - stream
+      - seq
+      - ph
+      - hlc
+      - clk
+      - tenant_id
+      - intent
+      - intent_v
+      - at
+      - muts
+    Mut:
+      type: object
+      description: 'One mutation of one entity row, or of a protocol record. Records are not synced entities and carry `e` equal to the record name,
+        one of sync_void, pii_erase and series_close (sync/protocol-v1.md, Control records): sync_void (cloud origin, id stream|origin|seq,
+        fields origin, stream, seq, reason), pii_erase (cloud origin only, id stream|origin|seq of the target op, fields origin, stream, seq),
+        series_close (device statement, id = the series id, fields code, fy, last_number, last_number >= 0).'
+      properties:
+        e:
+          type: string
+          description: Entity name.
+        id:
+          type: string
+          description: Row id.
+        k:
+          type: string
+          description: Mutation kind.
+          enum:
+          - insert
+          - set
+          - delta
+          - rank
+          - del
+          - undel
+        f:
+          type: object
+          description: 'Field values: strings, booleans or integers within +-(2^53-1). No fractions or exponents.'
+          additionalProperties: true
+        prev:
+          type: object
+          description: Stamp (hlc hex) of the winning candidate the writer saw per review field.
+          additionalProperties:
+            type: string
+      required:
+      - e
+      - id
+      - k
+      examples:
+      - e: item_outlet
+        id: a7ac8341-e6c5-58a2-8a75-d00c40f77035
+        k: set
+        f:
+          available: false
+    Seal:
+      type: object
+      description: Signature over the hash of an op at `seq`; covers the whole chain up to it. Made by the origin (a device
+        key) or, for a `cloud-<epoch>` origin only, by the gateway op-signing key. An op-signing key never seals a device
+        origin; the released tail of a key-lost origin is covered by an Endorsement.
+      properties:
+        origin:
+          type: string
+          description: Origin.
+        stream:
+          type: string
+          description: Stream.
+        seq:
+          type: integer
+          description: Sequence.
+          format: int64
+        h:
+          type: string
+          description: Hash of the op at seq.
+        kid:
+          type: string
+          description: Key id.
+        sig:
+          type: string
+          description: ES256 raw r||s, base64url, of the message "hostry-seal-v1\n" + origin + "\n" + stream + "\n" + seq
+            + "\n" + h (ES256 hashes it with SHA-256).
+      required:
+      - origin
+      - stream
+      - seq
+      - h
+      - kid
+      - sig
+    Endorsement:
+      type: object
+      description: The gateway's statement that a holder of device.recover released an op of a key-lost origin (ADR-0002 A2.1).
+        Valid only together with the identity-signed credential of the adopting device (carrying `recovers` = origin) and
+        that device's Attestation with the same `rec`; the op's seq must be at or below the attested seq, and the op held
+        at the attested seq must have the attested h.
+      properties:
+        origin:
+          type: string
+          description: Key-lost origin.
+        stream:
+          type: string
+          description: Stream.
+        seq:
+          type: integer
+          description: Sequence of the released op.
+          format: int64
+        h:
+          type: string
+          description: Hash of the op at seq.
+        rec:
+          type: string
+          description: Recovery id.
+        kid:
+          type: string
+          description: Key id of the gateway op-signing key (a current key of the pack).
+        sig:
+          type: string
+          description: ES256 raw r||s, base64url, of "hostry-endorse-v1\n" + origin + "\n" + stream + "\n" + seq + "\n" +
+            h + "\n" + rec.
+      required:
+      - origin
+      - stream
+      - seq
+      - h
+      - rec
+      - kid
+      - sig
+    Attestation:
+      type: object
+      description: Fixes the tail of a key-lost origin (ADR-0002 A1.3), signed with the adopting device's new key.
+      properties:
+        origin:
+          type: string
+          description: Old origin.
+        stream:
+          type: string
+          description: Stream.
+        seq:
+          type: integer
+          description: Last op of the tail.
+          format: int64
+        h:
+          type: string
+          description: Hash of that op.
+        by:
+          type: string
+          description: Adopting device id.
+        rec:
+          type: string
+          description: Recovery record id.
+        kid:
+          type: string
+          description: Adopting device key id.
+        sig:
+          type: string
+          description: ES256 of "hostry-attest-v1\n" + origin + "\n" + stream + "\n" + seq + "\n" + h + "\n" + by + "\n" +
+            rec.
+      required:
+      - origin
+      - stream
+      - seq
+      - h
+      - by
+      - rec
+      - kid
+      - sig
+    LanHelloRequest:
+      type: object
+      description: LAN handshake step 1 from the device.
+      properties:
+        credential:
+          type: string
+          description: The device's LAN credential, a compact ES256 JWS (sync/protocol-v1.md, LAN credential).
+        nonce_d:
+          type: string
+          description: 32 random bytes, base64url without padding.
+          pattern: ^[A-Za-z0-9_-]{43}$
+      required:
+      - credential
+      - nonce_d
+    LanHelloResponse:
+      type: object
+      description: LAN handshake step 1 from the hub.
+      properties:
+        credential:
+          type: string
+          description: The hub's LAN credential (kind `hub`).
+        nonce_h:
+          type: string
+          description: 32 random bytes, base64url without padding.
+          pattern: ^[A-Za-z0-9_-]{43}$
+        hub_proof:
+          type: string
+          description: 'ES256 (r||s, base64url) by the hub''s device key over "hostry-lan-hub-v1" and nonce_d, nonce_h, device id, hub id and `spki`, joined by newlines.'
+      required:
+      - credential
+      - nonce_h
+      - hub_proof
+    LanSessionRequest:
+      type: object
+      description: LAN handshake step 2 from the device.
+      properties:
+        nonce_d:
+          type: string
+          description: The device nonce of step 1.
+          pattern: ^[A-Za-z0-9_-]{43}$
+        nonce_h:
+          type: string
+          description: The hub nonce of step 1; the hub finds its pending handshake by it.
+          pattern: ^[A-Za-z0-9_-]{43}$
+        device_proof:
+          type: string
+          description: 'ES256 (r||s, base64url) by the device key over "hostry-lan-device-v1" and nonce_d, nonce_h, device id, hub id and the `spki` the device saw, joined by newlines.'
+      required:
+      - nonce_d
+      - nonce_h
+      - device_proof
+    LanSession:
+      type: object
+      description: A LAN session.
+      properties:
+        token:
+          type: string
+          description: 256 random bits, base64url without padding (43 characters). Sent as `Hostry-Lan-Session`.
+          pattern: ^[A-Za-z0-9_-]{43}$
+        expires_in:
+          type: integer
+          description: Seconds the token is valid, 900.
+      required:
+      - token
+      - expires_in
+    Credential:
+      type: object
+      description: Identity-signed device credential (a part of the offline pack).
+      properties:
+        device_id:
+          type: string
+          description: Device id.
+        tenant_id:
+          type: string
+          description: Organisation.
+        outlet_id:
+          type: string
+          description: Outlet.
+        brand_id:
+          type: string
+          description: Brand of the outlet, read by identity from tenancy at activation and signed here (ADR-0014 A3.4). The hub and LAN
+            peers judge a device's `brand:<id>` stream binding from it alone. An outlet never changes brand.
+        kind:
+          type: string
+          description: Device kind. Decides whether a node serves the device `pii` (not to kds).
+          enum:
+          - pos
+          - waiter
+          - personal
+          - kds
+          - hub
+        kid:
+          type: string
+          description: Key id.
+        pub:
+          type: string
+          description: Uncompressed X9.62 P-256 point, base64url.
+        recovers:
+          type: string
+          description: Old device this one adopted (ADR-0002 A1.3).
+        store:
+          type: string
+          description: Whether the device's local store is protected (ADR-0002 A3.5 item 1). A node sends another origin's `pii` only to a
+            puller whose credential says `protected`. Fixed for the life of the device id.
+          enum:
+          - protected
+          - unprotected
+        not_after:
+          type: integer
+          description: Unix seconds.
+          format: int64
+      required:
+      - device_id
+      - tenant_id
+      - outlet_id
+      - brand_id
+      - kind
+      - kid
+      - pub
+      - store
+      - not_after
+    CredentialEnvelope:
+      type: object
+      description: A credential with identity's signature over its RFC 8785 JSON.
+      properties:
+        cred:
+          $ref: '#/components/schemas/Credential'
+        sig:
+          type: string
+          description: ES256 of "hostry-cred-v1\n" + canonical JSON of cred.
+      required:
+      - cred
+      - sig
+    HeldSlot:
+      type: object
+      description: One of the device's own held slots, with one of three coarse codes (ADR-0002 A1.2). Never a flag or a proof
+        verdict.
+      properties:
+        origin:
+          type: string
+          description: Origin.
+        stream:
+          type: string
+          description: Stream.
+        seq:
+          type: integer
+          description: Sequence.
+          format: int64
+        code:
+          type: string
+          description: Whom to call.
+          enum:
+          - pending
+          - held_manager
+          - held_support
+      required:
+      - origin
+      - stream
+      - seq
+      - code
+    Refusal:
+      type: object
+      description: An op the node did not store (not a verdict).
+      properties:
+        origin:
+          type: string
+          description: Origin.
+        stream:
+          type: string
+          description: Stream.
+        seq:
+          type: integer
+          description: Sequence.
+          format: int64
+        reason:
+          type: string
+          description: Why.
+          enum:
+          - gap
+          - seal_invalid
+          - chain_invalid
+          - origin_not_in_outlet
+          - stream_outside_binding
+          - revoked
+          - unsealed
+          - framing
+          - recovery_not_authorised
+          - relay_not_allowed
+          - fork_evidence_kept
+          - op_too_large
+          - chain_conflict
+      required:
+      - origin
+      - stream
+      - seq
+      - reason
+    HelloRequest:
+      type: object
+      description: Handshake request.
+      properties:
+        protocol:
+          type: integer
+          description: Protocol major, 1.
+        app_version:
+          type: string
+          description: App version.
+        schema_version:
+          type: integer
+          description: Schema version.
+        vector:
+          $ref: '#/components/schemas/Vector'
+        epoch:
+          type: string
+          description: Cloud epoch this node last synced under.
+        cloud_vector:
+          $ref: '#/components/schemas/Vector'
+        pii_erased:
+          type: array
+          description: Acknowledgement of cloud-signed erasures (intent sync.pii.erase) this node applied to its rows, op log, caches
+            and spool since its last direct cloud hello, as the refs of the target ops (not of the erasure ops). The gateway records
+            it per node; a node that reaches only a hub acknowledges at its next direct cloud hello and keeps the list until then.
+            Only the cloud reads it.
+          items:
+            $ref: '#/components/schemas/Ref'
+        unbound:
+          type: array
+          description: Slots the node took by hash with no binding yet (ADR-0002 A2.8). Only the cloud answers; listed at every
+            direct cloud hello.
+          items:
+            $ref: '#/components/schemas/Ref'
+        chain_conflicts:
+          type: array
+          description: Chain conflicts the node recorded and has not reported (ADR-0002 A2.8).
+          items:
+            $ref: '#/components/schemas/ChainConflict'
+      required:
+      - protocol
+    ChainConflict:
+      type: object
+      description: A chain conflict a node recorded, for the cloud to judge.
+      properties:
+        origin:
+          type: string
+          description: Origin.
+        stream:
+          type: string
+          description: Stream.
+        seq:
+          type: integer
+          description: Sequence.
+          format: int64
+        held:
+          type: string
+          description: Hash the node holds for the slot.
+        seen:
+          type: string
+          description: The hash that contradicted it, when one was seen.
+      required:
+      - origin
+      - stream
+      - seq
+      - held
+    HelloResponse:
+      type: object
+      description: Handshake response.
+      properties:
+        protocol:
+          type: integer
+          description: Protocol major.
+        role:
+          type: string
+          description: Role.
+          enum:
+          - hub
+          - cloud
+        node_id:
+          type: string
+          description: Node id.
+        time:
+          type: string
+          description: Upstream time, RFC 3339.
+        epoch:
+          type: string
+          description: Cloud epoch (a hub passes on the last one it saw).
+        vector:
+          $ref: '#/components/schemas/Vector'
+        cloud_vector:
+          $ref: '#/components/schemas/Vector'
+        min_supported_version:
+          type: string
+          description: Gates pulling (ADR-0002 S13).
+        snapshot_required:
+          type: boolean
+          description: Always false in protocol v1; the snapshot client is not built.
+        streams:
+          type: array
+          description: Streams the caller is bound to.
+          items:
+            type: string
+        unbound_h:
+          type: array
+          description: The cloud's own hash for each slot named in `unbound` that it holds (ADR-0002 A2.8).
+          items:
+            $ref: '#/components/schemas/SlotHash'
+      required:
+      - protocol
+      - role
+      - node_id
+      - time
+      - vector
+      - min_supported_version
+      - snapshot_required
+      - streams
+    SlotHash:
+      type: object
+      description: A slot with the cloud's hash.
+      properties:
+        origin:
+          type: string
+          description: Origin.
+        stream:
+          type: string
+          description: Stream.
+        seq:
+          type: integer
+          description: Sequence.
+          format: int64
+        h:
+          type: string
+          description: Lowercase hex SHA-256 the cloud holds for the slot.
+      required:
+      - origin
+      - stream
+      - seq
+      - h
+    PushRequest:
+      type: object
+      description: Ops in per-origin order.
+      properties:
+        items:
+          type: array
+          description: Ops, no placeholders.
+          items:
+            $ref: '#/components/schemas/Item'
+        seals:
+          type: array
+          description: Seals; each (origin, stream) group ends at a sealed op.
+          items:
+            $ref: '#/components/schemas/Seal'
+        attestations:
+          type: array
+          description: 'Quarantine upload: the tail attestation. Push: the attestations that go with `endorsements`.'
+          items:
+            $ref: '#/components/schemas/Attestation'
+        endorsements:
+          type: array
+          description: Re-offer of released unsealed-tail ops (ADR-0002 A2.1 item 5), independent of `items`.
+          items:
+            $ref: '#/components/schemas/Endorsement'
+        drain_statement:
+          $ref: ../../../common/components.yaml#/components/schemas/DrainStatement
+      required:
+      - items
+    PushResponse:
+      type: object
+      description: Result of a push.
+      properties:
+        epoch:
+          type: string
+          description: Cloud epoch.
+        vector:
+          $ref: '#/components/schemas/Vector'
+        held:
+          type: array
+          description: The caller's own held slots.
+          items:
+            $ref: '#/components/schemas/HeldSlot'
+        refused:
+          type: array
+          description: Ops not stored.
+          items:
+            $ref: '#/components/schemas/Refusal'
+        drained:
+          type: boolean
+          description: Quarantine upload only; the attested tail is all held.
+      required:
+      - vector
+    PullRequest:
+      type: object
+      description: Pull request.
+      properties:
+        vector:
+          $ref: '#/components/schemas/Vector'
+        streams:
+          type: array
+          description: Restrict to streams.
+          items:
+            type: string
+        placeholders:
+          type: array
+          description: Slots held only as placeholders, to receive them once released.
+          items:
+            $ref: '#/components/schemas/Ref'
+        stale_seals:
+          type: array
+          description: Stored cloud-origin seals under an op-signing key the caller no longer accepts (ADR-0002 A2.8).
+          items:
+            $ref: '#/components/schemas/Ref'
+        limit:
+          type: integer
+          description: Soft cap, at most 500; a batch always ends at a seal.
+          maximum: 500
+      required:
+      - vector
+    PullResponse:
+      type: object
+      description: Pull response.
+      properties:
+        epoch:
+          type: string
+          description: Cloud epoch.
+        items:
+          type: array
+          description: Slots above the vector.
+          items:
+            $ref: '#/components/schemas/Item'
+        seals:
+          type: array
+          description: Seals covering the batch.
+          items:
+            $ref: '#/components/schemas/Seal'
+        creds:
+          type: array
+          description: Credentials of the origins in items, and of the adopting devices (`recovers`) when endorsements are
+            present.
+          items:
+            $ref: '#/components/schemas/CredentialEnvelope'
+        endorsements:
+          type: array
+          description: Every endorsement of the ops in this batch, and of released ops answered for `placeholders`. A hub
+            re-serves what it stored.
+          items:
+            $ref: '#/components/schemas/Endorsement'
+        attestations:
+          type: array
+          description: The attestations that go with the endorsements.
+          items:
+            $ref: '#/components/schemas/Attestation'
+        more:
+          type: boolean
+          description: More slots are available.
+        own_held:
+          type: array
+          description: Complete current list of the caller's own held slots; replace the local list.
+          items:
+            $ref: '#/components/schemas/HeldSlot'
+        relay_held:
+          type: array
+          description: For role hub only.
+          items:
+            $ref: '#/components/schemas/HeldSlot'
+        seal_refresh:
+          type: array
+          description: The current seal for each `stale_seals` entry (ADR-0002 A2.8).
+          items:
+            $ref: '#/components/schemas/Seal'
+      required:
+      - items
+      - more
+      - own_held
+    Snapshot:
+      type: object
+      description: Materialised state for bootstrap.
+      properties:
+        epoch:
+          type: string
+          description: Cloud epoch.
+        vector:
+          $ref: '#/components/schemas/Vector'
+        rows:
+          type: array
+          description: Rows.
+          items:
+            type: object
+            description: 'Row: e, id, f, gone; and for an entity with pii fields `pii_c` (field to commitment) and, except for a kds caller, `pii`
+              (field to value, with `~s:<field>` salts).'
+            additionalProperties: true
+        voids:
+          type: array
+          description: The void set.
+          items:
+            $ref: '#/components/schemas/Ref'
+      required:
+      - vector
+      - rows
+      - voids
+    QuarantineList:
+      type: object
+      description: Held slots.
+      properties:
+        items:
+          type: array
+          description: Held slots with reasons.
+          items:
+            type: object
+            description: A held slot.
+            properties:
+              origin:
+                type: string
+                description: Origin.
+              stream:
+                type: string
+                description: Stream.
+              seq:
+                type: integer
+                description: Sequence.
+              reason:
+                type: string
+                description: Why it is held.
+              intent:
+                type: string
+                description: Intent name of the held op, when it could be read.
+              number:
+                type: string
+                description: The legal number the op carries, when it carries one.
+              received_at:
+                type: string
+                description: When it arrived.
+      required:
+      - items
+    ExceptionList:
+      type: object
+      description: Flagged ops.
+      properties:
+        items:
+          type: array
+          description: Flagged ops.
+          items:
+            type: object
+            description: A flagged op.
+            properties:
+              origin:
+                type: string
+                description: Origin.
+              stream:
+                type: string
+                description: Stream.
+              seq:
+                type: integer
+                description: Sequence.
+              flag:
+                type: string
+                description: "The mark. `permission_flag` is raised only for an actor without the permission who cites no approval, or an
+                  intent that is not `override: true`; `approval_flag` for a cited approval that fails a check (ADR-0014 A3.3)."
+              reason:
+                type: string
+                description: Why an `approval_flag` was raised. Absent on any other flag.
+                enum:
+                - proof_invalid
+                - mismatch
+                - reused
+                - expired
+                - approver_not_permitted
+                - self
+              detected_at:
+                type: string
+                description: When it was flagged.
+      required:
+      - items
+    SeriesRegisterList:
+      type: object
+      description: Register rows.
+      properties:
+        items:
+          type: array
+          description: One row per series and financial year.
+          items:
+            type: object
+            description: A register row.
+            properties:
+              series_code:
+                type: string
+                description: Series code.
+              financial_year:
+                type: string
+                description: Four-digit FY.
+              last_number:
+                type: integer
+                description: Highest running number seen.
+              gaps:
+                type: integer
+                description: Gap count.
+              foreign_claims:
+                type: integer
+                description: Numbers claimed by another origin.
+      required:
+      - items
+    AlertList:
+      type: object
+      description: Alerts.
+      properties:
+        items:
+          type: array
+          description: Alerts.
+          items:
+            type: object
+            description: An alert.
+            properties:
+              code:
+                type: string
+                description: Alert code.
+              raised_at:
+                type: string
+                description: When it was raised.
+      required:
+      - items
+    EmitOp:
+      type: object
+      description: One cloud-origin op to be stamped, sealed and stored.
+      properties:
+        key:
+          type: string
+          description: 'Idempotency key of this op: deterministic where the source is (UUIDv5 of import job and row, of tenant
+            and rule-set version, of day and revision number), derived from the caller''s Idempotency-Key for an interactive
+            edit. Unique per (tenant, caller).'
+          minLength: 1
+          maxLength: 128
+        stream:
+          type: string
+          description: Stream id; it must belong to the tenant.
+        intent:
+          type: string
+          description: A cloud-origin intent owned by the caller (sync/intents/cloud.yaml).
+        intent_v:
+          type: integer
+          description: Intent version.
+        muts:
+          type: array
+          description: Mutations of entities and kinds the intent lists.
+          items:
+            $ref: '#/components/schemas/Mut'
+          minItems: 1
+        pii:
+          $ref: '#/components/schemas/Pii'
+        actor:
+          type: string
+          description: Member id, `support:<vendor user>` or `service:<name>`.
+        authorised_by:
+          type:
+          - string
+          - 'null'
+          description: The permission from the intent's authorised_online_by that the caller checked, or null for a system
+            emit.
+        approval:
+          type: string
+          description: Approval or vendor grant id the caller verified, when there was one.
+      required:
+      - key
+      - stream
+      - intent
+      - intent_v
+      - muts
+      - actor
+    EmitRequest:
+      type: object
+      description: A batch of cloud-origin ops for one tenant.
+      properties:
+        tenant_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+          description: The tenant (organisation). Must equal the tenant claim of the service token (403 emit.tenant_mismatch otherwise).
+        ops:
+          type: array
+          description: One to 200 ops, stored atomically.
+          items:
+            $ref: '#/components/schemas/EmitOp'
+          minItems: 1
+          maxItems: 200
+      required:
+      - tenant_id
+      - ops
+    PiiErasureRequest:
+      type: object
+      description: Ops whose personal data is to be erased. The tenant is the token's tenant claim.
+      properties:
+        targets:
+          type: array
+          description: One to 200 target ops.
+          items:
+            $ref: '#/components/schemas/PiiTarget'
+          minItems: 1
+          maxItems: 200
+      required:
+      - targets
+    PiiTarget:
+      type: object
+      description: One op, identified as in the `pii_erase` record.
+      properties:
+        origin:
+          type: string
+          description: Origin (device id) of the target op.
+        stream:
+          type: string
+          description: Stream of the target op.
+        seq:
+          type: integer
+          description: Sequence of the target op in that origin and stream.
+          format: int64
+          minimum: 1
+      required:
+      - origin
+      - stream
+      - seq
+    PiiErasureList:
+      type: object
+      description: Where each erasure op landed.
+      properties:
+        erasures:
+          type: array
+          description: One entry per target, in request order.
+          items:
+            type: object
+            description: The erasure of one target.
+            properties:
+              origin:
+                type: string
+                description: Origin of the target op.
+              stream:
+                type: string
+                description: Stream of the target op.
+              seq:
+                type: integer
+                description: Sequence of the target op.
+                format: int64
+              erase_origin:
+                type: string
+                description: '`cloud-<epoch>`, origin of the `sync.pii.erase` op.'
+              erase_seq:
+                type: integer
+                description: Sequence of the `sync.pii.erase` op.
+                format: int64
+              replayed:
+                type: boolean
+                description: True when the target was already erased and the first erasure op is answered.
+            required:
+            - origin
+            - stream
+            - seq
+            - erase_origin
+            - erase_seq
+            - replayed
+      required:
+      - erasures
+    EmitResponse:
+      type: object
+      description: Where each op landed.
+      properties:
+        ops:
+          type: array
+          description: One entry per op, in request order.
+          items:
+            type: object
+            description: Identity of a stored op.
+            properties:
+              key:
+                type: string
+                description: The op's key.
+              origin:
+                type: string
+                description: '`cloud-<epoch>`.'
+              stream:
+                type: string
+                description: Stream.
+              seq:
+                type: integer
+                description: Sequence assigned by the gateway.
+                format: int64
+              replayed:
+                type: boolean
+                description: True when the gateway already held this key with the same content.
+            required:
+            - key
+            - origin
+            - stream
+            - seq
+            - replayed
+      required:
+      - ops

@@ -37,6 +37,7 @@ permissions:
   - {key: device.read, realm: tenant, service: identity, description_key: perm.device.read, flags: [support_viewable]}
   - {key: device.register, realm: tenant, service: identity, description_key: perm.device.register, flags: [strong_only, owner_grant]}
   - {key: device.activation_code.create, realm: tenant, service: identity, description_key: perm.device.activation_code.create, flags: [strong_only, owner_grant]}
+  - {key: device.recover, realm: tenant, service: identity, description_key: perm.device.recover, flags: [strong_only, owner_grant]}  # owner-approved key-loss recovery of a device (ADR-0002 A1.3 item 2)
   - {key: device.revoke, realm: tenant, service: identity, description_key: perm.device.revoke, flags: [sensitive, strong_only, owner_grant]}
   - {key: member.read, realm: tenant, service: identity, description_key: perm.member.read, flags: [support_viewable]}
   - {key: member.manage, realm: tenant, service: identity, description_key: perm.member.manage, flags: [sensitive, strong_only, owner_grant]}
@@ -48,12 +49,82 @@ permissions:
   - {key: audit.read, realm: tenant, service: identity, description_key: perm.audit.read, flags: []}
   # Declared for Phase 2 (owner app creates the one-time code for act mode); no operation in Phase 1.
   - {key: support.code.create, realm: tenant, service: identity, description_key: perm.support.code.create, flags: [strong_only, owner_grant]}
+  # ---- restaurant domain (Phase 2; docs/product/restaurant-mvp-spec.md section 2) ----
+  # Spec flags map as: S -> sensitive; SO -> strong_only + owner_grant. P (action proof) and A (allowance) are intent properties of the
+  # sync intent registry, not catalogue flags; they are noted at the end of a row. Support-session flags are conservative: only menu.read is viewable.
+  - {key: menu.read, realm: tenant, service: catalog, description_key: perm.menu.read, flags: [support_viewable]}
+  - {key: menu.manage, realm: tenant, service: catalog, description_key: perm.menu.manage, flags: []}
+  - {key: menu.price.edit, realm: tenant, service: catalog, description_key: perm.menu.price.edit, flags: [sensitive]}  # P
+  - {key: menu.tax_class.edit, realm: tenant, service: catalog, description_key: perm.menu.tax_class.edit, flags: [strong_only, owner_grant]}
+  - {key: menu.import, realm: tenant, service: catalog, description_key: perm.menu.import, flags: [strong_only, owner_grant]}
+  - {key: menu.availability.set, realm: tenant, service: catalog, description_key: perm.menu.availability.set, flags: []}
+  - {key: menu.open_item, realm: tenant, service: catalog, description_key: perm.menu.open_item, flags: []}  # A
+  - {key: catalog.import, realm: tenant, service: catalog, description_key: perm.catalog.import, flags: [support_actable]}  # act-mode twin of menu.import (ADR-0005 A2.5 item 5); stays off until security-reviewer signs
+  - {key: floor.manage, realm: tenant, service: catalog, description_key: perm.floor.manage, flags: []}
+  - {key: order.create, realm: tenant, service: orders, description_key: perm.order.create, flags: []}
+  - {key: order.edit, realm: tenant, service: orders, description_key: perm.order.edit, flags: []}
+  - {key: order.line.cancel, realm: tenant, service: orders, description_key: perm.order.line.cancel, flags: [sensitive]}  # P
+  - {key: order.line.cancel.grace, realm: tenant, service: orders, description_key: perm.order.line.cancel.grace, flags: []}  # A  Grace cancel: a line still kitchen-new, within outlet_settings.cancel_grace_seconds (default 120 s), on a check that has not been presented; counted per member per shift.
+  - {key: order.items.move, realm: tenant, service: orders, description_key: perm.order.items.move, flags: []}
+  - {key: order.table.move, realm: tenant, service: orders, description_key: perm.order.table.move, flags: []}
+  - {key: order.table.merge, realm: tenant, service: orders, description_key: perm.order.table.merge, flags: []}
+  - {key: kot.handover, realm: tenant, service: orders, description_key: perm.kot.handover, flags: []}
+  - {key: kot.reprint, realm: tenant, service: orders, description_key: perm.kot.reprint, flags: []}
+  - {key: kds.view, realm: tenant, service: orders, description_key: perm.kds.view, flags: []}
+  - {key: kds.bump, realm: tenant, service: orders, description_key: perm.kds.bump, flags: []}
+  - {key: bill.split, realm: tenant, service: orders, description_key: perm.bill.split, flags: []}
+  - {key: bill.merge, realm: tenant, service: orders, description_key: perm.bill.merge, flags: []}
+  - {key: bill.new, realm: tenant, service: orders, description_key: perm.bill.new, flags: []}
+  - {key: bill.request, realm: tenant, service: orders, description_key: perm.bill.request, flags: []}
+  - {key: bill.present, realm: tenant, service: orders, description_key: perm.bill.present, flags: []}
+  - {key: bill.cancel, realm: tenant, service: orders, description_key: perm.bill.cancel, flags: [sensitive]}  # P
+  - {key: check.close_internal, realm: tenant, service: orders, description_key: perm.check.close_internal, flags: [sensitive]}  # A; internal-consumption record is owned by billing (O2-1, provisional)
+  - {key: exceptions.view, realm: tenant, service: orders, description_key: perm.exceptions.view, flags: []}  # shared by catalog, orders and billing exception lists
+  - {key: exceptions.resolve, realm: tenant, service: orders, description_key: perm.exceptions.resolve, flags: []}
+  - {key: bill.finalize, realm: tenant, service: billing, description_key: perm.bill.finalize, flags: []}
+  - {key: payment.record, realm: tenant, service: billing, description_key: perm.payment.record, flags: []}
+  - {key: bill.discount.apply, realm: tenant, service: billing, description_key: perm.bill.discount.apply, flags: []}
+  - {key: bill.discount.over_limit, realm: tenant, service: billing, description_key: perm.bill.discount.over_limit, flags: [sensitive]}  # P
+  - {key: bill.discount.limit.edit, realm: tenant, service: billing, description_key: perm.bill.discount.limit.edit, flags: [strong_only, owner_grant]}
+  - {key: bill.line.comp, realm: tenant, service: billing, description_key: perm.bill.line.comp, flags: [sensitive]}  # P
+  - {key: bill.line.comp.allowance, realm: tenant, service: billing, description_key: perm.bill.line.comp.allowance, flags: []}  # A
+  - {key: bill.service_charge.remove, realm: tenant, service: billing, description_key: perm.bill.service_charge.remove, flags: []}
+  - {key: bill.customer_details.edit, realm: tenant, service: billing, description_key: perm.bill.customer_details.edit, flags: []}
+  - {key: bill.reprint, realm: tenant, service: billing, description_key: perm.bill.reprint, flags: []}
+  - {key: bill.credit_note.create, realm: tenant, service: billing, description_key: perm.bill.credit_note.create, flags: [sensitive]}  # P
+  - {key: bill.rebill, realm: tenant, service: billing, description_key: perm.bill.rebill, flags: []}  # A
+  - {key: bill.manual_entry, realm: tenant, service: billing, description_key: perm.bill.manual_entry, flags: [sensitive]}
+  - {key: payment.refund, realm: tenant, service: billing, description_key: perm.payment.refund, flags: [sensitive]}  # P
+  - {key: drawer.open_no_sale, realm: tenant, service: billing, description_key: perm.drawer.open_no_sale, flags: [sensitive]}
+  - {key: drawer.cash_move, realm: tenant, service: billing, description_key: perm.drawer.cash_move, flags: []}
+  - {key: shift.open, realm: tenant, service: billing, description_key: perm.shift.open, flags: []}
+  - {key: shift.close, realm: tenant, service: billing, description_key: perm.shift.close, flags: []}
+  - {key: shift.close.any, realm: tenant, service: billing, description_key: perm.shift.close.any, flags: []}
+  - {key: day.close, realm: tenant, service: billing, description_key: perm.day.close, flags: [sensitive]}
+  - {key: report.view.day, realm: tenant, service: billing, description_key: perm.report.view.day, flags: []}
+  - {key: report.view.outlet, realm: tenant, service: billing, description_key: perm.report.view.outlet, flags: []}
+  - {key: report.export, realm: tenant, service: billing, description_key: perm.report.export, flags: []}
+  - {key: settings.outlet.edit, realm: tenant, service: billing, description_key: perm.settings.outlet.edit, flags: []}
+  - {key: settings.gst_profile.edit, realm: tenant, service: billing, description_key: perm.settings.gst_profile.edit, flags: [strong_only, owner_grant]}
+  - {key: settings.numbering.edit, realm: tenant, service: billing, description_key: perm.settings.numbering.edit, flags: [strong_only, owner_grant]}
+  - {key: member.disable_local, realm: tenant, service: identity, description_key: perm.member.disable_local, flags: [sensitive]}  # Should; off until the ADR-0005 amendment (O2-2)
+  - {key: audit.read.vendor_access, realm: tenant, service: identity, description_key: perm.audit.read.vendor_access, flags: []}
+  - {key: subscription.read, realm: tenant, service: tenancy, description_key: perm.subscription.read, flags: []}  # owner "My plan" (Could, A1 BR-A1-90)
+  # Added with the sync intent registry (sync/intents): named by the spec and ADR-0005 section 8 but absent from the catalogue. Provisional; security-reviewer confirms.
+  - {key: series.activate, realm: tenant, service: tenancy, description_key: perm.series.activate, flags: [sensitive]}  # P; offline activation of a dormant billing series with an approval (RM-O25)
+  - {key: device.clock.confirm, realm: tenant, service: identity, description_key: perm.device.clock.confirm, flags: [sensitive]}  # P; manager confirms date and time after a clock skew (RM-X3)
+  - {key: series.manual_book.register, realm: tenant, service: tenancy, description_key: perm.series.manual_book.register, flags: [sensitive, strong_only, owner_grant]}  # owner registers a paper bill book as an entry-only series (ADR-0014 A1.6 item 4)
   # ---- service callers (x-service-callers) ----
   - {key: revocation.read, realm: service, service: identity, description_key: perm.revocation.read, flags: []}
   - {key: device.drain.record, realm: service, service: identity, description_key: perm.device.drain.record, flags: []}
   - {key: proof.verify, realm: service, service: identity, description_key: perm.proof.verify, flags: []}
+  - {key: device.directory.read, realm: service, service: identity, description_key: perm.device.directory.read, flags: []}  # sync gateway directory questions: credential, pack grants, member grants, recovery, session (ADR-0005 A3.2)
+  - {key: entitlement.directory.read, realm: service, service: tenancy, description_key: perm.entitlement.directory.read, flags: []}  # identity reads the organisation's entitlement snapshot for the offline pack (ADR-0014 T10)
+  - {key: series.directory.read, realm: service, service: tenancy, description_key: perm.series.directory.read, flags: []}  # sync gateway: series of a device, owner of a stream (ADR-0005 A3.2 row 8)
   - {key: series.issue, realm: service, service: tenancy, description_key: perm.series.issue, flags: []}
   - {key: link.decide, realm: service, service: tenancy, description_key: perm.link.decide, flags: []}
+  - {key: register.read, realm: service, service: billing, description_key: perm.register.read, flags: []}  # tenancy and identity read the last number seen per series (ADR-0014 R5)
+  - {key: orders.check_count.read, realm: service, service: orders, description_key: perm.orders.check_count.read, flags: []}  # billing asks for open checks before accepting number_at (not on the trading path)
   # ---- vendor realm (Admin A0 section 2; ADR-0003 A1.1; ADR-0005 A2.3) ----
   - {key: admin.org.read, realm: vendor, service: admin, description_key: perm.admin.org.read, flags: []}
   - {key: admin.org.create, realm: vendor, service: admin, description_key: perm.admin.org.create, flags: []}
@@ -74,24 +145,48 @@ permissions:
   - {key: admin.signin_code.approve, realm: vendor, service: admin, description_key: perm.admin.signin_code.approve, flags: []}
   - {key: admin.recovery.create, realm: vendor, service: admin, description_key: perm.admin.recovery.create, flags: []}
   - {key: admin.recovery.approve, realm: vendor, service: admin, description_key: perm.admin.recovery.approve, flags: []}
-  # Approval kinds of ADR-0014 A1.3 (executed by tenancy and billing); the rest of Admin A1 arrives with the Phase 2 specs.
+  # Admin A1 (docs/product/admin-a1-spec.md section 2; ADR-0014 A1.3, A1.4)
+  - {key: admin.subscription.read, realm: vendor, service: admin, description_key: perm.admin.subscription.read, flags: []}
+  - {key: admin.subscription.start, realm: vendor, service: admin, description_key: perm.admin.subscription.start, flags: []}
+  - {key: admin.subscription.manage, realm: vendor, service: admin, description_key: perm.admin.subscription.manage, flags: []}
+  - {key: admin.subscription.adjust, realm: vendor, service: admin, description_key: perm.admin.subscription.adjust, flags: []}
+  - {key: admin.plan.manage, realm: vendor, service: admin, description_key: perm.admin.plan.manage, flags: []}
+  - {key: admin.taxrules.manage, realm: vendor, service: admin, description_key: perm.admin.taxrules.manage, flags: []}
   - {key: admin.taxrules.publish, realm: vendor, service: admin, description_key: perm.admin.taxrules.publish, flags: []}
   - {key: admin.org.lifecycle.request, realm: vendor, service: admin, description_key: perm.admin.org.lifecycle.request, flags: []}
   - {key: admin.org.lifecycle.approve, realm: vendor, service: admin, description_key: perm.admin.org.lifecycle.approve, flags: []}
+  - {key: admin.support.session.act, realm: vendor, service: admin, description_key: perm.admin.support.session.act, flags: []}
+  - {key: admin.report.ledger, realm: vendor, service: admin, description_key: perm.admin.report.ledger, flags: []}
+  # ---- sync (device-token capabilities, member-token read-backs, and the internal emit) ----
+  - {key: sync.push, realm: tenant, service: sync, description_key: perm.sync.push, flags: []}  # device token: hello, push, pull, snapshot, poke
+  - {key: sync.drain, realm: tenant, service: sync, description_key: perm.sync.drain, flags: []}  # drain token: quarantine-upload only (ADR-0005 section 4)
+  - {key: sync.quarantine.manage, realm: tenant, service: sync, description_key: perm.sync.quarantine.manage, flags: [sensitive]}
+  - {key: sync.quarantine.read, realm: tenant, service: sync, description_key: perm.sync.quarantine.read, flags: [support_viewable]}  # listQuarantine (held list, no content); a support session in view mode may read it
+  - {key: sync.quarantine.confirm, realm: tenant, service: sync, description_key: perm.sync.quarantine.confirm, flags: [support_actable]}  # Hostry support confirms the cause of a chain-broken, foreign-series or fork hold; releases nothing (SY-1)
+  - {key: sync.exceptions.read, realm: tenant, service: sync, description_key: perm.sync.exceptions.read, flags: []}
+  - {key: sync.register.read, realm: tenant, service: sync, description_key: perm.sync.register.read, flags: []}
+  - {key: sync.emit, realm: service, service: sync, description_key: perm.sync.emit, flags: []}  # catalog and billing write cloud-origin ops (ADR-0014 A2.2)
+  - {key: sync.pii.erase, realm: service, service: sync, description_key: perm.sync.pii.erase, flags: []}  # billing and orders ask the gateway to write the cloud-signed erase op (ADR-0014 A2.1 item 7)
 
 # Vendor roles are sets of permissions (checks are on permissions, never role names). A0 table of
 # docs/product/admin-a0-spec.md section 2, plus admin.registration.verify (ADR-0003 A1.1: platform admin and onboarding)
 # and the approval permissions (proposed: platform_admin for sign-in codes and recovery, which stay switched off;
 # support for device_revoke_over_quota via admin.device.revoke).
+# Role matrix rule while the vendor team is three people or fewer: approval of sign-in codes and owner recovery
+# (admin.signin_code.approve, admin.recovery.approve) belongs to platform_admin only; support may still create the requests
+# (admin.approval.create) but approves only device_revoke_over_quota. Revisit when the team grows (security review H-roles).
 vendor_roles:
   platform_admin: [admin.org.read, admin.org.create, admin.owner_invite.manage, admin.registration.verify, admin.device.read, admin.device.revoke,
                    admin.support.session.start, admin.audit.read, admin.audit.read_own, admin.user.manage, admin.approval.create, admin.approval.read,
                    admin.approval.decide, admin.signin_code.create, admin.signin_code.approve, admin.recovery.create, admin.recovery.approve,
-                   admin.taxrules.publish, admin.org.lifecycle.request, admin.org.lifecycle.approve]
-  onboarding: [admin.org.read, admin.org.create, admin.owner_invite.manage, admin.registration.verify, admin.device.read, admin.audit.read_own]
+                   admin.subscription.read, admin.subscription.start, admin.subscription.manage, admin.subscription.adjust, admin.plan.manage, admin.taxrules.manage, admin.taxrules.publish, admin.org.lifecycle.request, admin.org.lifecycle.approve, admin.support.session.act, admin.report.ledger]
+  onboarding: [admin.org.read, admin.org.create, admin.owner_invite.manage, admin.registration.verify, admin.device.read, admin.audit.read_own,
+               admin.subscription.read, admin.subscription.start, admin.support.session.act]
   support: [admin.org.read, admin.device.read, admin.device.revoke, admin.support.session.start, admin.audit.read_own,
-            admin.approval.create, admin.approval.read, admin.approval.decide]
-  billing: [admin.org.read, admin.audit.read_own]
+            admin.approval.create, admin.approval.read, admin.approval.decide,
+            admin.subscription.read]
+  billing: [admin.org.read, admin.audit.read_own,
+            admin.subscription.read, admin.subscription.start, admin.subscription.manage, admin.org.lifecycle.request, admin.report.ledger]
 
 # Link scopes (ADR-0003 section 3). Phase 1 has the test-only pair used by the go-common/testkit fixture operation;
 # no service spec declares a link scope. Real scopes arrive with the Phase 5 templates.

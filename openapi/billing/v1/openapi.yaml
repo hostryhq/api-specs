@@ -1,0 +1,5218 @@
+openapi: 3.1.0
+info:
+  title: Hostry billing API
+  version: 1.0.0
+  description: 'Money and legal documents: bills, credit notes, payments, refunds, shifts, the business day with
+    its Z revisions, the document register, tax profile and settings, the platform tax rule sets, internal-consumption
+    records and the sales, tax and tender reports (ADR-0014 R1, R3, R5, R6, R7 and Amendment A1). Documents are
+    created on devices as sync ops (bill.finalize allocates the number on the device); this API is the cloud read
+    side plus the online-only strong-session settings. billing recomputes every bill and credit note with the same
+    calc_v and ruleset_v and records verified, mismatch, stale_rules, profile_mismatch or manual_entry; a bill is
+    never altered or rejected, the remedy is a credit note (R6.6). billing never allocates, changes or reuses a
+    number. The tenant is always the caller''s organisation from the token; outlet-scoped calls take X-Outlet-Id.
+    Operations under /internal/v1/vendor serve the admin service: they need the admin service token plus the vendor
+    user''s token, and publication needs a vendor approval grant (A1.3, A1.4). The word billing always means a tenant''s
+    sales documents; Hostry''s own subscription ledger is in tenancy. Amounts are Money (paise); quantities are
+    thousandths; rates are basis points.'
+  x-status: stable
+  x-example-worlds:
+    base: Organisation 4a60 with outlet 4a61 and verified registration 4a6b (regular). The trading day holds exactly one bill, bill 7001 (A7K/2627/000001,
+      tax_invoice, paid by cash payment 7021, verified), credit note 7011, refund 7061, shift 7051 closed, business
+      day bbac closed with no revisions (Z/2026-11-24/P1), internal consumption 7081, series A7K registered, published
+      rule set c799 (unreviewed) in force, outlet billing config at defaults (number_at settle), orders reports
+      no open check. No exception, no gap, no draft rule set. The caller is an owner (strong session) or, on /internal/v1/vendor
+      routes, the admin service with a vendor user holding the needed permission.
+    digest-day: Outlet 4a61, business date 2026-11-24 holds exactly the rows of examples/digests/billing-digest-day.json (bill 7001 and cash payment 7021) and no other day-scoped billing row.
+    payments-exceed: Base plus an open exception 7091 (payments_exceed_total on bill 7001) after a second payment
+      was taken on another device.
+    gap-open: Base plus an open gap in the document register, series A7K, FY 2627, number 57 is missing (gap 70b1,
+      kind device, detected 13:05:11); every other fact as in base.
+    late-revision: Base plus Z revision 7071 of day bbac (revision 1, cause late_device, from device 4a5e, ops 813 to 830),
+      so the day shows revision_count 1 and a late document; every other fact as in base.
+    rule-set-draft: Base plus draft rule set 3c47 (version 2, revision 1, effective 2026-12-15, unreviewed, one
+      rule).
+    rule-set-signed: Base plus rule set 3c47 signed (reviewed, sign-off recorded, effective 2026-12-15) and a valid
+      single-use vendor approval grant for it; the caller is the approver, a second platform admin.
+servers:
+- url: /
+tags:
+- name: billing
+  description: Documents, register, reports, settings.
+- name: vendor
+  description: Tax rule set master and publication (admin service only).
+- name: internal
+  description: Operations for other Hostry services.
+security:
+- bearerAuth: []
+paths:
+  /v1/bills:
+    get:
+      operationId: listBills
+      summary: List bills (the bill register)
+      description: 'Report 2. Newest first by finalisation. A late document carries late: true. The bill-book bills
+        are those with source_kind manual_book.'
+      tags:
+      - billing
+      x-permission: report.view.outlet
+      x-outlet-scoped: true
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/OutletScope
+      - name: business_date
+        in: query
+        required: false
+        description: Filter by business date.
+        schema:
+          type: string
+          format: date
+        example: '2026-11-24'
+      - name: invoice_from
+        in: query
+        required: false
+        description: First invoice date.
+        schema:
+          type: string
+          format: date
+        example: '2026-11-24'
+      - name: invoice_to
+        in: query
+        required: false
+        description: Last invoice date.
+        schema:
+          type: string
+          format: date
+        example: '2026-11-24'
+      - name: number
+        in: query
+        required: false
+        description: Exact bill number.
+        schema:
+          type: string
+        example: A7K/2627/000001
+      - name: source_kind
+        in: query
+        required: false
+        description: Filter by source.
+        schema:
+          type: string
+          enum:
+          - check
+          - counter
+          - manual_book
+        example: check
+      - name: verification
+        in: query
+        required: false
+        description: Filter by verification result.
+        schema:
+          type: string
+          enum:
+          - pending
+          - verified
+          - mismatch
+          - stale_rules
+          - profile_mismatch
+          - manual_entry
+        example: verified
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: A page of bills.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BillPage'
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001
+                  outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  number: A7K/2627/000001
+                  doc_type: tax_invoice
+                  source_kind: check
+                  check_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6001
+                  order_type: dine_in
+                  eco: false
+                  business_date: '2026-11-24'
+                  invoice_date: '2026-11-24'
+                  finalized_at: '2026-11-24T13:05:11.120Z'
+                  cashier_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
+                  device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                  calc_v: 1
+                  ruleset_id: 9107573a-9de6-569a-a692-fb53d5d4c799
+                  price_mode: exclusive
+                  total:
+                    amount_paise: 50400
+                    currency: INR
+                  round_off:
+                    amount_paise: 0
+                    currency: INR
+                  paid:
+                    amount_paise: 50400
+                    currency: INR
+                  payment_status: paid
+                  credited:
+                    amount_paise: 0
+                    currency: INR
+                  verification:
+                    status: verified
+                    calc_v: 1
+                    ruleset_id: 9107573a-9de6-569a-a692-fb53d5d4c799
+                    difference:
+                      amount_paise: 0
+                      currency: INR
+                    checked_at: '2026-11-24T13:05:11.120Z'
+                  late: false
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/bills/{bill_id}:
+    get:
+      operationId: getBill
+      summary: Get a bill with its lines, tax groups and payments
+      tags:
+      - billing
+      x-permission: report.view.outlet
+      parameters:
+      - name: bill_id
+        in: path
+        required: true
+        description: Bill id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001
+      responses:
+        '200':
+          description: The bill.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BillDetail'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001
+                outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                number: A7K/2627/000001
+                doc_type: tax_invoice
+                source_kind: check
+                check_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6001
+                order_type: dine_in
+                eco: false
+                business_date: '2026-11-24'
+                invoice_date: '2026-11-24'
+                finalized_at: '2026-11-24T13:05:11.120Z'
+                cashier_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
+                device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                calc_v: 1
+                ruleset_id: 9107573a-9de6-569a-a692-fb53d5d4c799
+                price_mode: exclusive
+                total:
+                  amount_paise: 50400
+                  currency: INR
+                round_off:
+                  amount_paise: 0
+                  currency: INR
+                paid:
+                  amount_paise: 50400
+                  currency: INR
+                payment_status: paid
+                credited:
+                  amount_paise: 0
+                  currency: INR
+                verification:
+                  status: verified
+                  calc_v: 1
+                  ruleset_id: 9107573a-9de6-569a-a692-fb53d5d4c799
+                  difference:
+                    amount_paise: 0
+                    currency: INR
+                  checked_at: '2026-11-24T13:05:11.120Z'
+                late: false
+                discount_total:
+                  amount_paise: 0
+                  currency: INR
+                service_charge:
+                  amount_paise: 0
+                  currency: INR
+                packing_charge:
+                  amount_paise: 0
+                  currency: INR
+                non_gst_subtotal:
+                  amount_paise: 0
+                  currency: INR
+                lines:
+                - line_no: 1
+                  order_line_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6011
+                  item_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5101
+                  item_name: Paneer Tikka
+                  variant_name: Full
+                  category_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5001
+                  category_name: Starters
+                  qty_milli: 2000
+                  unit_price:
+                    amount_paise: 24000
+                    currency: INR
+                  modifier_delta:
+                    amount_paise: 0
+                    currency: INR
+                  line_discount:
+                    amount_paise: 0
+                    currency: INR
+                  bill_discount_alloc:
+                    amount_paise: 0
+                    currency: INR
+                  net:
+                    amount_paise: 48000
+                    currency: INR
+                  comp: false
+                  tax_class: fnb_standard
+                tax_lines:
+                - tax_class: fnb_standard
+                  rate_bp: 500
+                  gst_applies: true
+                  charge_alloc:
+                    amount_paise: 0
+                    currency: INR
+                  taxable:
+                    amount_paise: 48000
+                    currency: INR
+                  cgst:
+                    amount_paise: 1200
+                    currency: INR
+                  sgst:
+                    amount_paise: 1200
+                    currency: INR
+                  igst:
+                    amount_paise: 0
+                    currency: INR
+                payments:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7021
+                  bill_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001
+                  target_kind: bill
+                  tender: cash
+                  amount:
+                    amount_paise: 50400
+                    currency: INR
+                  tendered:
+                    amount_paise: 51000
+                    currency: INR
+                  change:
+                    amount_paise: 600
+                    currency: INR
+                  member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
+                  device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                  shift_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7051
+                  business_date: '2026-11-24'
+                  paid_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+  /v1/business-days:
+    get:
+      operationId: listBusinessDays
+      summary: List business days
+      tags:
+      - billing
+      x-permission: report.view.outlet
+      x-outlet-scoped: true
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/OutletScope
+      - name: status
+        in: query
+        required: false
+        description: Filter by status.
+        schema:
+          type: string
+          enum:
+          - open
+          - closed
+        example: closed
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: A page, newest business date first.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BusinessDayPage'
+              example:
+                items:
+                - id: 781c2cf3-5c86-5dca-8c74-ef356237bbac
+                  outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  business_date: '2026-11-24'
+                  status: closed
+                  opened_at: '2026-11-24T13:05:11.120Z'
+                  close:
+                    z_number: Z/2026-11-24/P1
+                    closing_device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                    closing_member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
+                    closed_at: '2026-11-24T13:05:11.120Z'
+                    cutoff: '{"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e":812}'
+                    cutoff_at: '2026-11-24T13:05:11.120Z'
+                    totals:
+                      gross:
+                        amount_paise: 48000
+                        currency: INR
+                      discounts:
+                        amount_paise: 0
+                        currency: INR
+                      net:
+                        amount_paise: 48000
+                        currency: INR
+                      service_charge:
+                        amount_paise: 0
+                        currency: INR
+                      cgst:
+                        amount_paise: 1200
+                        currency: INR
+                      sgst:
+                        amount_paise: 1200
+                        currency: INR
+                      non_gst:
+                        amount_paise: 0
+                        currency: INR
+                      round_off:
+                        amount_paise: 0
+                        currency: INR
+                      total:
+                        amount_paise: 50400
+                        currency: INR
+                      bill_count: 1
+                      credit_note_count: 0
+                      credit_note_total:
+                        amount_paise: 0
+                        currency: INR
+                      refund_total:
+                        amount_paise: 0
+                        currency: INR
+                      internal_consumption:
+                        amount_paise: 0
+                        currency: INR
+                      tenders:
+                      - tender: cash
+                        count: 1
+                        amount:
+                          amount_paise: 48000
+                          currency: INR
+                    series_ranges:
+                    - series_code: A7K
+                      doc_type: tax_invoice
+                      first_number: A7K/2627/000001
+                      last_number: A7K/2627/000001
+                      count: 1
+                  revision_count: 0
+                  late_document_count: 0
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/business-days/{business_day_id}:
+    get:
+      operationId: getBusinessDay
+      summary: Get a business day with its close fact
+      tags:
+      - billing
+      x-permission: report.view.outlet
+      parameters:
+      - name: business_day_id
+        in: path
+        required: true
+        description: Business day id (UUIDv5 of outlet and date).
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 781c2cf3-5c86-5dca-8c74-ef356237bbac
+      responses:
+        '200':
+          description: The day.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BusinessDay'
+              example:
+                id: 781c2cf3-5c86-5dca-8c74-ef356237bbac
+                outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                business_date: '2026-11-24'
+                status: closed
+                opened_at: '2026-11-24T13:05:11.120Z'
+                close:
+                  z_number: Z/2026-11-24/P1
+                  closing_device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                  closing_member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
+                  closed_at: '2026-11-24T13:05:11.120Z'
+                  cutoff: '{"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e":812}'
+                  cutoff_at: '2026-11-24T13:05:11.120Z'
+                  totals:
+                    gross:
+                      amount_paise: 48000
+                      currency: INR
+                    discounts:
+                      amount_paise: 0
+                      currency: INR
+                    net:
+                      amount_paise: 48000
+                      currency: INR
+                    service_charge:
+                      amount_paise: 0
+                      currency: INR
+                    cgst:
+                      amount_paise: 1200
+                      currency: INR
+                    sgst:
+                      amount_paise: 1200
+                      currency: INR
+                    non_gst:
+                      amount_paise: 0
+                      currency: INR
+                    round_off:
+                      amount_paise: 0
+                      currency: INR
+                    total:
+                      amount_paise: 50400
+                      currency: INR
+                    bill_count: 1
+                    credit_note_count: 0
+                    credit_note_total:
+                      amount_paise: 0
+                      currency: INR
+                    refund_total:
+                      amount_paise: 0
+                      currency: INR
+                    internal_consumption:
+                      amount_paise: 0
+                      currency: INR
+                    tenders:
+                    - tender: cash
+                      count: 1
+                      amount:
+                        amount_paise: 48000
+                        currency: INR
+                  series_ranges:
+                  - series_code: A7K
+                    doc_type: tax_invoice
+                    first_number: A7K/2627/000001
+                    last_number: A7K/2627/000001
+                    count: 1
+                revision_count: 0
+                late_document_count: 0
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+  /v1/business-days/{business_day_id}/revisions:
+    get:
+      operationId: listBusinessDayRevisions
+      summary: List the Z revisions of a day
+      description: Original Z-report plus these revisions equals the billing projection and the document register
+        for the date (RM-R3, T11). An outlet on its LAN alone sees late documents unnumbered until it is online.
+      tags:
+      - billing
+      x-permission: report.view.outlet
+      x-example-world: late-revision
+      parameters:
+      - name: business_day_id
+        in: path
+        required: true
+        description: Business day id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 781c2cf3-5c86-5dca-8c74-ef356237bbac
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: A page, revision number ascending.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BusinessDayRevisionPage'
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7071
+                  business_day_id: 781c2cf3-5c86-5dca-8c74-ef356237bbac
+                  revision: 1
+                  display_number: Z/2026-11-24/P1/R1
+                  cause: late_device
+                  origin_device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                  op_from_seq: 813
+                  op_to_seq: 830
+                  added_totals:
+                    gross:
+                      amount_paise: 48000
+                      currency: INR
+                    discounts:
+                      amount_paise: 0
+                      currency: INR
+                    net:
+                      amount_paise: 48000
+                      currency: INR
+                    service_charge:
+                      amount_paise: 0
+                      currency: INR
+                    cgst:
+                      amount_paise: 1200
+                      currency: INR
+                    sgst:
+                      amount_paise: 1200
+                      currency: INR
+                    non_gst:
+                      amount_paise: 0
+                      currency: INR
+                    round_off:
+                      amount_paise: 0
+                      currency: INR
+                    total:
+                      amount_paise: 50400
+                      currency: INR
+                    bill_count: 1
+                    credit_note_count: 0
+                    credit_note_total:
+                      amount_paise: 0
+                      currency: INR
+                    refund_total:
+                      amount_paise: 0
+                      currency: INR
+                    internal_consumption:
+                      amount_paise: 0
+                      currency: INR
+                    tenders:
+                    - tender: cash
+                      count: 1
+                      amount:
+                        amount_paise: 48000
+                        currency: INR
+                  added_series_ranges:
+                  - series_code: A7K
+                    doc_type: tax_invoice
+                    first_number: A7K/2627/000001
+                    last_number: A7K/2627/000001
+                    count: 1
+                  created_at: '2026-11-24T13:09:40.000Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+  /v1/credit-notes:
+    get:
+      operationId: listCreditNotes
+      summary: List credit notes
+      tags:
+      - billing
+      x-permission: report.view.outlet
+      x-outlet-scoped: true
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/OutletScope
+      - name: business_date
+        in: query
+        required: false
+        description: Filter by business date.
+        schema:
+          type: string
+          format: date
+        example: '2026-11-24'
+      - name: bill_id
+        in: query
+        required: false
+        description: Credit notes of one bill.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: A page of credit notes.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreditNotePage'
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7011
+                  outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  number: A7M/2627/000001
+                  bill_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001
+                  bill_number: A7K/2627/000001
+                  bill_invoice_date: '2026-11-24'
+                  business_date: '2026-11-24'
+                  invoice_date: '2026-11-24'
+                  device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                  member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
+                  calc_v: 1
+                  total:
+                    amount_paise: 50400
+                    currency: INR
+                  round_off:
+                    amount_paise: 0
+                    currency: INR
+                  refund_tender: cash
+                  lines:
+                  - line_no: 1
+                    order_line_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6011
+                    item_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5101
+                    item_name: Paneer Tikka
+                    variant_name: Full
+                    category_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5001
+                    category_name: Starters
+                    qty_milli: 2000
+                    unit_price:
+                      amount_paise: 24000
+                      currency: INR
+                    modifier_delta:
+                      amount_paise: 0
+                      currency: INR
+                    line_discount:
+                      amount_paise: 0
+                      currency: INR
+                    bill_discount_alloc:
+                      amount_paise: 0
+                      currency: INR
+                    net:
+                      amount_paise: 48000
+                      currency: INR
+                    comp: false
+                    tax_class: fnb_standard
+                  tax_lines:
+                  - tax_class: fnb_standard
+                    rate_bp: 500
+                    gst_applies: true
+                    charge_alloc:
+                      amount_paise: 0
+                      currency: INR
+                    taxable:
+                      amount_paise: 48000
+                      currency: INR
+                    cgst:
+                      amount_paise: 1200
+                      currency: INR
+                    sgst:
+                      amount_paise: 1200
+                      currency: INR
+                    igst:
+                      amount_paise: 0
+                      currency: INR
+                  verification:
+                    status: verified
+                    calc_v: 1
+                    ruleset_id: 9107573a-9de6-569a-a692-fb53d5d4c799
+                    difference:
+                      amount_paise: 0
+                      currency: INR
+                    checked_at: '2026-11-24T13:05:11.120Z'
+                  created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/credit-notes/{credit_note_id}:
+    get:
+      operationId: getCreditNote
+      summary: Get a credit note
+      tags:
+      - billing
+      x-permission: report.view.outlet
+      parameters:
+      - name: credit_note_id
+        in: path
+        required: true
+        description: Credit note id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7011
+      responses:
+        '200':
+          description: The credit note.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreditNote'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7011
+                outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                number: A7M/2627/000001
+                bill_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001
+                bill_number: A7K/2627/000001
+                bill_invoice_date: '2026-11-24'
+                business_date: '2026-11-24'
+                invoice_date: '2026-11-24'
+                device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
+                calc_v: 1
+                total:
+                  amount_paise: 50400
+                  currency: INR
+                round_off:
+                  amount_paise: 0
+                  currency: INR
+                refund_tender: cash
+                lines:
+                - line_no: 1
+                  order_line_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6011
+                  item_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5101
+                  item_name: Paneer Tikka
+                  variant_name: Full
+                  category_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5001
+                  category_name: Starters
+                  qty_milli: 2000
+                  unit_price:
+                    amount_paise: 24000
+                    currency: INR
+                  modifier_delta:
+                    amount_paise: 0
+                    currency: INR
+                  line_discount:
+                    amount_paise: 0
+                    currency: INR
+                  bill_discount_alloc:
+                    amount_paise: 0
+                    currency: INR
+                  net:
+                    amount_paise: 48000
+                    currency: INR
+                  comp: false
+                  tax_class: fnb_standard
+                tax_lines:
+                - tax_class: fnb_standard
+                  rate_bp: 500
+                  gst_applies: true
+                  charge_alloc:
+                    amount_paise: 0
+                    currency: INR
+                  taxable:
+                    amount_paise: 48000
+                    currency: INR
+                  cgst:
+                    amount_paise: 1200
+                    currency: INR
+                  sgst:
+                    amount_paise: 1200
+                    currency: INR
+                  igst:
+                    amount_paise: 0
+                    currency: INR
+                verification:
+                  status: verified
+                  calc_v: 1
+                  ruleset_id: 9107573a-9de6-569a-a692-fb53d5d4c799
+                  difference:
+                    amount_paise: 0
+                    currency: INR
+                  checked_at: '2026-11-24T13:05:11.120Z'
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+  /v1/document-register:
+    get:
+      operationId: listDocumentRegister
+      summary: List series in the document register
+      description: 'Every series per registration and financial year with first, last and count and open gaps (R5).
+        Not outlet-filtered: the register is per registration.'
+      tags:
+      - billing
+      x-permission: report.view.outlet
+      parameters:
+      - name: financial_year
+        in: query
+        required: false
+        description: Four-digit FY.
+        schema:
+          type: string
+        example: '2627'
+      - name: kind
+        in: query
+        required: false
+        description: device or manual_book.
+        schema:
+          type: string
+          enum:
+          - device
+          - manual_book
+        example: device
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: A page of series.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterSeriesPage'
+              example:
+                items:
+                - tax_registration_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+                  series_code: A7K
+                  kind: device
+                  doc_type: tax_invoice
+                  financial_year: '2627'
+                  device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                  first_number: A7K/2627/000001
+                  last_number: A7K/2627/000001
+                  count: 1
+                  gap_count: 0
+                  state: active
+                  last_seen_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/document-register/gaps:
+    get:
+      operationId: listDocumentGaps
+      summary: List gaps in the document register
+      description: A gap raises an alert and is never a silent state; book gaps are listed apart.
+      tags:
+      - billing
+      x-permission: report.view.outlet
+      x-example-world: gap-open
+      parameters:
+      - name: status
+        in: query
+        required: false
+        description: Filter by status.
+        schema:
+          type: string
+          enum:
+          - open
+          - arrived
+          - explained
+        example: open
+      - name: kind
+        in: query
+        required: false
+        description: device or manual_book.
+        schema:
+          type: string
+          enum:
+          - device
+          - manual_book
+        example: device
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: A page of gaps.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterGapPage'
+              example:
+                items:
+                - tax_registration_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+                  series_code: A7K
+                  financial_year: '2627'
+                  kind: device
+                  missing_from: 57
+                  missing_to: 57
+                  detected_at: '2026-11-24T13:05:11.120Z'
+                  status: open
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/exceptions:
+    get:
+      operationId: listBillingExceptions
+      summary: List billing exceptions
+      description: 'Detector findings: payments_exceed_total, line_on_two_bills, two_bills_one_check, doc_type_regime_mismatch,
+        tax_mismatch, stale_rules, profile_mismatch, manual_entry, manual_book_missing_number, document_gap, series_quarantined,
+        two_open_days, late_document, allowance_exceeded, handover_skipped, and the document-integrity kinds credit_exceeds_bill (high: credit
+        notes against a bill exceed its value), duplicate_number (high: two documents with one number in a series), rebill_after_payment,
+        rebill_allowance_exceeded, rebill_value_reduced, rebill_value_reduction_over_allowance, rebill_value_reduction_repeated (high) and
+        comp_allowance_exceeded. Severity is warning unless marked high. A bill is never altered or rejected;
+        the remedy is a new op (refund or credit note).'
+      tags:
+      - billing
+      x-permission: exceptions.view
+      x-outlet-scoped: true
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/OutletScope
+      - name: status
+        in: query
+        required: false
+        description: Filter by status.
+        schema:
+          type: string
+          enum:
+          - open
+          - resolved
+          - superseded
+        example: open
+      - name: kind
+        in: query
+        required: false
+        description: Filter by finding kind.
+        schema:
+          type: string
+        example: payments_exceed_total
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: A page, newest first.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExceptionPage'
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7091
+                  kind: payments_exceed_total
+                  severity: high
+                  status: open
+                  subject_kind: bill
+                  subject_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001
+                  outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  business_date: '2026-11-24'
+                  detected_at: '2026-11-24T13:05:11.120Z'
+                  detail_key: exception.payments_exceed_total
+                  params:
+                    total_paise: 50400
+                    paid_paise: 100800
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+      x-example-world: payments-exceed
+  /v1/exceptions/{exception_id}:
+    get:
+      operationId: getBillingException
+      summary: Get one billing exception
+      tags:
+      - billing
+      x-permission: exceptions.view
+      parameters:
+      - name: exception_id
+        in: path
+        required: true
+        description: Exception id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7091
+      responses:
+        '200':
+          description: The finding.
+          content:
+            application/json:
+              schema:
+                $ref: ../../../common/exceptions.yaml#/components/schemas/Exception
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7091
+                kind: payments_exceed_total
+                severity: high
+                status: open
+                subject_kind: bill
+                subject_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001
+                outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                business_date: '2026-11-24'
+                detected_at: '2026-11-24T13:05:11.120Z'
+                detail_key: exception.payments_exceed_total
+                params:
+                  total_paise: 50400
+                  paid_paise: 100800
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+      x-example-world: payments-exceed
+  /v1/internal-consumptions:
+    get:
+      operationId: listInternalConsumptions
+      summary: List internal-consumption records
+      description: 'x-provisional (O2-1, ADR needed): checks closed as staff meal, owner consumption, sample or
+        guest complimentary. Not sales; shown on the Z-report as "Internal consumption (not sales)".'
+      tags:
+      - billing
+      x-permission: report.view.outlet
+      x-outlet-scoped: true
+      x-provisional: Record ownership (billing, non-tax document) is a provisional founder default O2-1; ADR needed.
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/OutletScope
+      - name: business_date
+        in: query
+        required: false
+        description: Filter by business date.
+        schema:
+          type: string
+          format: date
+        example: '2026-11-24'
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: A page.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalConsumptionPage'
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7081
+                  outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  check_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f6001
+                  ref: IC/P1/0004
+                  kind: staff_meal
+                  reason_code_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5163
+                  list_value:
+                    amount_paise: 36000
+                    currency: INR
+                  member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
+                  device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                  business_date: '2026-11-24'
+                  closed_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/outlets/{outlet_id}/billing-config:
+    get:
+      operationId: getOutletBillingConfig
+      summary: Get an outlet's tax profile, billing settings and tenders
+      tags:
+      - billing
+      x-permission: settings.read
+      x-outlet-scoped: true
+      parameters:
+      - name: outlet_id
+        in: path
+        required: true
+        description: Outlet id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+      responses:
+        '200':
+          description: The configuration.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OutletBillingConfig'
+              example:
+                outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                tax_profiles:
+                - outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  financial_year: '2627'
+                  specified_premises: false
+                  fssai_number: '12345678901234'
+                  updated_at: '2026-11-24T13:05:11.120Z'
+                settings:
+                  outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  number_at: settle
+                  price_mode: exclusive
+                  round_off: true
+                  service_charge_bp: 0
+                  discount_limit_bp: 1000
+                  rebill_allowance_per_shift: 3
+                  comp_allowance:
+                    amount_paise: 50000
+                    currency: INR
+                  open_item_limit:
+                    amount_paise: 50000
+                    currency: INR
+                  manual_entry_max_days_back: 2
+                  shift_required: true
+                  handover_count: true
+                  updated_at: '2026-11-24T13:05:11.120Z'
+                tenders:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f70a1
+                  outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  kind: other
+                  name: Coupon
+                  enabled: true
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+  /v1/outlets/{outlet_id}/discount-limit:
+    put:
+      operationId: setDiscountLimit
+      summary: Set the cashier discount limit
+      description: strong_only (RM-D2). The number never travels in tokens. Emits a billing_settings config op, a set of discount_limit_bp, or an insert of the row with defaults when the outlet has none yet.
+      tags:
+      - billing
+      x-permission: bill.discount.limit.edit
+      x-emits-intent: settings.discount_limit.set
+      x-step-up: true
+      parameters:
+      - name: outlet_id
+        in: path
+        required: true
+        description: Outlet id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetDiscountLimit'
+            example:
+              discount_limit_bp: 1500
+      responses:
+        '503':
+          $ref: ../../../common/components.yaml#/components/responses/EmitUnavailable
+        '200':
+          description: The change.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigChange'
+              example:
+                outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                updated_at: '2026-11-24T13:05:11.120Z'
+                op_id: cloud-1/outlet:0190a1b2/731
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/StrongSessionRequired'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/outlets/{outlet_id}/numbering-mode:
+    put:
+      operationId: setNumberingMode
+      summary: Choose when a bill takes its number
+      description: strong_only, owner; refused 409 open_checks_exist unless the outlet has no open check, which
+        billing asks orders for (not on the trading path); listed for the owner. Emits a billing_settings config
+        op.
+      tags:
+      - billing
+      x-permission: settings.numbering.edit
+      x-emits-intent: settings.numbering.set
+      x-step-up: true
+      parameters:
+      - name: outlet_id
+        in: path
+        required: true
+        description: Outlet id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetNumberingMode'
+            example:
+              number_at: print
+      responses:
+        '503':
+          $ref: ../../../common/components.yaml#/components/responses/EmitUnavailable
+        '200':
+          description: The change.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigChange'
+              example:
+                outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                updated_at: '2026-11-24T13:05:11.120Z'
+                op_id: cloud-1/outlet:0190a1b2/731
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/StrongSessionRequired'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: '#/components/responses/OpenChecks'
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/outlets/{outlet_id}/tax-profile:
+    put:
+      operationId: setOutletTaxProfile
+      summary: Set the GST profile of an outlet for a financial year
+      description: strong_only, online only (RM-T2, RM-A5); audited. The specified-premises flag is refused 422
+        specified_premises_retroactive for a financial year that started more than the allowed days ago. Emits one
+        settings.tax_profile.set config op (lww + review) that carries the outlet_tax_profile row and, when price_mode
+        is sent, price_mode on the outlet's billing_settings row (set, or an insert with defaults when the row does not exist).
+      tags:
+      - billing
+      x-permission: settings.gst_profile.edit
+      x-emits-intent: settings.tax_profile.set
+      x-step-up: true
+      parameters:
+      - name: outlet_id
+        in: path
+        required: true
+        description: Outlet id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetOutletTaxProfile'
+            example:
+              financial_year: '2627'
+              specified_premises: false
+              fssai_number: '12345678901234'
+              price_mode: exclusive
+      responses:
+        '503':
+          $ref: ../../../common/components.yaml#/components/responses/EmitUnavailable
+        '200':
+          description: The change.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfigChange'
+              example:
+                outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                updated_at: '2026-11-24T13:05:11.120Z'
+                op_id: cloud-1/outlet:0190a1b2/731
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/StrongSessionRequired'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/payments:
+    get:
+      operationId: listPayments
+      summary: List payments
+      tags:
+      - billing
+      x-permission: report.view.outlet
+      x-outlet-scoped: true
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/OutletScope
+      - name: business_date
+        in: query
+        required: false
+        description: Filter by business date.
+        schema:
+          type: string
+          format: date
+        example: '2026-11-24'
+      - name: bill_id
+        in: query
+        required: false
+        description: Payments of one bill.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001
+      - name: tender
+        in: query
+        required: false
+        description: Filter by tender.
+        schema:
+          type: string
+          enum:
+          - cash
+          - upi
+          - card
+          - other
+          - eco
+        example: cash
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: A page of payments.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentPage'
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7021
+                  bill_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001
+                  target_kind: bill
+                  tender: cash
+                  amount:
+                    amount_paise: 50400
+                    currency: INR
+                  tendered:
+                    amount_paise: 51000
+                    currency: INR
+                  change:
+                    amount_paise: 600
+                    currency: INR
+                  member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
+                  device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                  shift_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7051
+                  business_date: '2026-11-24'
+                  paid_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/projection-digests:
+    get:
+      operationId: getBillingProjectionDigest
+      x-example-world: digest-day
+      summary: Digest of the billing projection of a business day
+      description: 'Test and reconciliation aid (ADR-0014 T2, T9, T11): equals the digest a device computes from
+        its local billing entities for the day, after late documents are included.'
+      tags:
+      - billing
+      x-permission: report.view.outlet
+      x-outlet-scoped: true
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/OutletScope
+      - name: business_date
+        in: query
+        required: false
+        description: Business date to digest.
+        schema:
+          type: string
+          format: date
+        example: '2026-11-24'
+      responses:
+        '200':
+          description: The digest.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectionDigest'
+              example:
+                outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                business_date: '2026-11-24'
+                algorithm: sha256-canon-v1
+                state_hash: aee7d30b56d637c0b9bb9b7e2d607bee982387907ae434e74239a84e52e3b78b
+                entities:
+                - entity: bill
+                  row_count: 1
+                  hash: 2c152f6c6717075f0fd0fdc563048f077d23c11b00f09c3d5731da012498e34b
+                - entity: payment
+                  row_count: 1
+                  hash: 83b76619863814c9bdaea86d267e6f736a7d43df470477b9dbeca54047da5885
+                computed_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/refunds:
+    get:
+      operationId: listRefunds
+      summary: List refunds
+      tags:
+      - billing
+      x-permission: report.view.outlet
+      x-outlet-scoped: true
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/OutletScope
+      - name: business_date
+        in: query
+        required: false
+        description: Filter by business date.
+        schema:
+          type: string
+          format: date
+        example: '2026-11-24'
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: A page of refunds.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefundPage'
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7061
+                  bill_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001
+                  payment_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7021
+                  amount:
+                    amount_paise: 50400
+                    currency: INR
+                  tender: cash
+                  reason_code_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5162
+                  member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
+                  business_date: '2026-11-24'
+                  refunded_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/reports/category-sales:
+    get:
+      operationId: getCategorySalesReport
+      summary: Category-wise sales
+      description: Report 6. Needs the internet (RM-R5). Cursor-paged; totals cover the whole range.
+      tags:
+      - billing
+      x-permission: report.view.outlet
+      x-outlet-scoped: true
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/OutletScope
+      - name: from
+        in: query
+        required: false
+        description: First business date (inclusive).
+        schema:
+          type: string
+          format: date
+        example: '2026-11-24'
+      - name: to
+        in: query
+        required: false
+        description: Last business date (inclusive); at most 366 days after from.
+        schema:
+          type: string
+          format: date
+        example: '2026-11-24'
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: The report page.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategorySalesReport'
+              example:
+                outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                from: '2026-11-24'
+                to: '2026-11-24'
+                basis: business_date
+                items:
+                - category_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5001
+                  category_name: Starters
+                  qty_milli: 24000
+                  gross:
+                    amount_paise: 576000
+                    currency: INR
+                  net:
+                    amount_paise: 576000
+                    currency: INR
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/reports/day-summary:
+    get:
+      operationId: getDaySummaryReport
+      summary: Day summaries
+      description: 'Report 1, cloud side: one row per business day. Needs the internet (RM-R5). Cursor-paged; totals
+        cover the whole range.'
+      tags:
+      - billing
+      x-permission: report.view.outlet
+      x-outlet-scoped: true
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/OutletScope
+      - name: from
+        in: query
+        required: false
+        description: First business date (inclusive).
+        schema:
+          type: string
+          format: date
+        example: '2026-11-24'
+      - name: to
+        in: query
+        required: false
+        description: Last business date (inclusive); at most 366 days after from.
+        schema:
+          type: string
+          format: date
+        example: '2026-11-24'
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: The report page.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DaySummaryReport'
+              example:
+                outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                from: '2026-11-24'
+                to: '2026-11-24'
+                basis: business_date
+                items:
+                - business_date: '2026-11-24'
+                  status: closed
+                  totals:
+                    gross:
+                      amount_paise: 48000
+                      currency: INR
+                    discounts:
+                      amount_paise: 0
+                      currency: INR
+                    net:
+                      amount_paise: 48000
+                      currency: INR
+                    service_charge:
+                      amount_paise: 0
+                      currency: INR
+                    cgst:
+                      amount_paise: 1200
+                      currency: INR
+                    sgst:
+                      amount_paise: 1200
+                      currency: INR
+                    non_gst:
+                      amount_paise: 0
+                      currency: INR
+                    round_off:
+                      amount_paise: 0
+                      currency: INR
+                    total:
+                      amount_paise: 50400
+                      currency: INR
+                    bill_count: 1
+                    credit_note_count: 0
+                    credit_note_total:
+                      amount_paise: 0
+                      currency: INR
+                    refund_total:
+                      amount_paise: 0
+                      currency: INR
+                    internal_consumption:
+                      amount_paise: 0
+                      currency: INR
+                    tenders:
+                    - tender: cash
+                      count: 1
+                      amount:
+                        amount_paise: 48000
+                        currency: INR
+                  revision_count: 0
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/reports/discounts:
+    get:
+      operationId: getDiscountReport
+      summary: Discounts, comps, refunds, re-bills and other allowance rows
+      description: Report 7, billing part. Needs the internet (RM-R5). Cursor-paged; totals cover the whole range.
+      tags:
+      - billing
+      x-permission: report.view.outlet
+      x-outlet-scoped: true
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/OutletScope
+      - name: from
+        in: query
+        required: false
+        description: First business date (inclusive).
+        schema:
+          type: string
+          format: date
+        example: '2026-11-24'
+      - name: to
+        in: query
+        required: false
+        description: Last business date (inclusive); at most 366 days after from.
+        schema:
+          type: string
+          format: date
+        example: '2026-11-24'
+      - name: kind
+        in: query
+        required: false
+        description: Filter by row kind.
+        schema:
+          type: string
+          enum:
+          - discount
+          - comp
+          - refund
+          - credit_note
+          - rebill
+          - internal_closure
+          - open_item
+          - handover_skipped
+        example: discount
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: The report page.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiscountReport'
+              example:
+                outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                from: '2026-11-24'
+                to: '2026-11-24'
+                basis: business_date
+                items:
+                - kind: discount
+                  subject_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7001
+                  bill_number: A7K/2627/000001
+                  reason_code_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5164
+                  member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
+                  within_allowance: false
+                  value:
+                    amount_paise: 5000
+                    currency: INR
+                  at: '2026-11-24T13:05:11.120Z'
+                  business_date: '2026-11-24'
+                totals:
+                  count: 1
+                  value:
+                    amount_paise: 5000
+                    currency: INR
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/reports/hourly-sales:
+    get:
+      operationId: getHourlySalesReport
+      summary: Order-type and hourly sales
+      description: Report 10. Needs the internet (RM-R5). Cursor-paged; totals cover the whole range.
+      tags:
+      - billing
+      x-permission: report.view.outlet
+      x-outlet-scoped: true
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/OutletScope
+      - name: from
+        in: query
+        required: false
+        description: First business date (inclusive).
+        schema:
+          type: string
+          format: date
+        example: '2026-11-24'
+      - name: to
+        in: query
+        required: false
+        description: Last business date (inclusive); at most 366 days after from.
+        schema:
+          type: string
+          format: date
+        example: '2026-11-24'
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: The report page.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HourlySalesReport'
+              example:
+                outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                from: '2026-11-24'
+                to: '2026-11-24'
+                basis: business_date
+                items:
+                - business_date: '2026-11-24'
+                  hour: 13
+                  order_type: dine_in
+                  bill_count: 1
+                  net:
+                    amount_paise: 48000
+                    currency: INR
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/reports/item-sales:
+    get:
+      operationId: getItemSalesReport
+      summary: Item-wise sales
+      description: Report 5, variant level, top first. Needs the internet (RM-R5). Cursor-paged; totals cover the
+        whole range.
+      tags:
+      - billing
+      x-permission: report.view.outlet
+      x-outlet-scoped: true
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/OutletScope
+      - name: from
+        in: query
+        required: false
+        description: First business date (inclusive).
+        schema:
+          type: string
+          format: date
+        example: '2026-11-24'
+      - name: to
+        in: query
+        required: false
+        description: Last business date (inclusive); at most 366 days after from.
+        schema:
+          type: string
+          format: date
+        example: '2026-11-24'
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: The report page.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItemSalesReport'
+              example:
+                outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                from: '2026-11-24'
+                to: '2026-11-24'
+                basis: business_date
+                items:
+                - item_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f5101
+                  item_name: Paneer Tikka
+                  variant_name: Full
+                  qty_milli: 24000
+                  gross:
+                    amount_paise: 576000
+                    currency: INR
+                  net:
+                    amount_paise: 576000
+                    currency: INR
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/reports/staff-sales:
+    get:
+      operationId: getStaffSalesReport
+      summary: Staff-wise sales
+      description: 'Report 8: by cashier and by waiter. Needs the internet (RM-R5). Cursor-paged; totals cover the
+        whole range.'
+      tags:
+      - billing
+      x-permission: report.view.outlet
+      x-outlet-scoped: true
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/OutletScope
+      - name: from
+        in: query
+        required: false
+        description: First business date (inclusive).
+        schema:
+          type: string
+          format: date
+        example: '2026-11-24'
+      - name: to
+        in: query
+        required: false
+        description: Last business date (inclusive); at most 366 days after from.
+        schema:
+          type: string
+          format: date
+        example: '2026-11-24'
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: The report page.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffSalesReport'
+              example:
+                outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                from: '2026-11-24'
+                to: '2026-11-24'
+                basis: business_date
+                items:
+                - member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
+                  role: cashier
+                  bill_count: 1
+                  net:
+                    amount_paise: 48000
+                    currency: INR
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/reports/tax-summary:
+    get:
+      operationId: getTaxSummaryReport
+      summary: Tax summary by rate and class
+      description: Report 3 by invoice date (IST) for filing; bills and credit notes separately; revisions never
+        touch it. Needs the internet (RM-R5). Cursor-paged; totals cover the whole range.
+      tags:
+      - billing
+      x-permission: report.view.outlet
+      x-outlet-scoped: true
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/OutletScope
+      - name: from
+        in: query
+        required: false
+        description: First invoice date (inclusive).
+        schema:
+          type: string
+          format: date
+        example: '2026-11-24'
+      - name: to
+        in: query
+        required: false
+        description: Last invoice date (inclusive); at most 366 days after from.
+        schema:
+          type: string
+          format: date
+        example: '2026-11-24'
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: The report page.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaxSummaryReport'
+              example:
+                outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                from: '2026-11-24'
+                to: '2026-11-24'
+                basis: invoice_date
+                items:
+                - tax_class: fnb_standard
+                  rate_bp: 500
+                  gst_applies: true
+                  bill_taxable:
+                    amount_paise: 48000
+                    currency: INR
+                  bill_cgst:
+                    amount_paise: 1200
+                    currency: INR
+                  bill_sgst:
+                    amount_paise: 1200
+                    currency: INR
+                  credit_taxable:
+                    amount_paise: 0
+                    currency: INR
+                  credit_cgst:
+                    amount_paise: 0
+                    currency: INR
+                  credit_sgst:
+                    amount_paise: 0
+                    currency: INR
+                totals:
+                  net_taxable:
+                    amount_paise: 48000
+                    currency: INR
+                  net_cgst:
+                    amount_paise: 1200
+                    currency: INR
+                  net_sgst:
+                    amount_paise: 1200
+                    currency: INR
+                  non_gst:
+                    amount_paise: 0
+                    currency: INR
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/reports/tender-summary:
+    get:
+      operationId: getTenderSummaryReport
+      summary: Tender summary
+      description: 'Report 4: cash and UPI are never combined; other tenders by name. Needs the internet (RM-R5).
+        Cursor-paged; totals cover the whole range.'
+      tags:
+      - billing
+      x-permission: report.view.outlet
+      x-outlet-scoped: true
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/OutletScope
+      - name: from
+        in: query
+        required: false
+        description: First business date (inclusive).
+        schema:
+          type: string
+          format: date
+        example: '2026-11-24'
+      - name: to
+        in: query
+        required: false
+        description: Last business date (inclusive); at most 366 days after from.
+        schema:
+          type: string
+          format: date
+        example: '2026-11-24'
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: The report page.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenderSummaryReport'
+              example:
+                outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                from: '2026-11-24'
+                to: '2026-11-24'
+                basis: business_date
+                items:
+                - tender: cash
+                  payment_count: 1
+                  paid:
+                    amount_paise: 50400
+                    currency: INR
+                  refunded:
+                    amount_paise: 0
+                    currency: INR
+                  net:
+                    amount_paise: 50400
+                    currency: INR
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/shifts:
+    get:
+      operationId: listShifts
+      summary: List shifts with variance per member
+      description: Report 9, cloud side.
+      tags:
+      - billing
+      x-permission: report.view.outlet
+      x-outlet-scoped: true
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/OutletScope
+      - name: business_date
+        in: query
+        required: false
+        description: Filter by business date.
+        schema:
+          type: string
+          format: date
+        example: '2026-11-24'
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: A page of shifts.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShiftPage'
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7051
+                  outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                  member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
+                  business_date: '2026-11-24'
+                  status: closed
+                  opened_at: '2026-11-24T13:05:11.120Z'
+                  opening_float:
+                    amount_paise: 200000
+                    currency: INR
+                  closed_at: '2026-11-24T13:09:40.000Z'
+                  counted:
+                    amount_paise: 704000
+                    currency: INR
+                  expected:
+                    amount_paise: 704000
+                    currency: INR
+                  variance:
+                    amount_paise: 0
+                    currency: INR
+                  force_closed: false
+                  handover_counted: true
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/tax-rule-sets:
+    get:
+      operationId: listTaxRuleSets
+      summary: List published tax rule sets
+      description: Read-only view of what devices receive by sync. The version in force on a date is the one with
+        the latest effective_date not after it.
+      tags:
+      - billing
+      x-permission: settings.read
+      parameters:
+      - name: in_force_on
+        in: query
+        required: false
+        description: Only the version in force on this date.
+        schema:
+          type: string
+          format: date
+        example: '2026-11-24'
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/Limit
+      responses:
+        '200':
+          description: A page, newest effective date first.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaxRuleSetPage'
+              example:
+                items:
+                - id: 9107573a-9de6-569a-a692-fb53d5d4c799
+                  version: 1
+                  name: GST restaurant services 2026
+                  effective_date: '2026-04-01'
+                  calc_v: 1
+                  review_status: unreviewed
+                  content_hash: 17a8ae58b11bd6a005a39c800ce8cbd44f7a1ff5ea213dbd25ecb7bf3e2aaf74
+                  published_at: '2026-11-24T13:05:11.120Z'
+                  rules:
+                  - tax_class: fnb_standard
+                    regime: regular
+                    specified_premises: false
+                    order_channel: dine_in
+                    doc_type: tax_invoice
+                    gst_applies: true
+                    cgst_bp: 250
+                    sgst_bp: 250
+                    igst_bp: 0
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /v1/tax-rule-sets/{rule_set_id}:
+    get:
+      operationId: getTaxRuleSet
+      summary: Get a published tax rule set
+      tags:
+      - billing
+      x-permission: settings.read
+      parameters:
+      - name: rule_set_id
+        in: path
+        required: true
+        description: Rule set id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 9107573a-9de6-569a-a692-fb53d5d4c799
+      responses:
+        '200':
+          description: The rule set.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaxRuleSet'
+              example:
+                id: 9107573a-9de6-569a-a692-fb53d5d4c799
+                version: 1
+                name: GST restaurant services 2026
+                effective_date: '2026-04-01'
+                calc_v: 1
+                review_status: unreviewed
+                content_hash: 17a8ae58b11bd6a005a39c800ce8cbd44f7a1ff5ea213dbd25ecb7bf3e2aaf74
+                published_at: '2026-11-24T13:05:11.120Z'
+                rules:
+                - tax_class: fnb_standard
+                  regime: regular
+                  specified_premises: false
+                  order_channel: dine_in
+                  doc_type: tax_invoice
+                  gst_applies: true
+                  cgst_bp: 250
+                  sgst_bp: 250
+                  igst_bp: 0
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+  /internal/v1/document-series/{series_id}/last-seen:
+    get:
+      operationId: getSeriesLastSeen
+      summary: Last number seen in a series
+      description: Tenancy asks when it closes a series (ADR-0014 R5); identity asks when a device is recovered.
+      tags:
+      - internal
+      x-permission: register.read
+      x-service-callers:
+      - tenancy
+      - identity
+      security:
+      - serviceAuth: []
+      parameters:
+      - name: series_id
+        in: path
+        required: true
+        description: Series id from the tenancy registry.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6c
+      responses:
+        '200':
+          description: The last number seen.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SeriesLastSeen'
+              example:
+                series_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6c
+                last_number: A7K/2627/000001
+                count: 1
+                as_of: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+  /internal/v1/vendor/tax-rule-sets:
+    get:
+      operationId: listTaxRuleSetMasters
+      summary: List rule-set versions with emit progress
+      description: Counts only; no tenant data (BR-A1-84). Newest version first.
+      tags:
+      - vendor
+      x-permission: admin.taxrules.manage
+      x-service-callers:
+      - admin
+      x-vendor-class: directory
+      x-vendor-audit: none
+      security:
+      - vendorBearerAuth: []
+        serviceAuth: []
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorLimit
+      - name: state
+        in: query
+        required: false
+        description: Filter by state.
+        schema:
+          type: string
+          enum:
+          - draft
+          - signed
+          - published
+        example: draft
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
+      responses:
+        '200':
+          description: A page.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaxRuleSetMasterPage'
+              example:
+                items:
+                - id: 72bdd3f5-68b5-59b0-8e62-2075a1f43c47
+                  version: 2
+                  revision: 1
+                  name: GST restaurant services 2026 B
+                  effective_date: '2026-12-15'
+                  calc_v: 1
+                  state: draft
+                  review_status: unreviewed
+                  rules:
+                  - tax_class: fnb_standard
+                    regime: regular
+                    specified_premises: false
+                    order_channel: dine_in
+                    doc_type: tax_invoice
+                    gst_applies: true
+                    cgst_bp: 250
+                    sgst_bp: 250
+                    igst_bp: 0
+                  created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+      x-example-world: rule-set-draft
+    post:
+      operationId: createTaxRuleSetDraft
+      summary: Create a draft rule set
+      tags:
+      - vendor
+      x-permission: admin.taxrules.manage
+      x-service-callers:
+      - admin
+      x-vendor-class: operational
+      x-vendor-audit: recorded
+      security:
+      - vendorBearerAuth: []
+        serviceAuth: []
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaxRuleSetDraft'
+            example:
+              name: GST restaurant services 2026 B
+              effective_date: '2026-12-15'
+              calc_v: 1
+              rules:
+              - tax_class: fnb_standard
+                regime: regular
+                specified_premises: false
+                order_channel: dine_in
+                doc_type: tax_invoice
+                gst_applies: true
+                cgst_bp: 250
+                sgst_bp: 250
+                igst_bp: 0
+      responses:
+        '201':
+          description: The draft. A replay returns the same draft.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaxRuleSetMaster'
+              example:
+                id: 72bdd3f5-68b5-59b0-8e62-2075a1f43c47
+                version: 2
+                revision: 1
+                name: GST restaurant services 2026 B
+                effective_date: '2026-12-15'
+                calc_v: 1
+                state: draft
+                review_status: unreviewed
+                rules:
+                - tax_class: fnb_standard
+                  regime: regular
+                  specified_premises: false
+                  order_channel: dine_in
+                  doc_type: tax_invoice
+                  gst_applies: true
+                  cgst_bp: 250
+                  sgst_bp: 250
+                  igst_bp: 0
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+  /internal/v1/vendor/tax-rule-sets/{rule_set_id}:
+    get:
+      operationId: getTaxRuleSetMaster
+      summary: Read a rule-set version with emit progress
+      tags:
+      - vendor
+      x-permission: admin.taxrules.manage
+      x-service-callers:
+      - admin
+      x-vendor-class: directory
+      x-vendor-audit: none
+      security:
+      - vendorBearerAuth: []
+        serviceAuth: []
+      parameters:
+      - name: rule_set_id
+        in: path
+        required: true
+        description: Rule set id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 72bdd3f5-68b5-59b0-8e62-2075a1f43c47
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
+      responses:
+        '200':
+          description: The version; the ETag header carries its revision.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaxRuleSetMaster'
+              example:
+                id: 72bdd3f5-68b5-59b0-8e62-2075a1f43c47
+                version: 2
+                revision: 1
+                name: GST restaurant services 2026 B
+                effective_date: '2026-12-15'
+                calc_v: 1
+                state: draft
+                review_status: unreviewed
+                rules:
+                - tax_class: fnb_standard
+                  regime: regular
+                  specified_premises: false
+                  order_channel: dine_in
+                  doc_type: tax_invoice
+                  gst_applies: true
+                  cgst_bp: 250
+                  sgst_bp: 250
+                  igst_bp: 0
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+      x-example-world: rule-set-draft
+    patch:
+      operationId: updateTaxRuleSetDraft
+      summary: Edit a draft rule set
+      description: 'Draft only; 409 not_signed is not used here: a signed or published version answers 409 conflict.
+        Needs If-Match.'
+      tags:
+      - vendor
+      x-permission: admin.taxrules.manage
+      x-service-callers:
+      - admin
+      x-vendor-class: operational
+      x-vendor-audit: recorded
+      security:
+      - vendorBearerAuth: []
+        serviceAuth: []
+      parameters:
+      - name: rule_set_id
+        in: path
+        required: true
+        description: Rule set id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 72bdd3f5-68b5-59b0-8e62-2075a1f43c47
+      - $ref: ../../../common/vendor.yaml#/components/parameters/IfMatch
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaxRuleSetDraft'
+            example:
+              name: GST restaurant services 2026 B
+              effective_date: '2026-12-15'
+              calc_v: 1
+              rules:
+              - tax_class: fnb_standard
+                regime: regular
+                specified_premises: false
+                order_channel: dine_in
+                doc_type: tax_invoice
+                gst_applies: true
+                cgst_bp: 250
+                sgst_bp: 250
+                igst_bp: 0
+      responses:
+        '200':
+          description: The updated draft.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaxRuleSetMaster'
+              example:
+                id: 72bdd3f5-68b5-59b0-8e62-2075a1f43c47
+                version: 2
+                revision: 2
+                name: GST restaurant services 2026 B
+                effective_date: '2026-12-15'
+                calc_v: 1
+                state: draft
+                review_status: unreviewed
+                rules:
+                - tax_class: fnb_standard
+                  regime: regular
+                  specified_premises: false
+                  order_channel: dine_in
+                  doc_type: tax_invoice
+                  gst_applies: true
+                  cgst_bp: 250
+                  sgst_bp: 250
+                  igst_bp: 0
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+      x-example-world: rule-set-draft
+    delete:
+      operationId: deleteTaxRuleSetDraft
+      summary: Delete a draft rule set
+      description: Draft only; a signed or published version is never deleted (no such route).
+      tags:
+      - vendor
+      x-permission: admin.taxrules.manage
+      x-service-callers:
+      - admin
+      x-vendor-class: operational
+      x-vendor-audit: recorded
+      security:
+      - vendorBearerAuth: []
+        serviceAuth: []
+      parameters:
+      - name: rule_set_id
+        in: path
+        required: true
+        description: Rule set id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 72bdd3f5-68b5-59b0-8e62-2075a1f43c47
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      responses:
+        '204':
+          description: Deleted.
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+      x-example-world: rule-set-draft
+  /internal/v1/vendor/tax-rule-sets/{rule_set_id}/publication:
+    post:
+      operationId: publishTaxRuleSet
+      summary: Publish a signed rule set
+      description: 'Needs a tax_rule_set_publish grant (parameter) whose subject hash (rule-set id, content hash,
+        effective date) matches; the lead time (deployment configuration, at least 24 hours) is checked here on
+        billing''s clock: 422 effective_date_too_soon. Marks published and queues one emit per organisation (op
+        id UUIDv5(tenant, version)) in one transaction; also emitted to every organisation created later (BR-A1-120).
+        Publishes billing.tax_rule_set.published and billing.vendor_access.recorded (vendor log only, no tenant). approval_id is a parameter of the admin facade only: this route takes the approval from the grant (Hostry-Vendor-Approval, common/vendor.yaml) and never answers approval_not_executable; its refusals are grant.required, grant.invalid, grant.expired, grant.subject_mismatch and grant.used.'
+      tags:
+      - vendor
+      x-permission: admin.taxrules.publish
+      x-emits-intent: tax.rule_set.publish
+      x-service-callers:
+      - admin
+      x-vendor-class: operational
+      x-vendor-audit: recorded
+      security:
+      - vendorBearerAuth: []
+        serviceAuth: []
+      parameters:
+      - name: rule_set_id
+        in: path
+        required: true
+        description: Rule set id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 72bdd3f5-68b5-59b0-8e62-2075a1f43c47
+      - $ref: ../../../common/vendor.yaml#/components/parameters/VendorApprovalGrant
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublishTaxRuleSet'
+            example: {}
+      responses:
+        '200':
+          description: The published version.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaxRuleSetMaster'
+              example:
+                id: 72bdd3f5-68b5-59b0-8e62-2075a1f43c47
+                version: 2
+                revision: 1
+                name: GST restaurant services 2026 B
+                effective_date: '2026-12-15'
+                calc_v: 1
+                state: published
+                review_status: reviewed
+                content_hash: 17a8ae58b11bd6a005a39c800ce8cbd44f7a1ff5ea213dbd25ecb7bf3e2aaf74
+                rules:
+                - tax_class: fnb_standard
+                  regime: regular
+                  specified_premises: false
+                  order_channel: dine_in
+                  doc_type: tax_invoice
+                  gst_applies: true
+                  cgst_bp: 250
+                  sgst_bp: 250
+                  igst_bp: 0
+                created_at: '2026-11-24T13:05:11.120Z'
+                signoff:
+                  reviewer_name: A. Reviewer
+                  signed_on: '2026-11-20'
+                  reference_note: CA advice note 2026-11 ref 12
+                published_at: '2026-11-24T13:09:11.120Z'
+                organisations_total: 3
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/GrantRefused'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: '#/components/responses/NotSigned'
+        '422':
+          $ref: '#/components/responses/LeadTooShort'
+      x-example-world: rule-set-signed
+  /internal/v1/vendor/tax-rule-sets/{rule_set_id}/signature:
+    post:
+      operationId: signTaxRuleSet
+      summary: Sign a validated draft
+      description: Validates again; stores the CA sign-off record and a content hash; the version, including its
+        effective date, is immutable from here. 422 validation if it fails.
+      tags:
+      - vendor
+      x-permission: admin.taxrules.manage
+      x-service-callers:
+      - admin
+      x-vendor-class: operational
+      x-vendor-audit: recorded
+      security:
+      - vendorBearerAuth: []
+        serviceAuth: []
+      parameters:
+      - name: rule_set_id
+        in: path
+        required: true
+        description: Rule set id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 72bdd3f5-68b5-59b0-8e62-2075a1f43c47
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignTaxRuleSet'
+            example:
+              signoff:
+                reviewer_name: A. Reviewer
+                signed_on: '2026-11-20'
+                reference_note: CA advice note 2026-11 ref 12
+      responses:
+        '200':
+          description: The signed version.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaxRuleSetMaster'
+              example:
+                id: 72bdd3f5-68b5-59b0-8e62-2075a1f43c47
+                version: 2
+                revision: 1
+                name: GST restaurant services 2026 B
+                effective_date: '2026-12-15'
+                calc_v: 1
+                state: signed
+                review_status: reviewed
+                content_hash: 17a8ae58b11bd6a005a39c800ce8cbd44f7a1ff5ea213dbd25ecb7bf3e2aaf74
+                rules:
+                - tax_class: fnb_standard
+                  regime: regular
+                  specified_premises: false
+                  order_channel: dine_in
+                  doc_type: tax_invoice
+                  gst_applies: true
+                  cgst_bp: 250
+                  sgst_bp: 250
+                  igst_bp: 0
+                created_at: '2026-11-24T13:05:11.120Z'
+                signoff:
+                  reviewer_name: A. Reviewer
+                  signed_on: '2026-11-20'
+                  reference_note: CA advice note 2026-11 ref 12
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+      x-example-world: rule-set-draft
+  /internal/v1/vendor/tax-rule-sets/{rule_set_id}/validation:
+    post:
+      operationId: validateTaxRuleSet
+      summary: Validate a draft against the BR-A1-82 checks and the conformance vectors
+      description: Every combination in use has a mapping, rates are whole basis points, components are two equal
+        halves, and every vector in api-specs/tax/conformance passes against the draft rates (ADR-0014 R6.1).
+      tags:
+      - vendor
+      x-permission: admin.taxrules.manage
+      x-service-callers:
+      - admin
+      x-vendor-class: operational
+      x-vendor-audit: recorded
+      security:
+      - vendorBearerAuth: []
+        serviceAuth: []
+      parameters:
+      - name: rule_set_id
+        in: path
+        required: true
+        description: Rule set id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 72bdd3f5-68b5-59b0-8e62-2075a1f43c47
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorClientAddress
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      responses:
+        '200':
+          description: The outcome; valid or not, the call succeeds.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaxRuleSetValidation'
+              example:
+                valid: true
+                errors: []
+                vectors_total: 65
+                vectors_passed: 65
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+      x-example-world: rule-set-draft
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: ES256 tenant-realm access token issued by identity (ADR-0005). One tenant per token. Support
+        tokens are accepted only together with the admin service token.
+    vendorBearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: ES256 vendor-realm access token. Refused by every tenant-facing operation.
+    serviceAuth:
+      type: apiKey
+      in: header
+      name: Hostry-Service-Token
+      description: 60-second ES256 service token (ADR-0005 section 9). Operations under /internal/v1 accept it only
+        from the callers in x-service-callers.
+  schemas:
+    BillDocType:
+      type: string
+      description: 'Sale document type, following the regime of the registration (ADR-0002 S7): tax_invoice (regular),
+        bill_of_supply (composition or exempt), plain_bill (unregistered).'
+      enum:
+      - tax_invoice
+      - bill_of_supply
+      - plain_bill
+      example: tax_invoice
+    SourceKind:
+      type: string
+      description: 'What the bill was made from: a check, a counter sale with no check, or a late entry from a paper
+        bill book (ADR-0014 A1.6). Later products add folio and order.'
+      enum:
+      - check
+      - counter
+      - manual_book
+      example: check
+    PaymentStatus:
+      type: string
+      description: 'Derived: unpaid, partly_paid or paid (payments net of cash change against the total).'
+      enum:
+      - unpaid
+      - partly_paid
+      - paid
+      example: paid
+    VerificationStatus:
+      type: string
+      description: pending until billing has recomputed it; verified; mismatch (flagged high, owner notified); stale_rules
+        (device used an older rule set than the one in force that day); profile_mismatch (document type does not
+        match the registration's regime); manual_entry (a bill-book entry, compared with the typed total).
+      enum:
+      - pending
+      - verified
+      - mismatch
+      - stale_rules
+      - profile_mismatch
+      - manual_entry
+      example: verified
+    Verification:
+      type: object
+      description: Result of recomputing a document with its own calc_v and ruleset_v (R6.6). Never changes the
+        document.
+      properties:
+        status:
+          $ref: '#/components/schemas/VerificationStatus'
+        calc_v:
+          type: integer
+          description: Calculation version used.
+          minimum: 1
+          example: 1
+        ruleset_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        difference:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        checked_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+      required:
+      - status
+      - calc_v
+    BillLine:
+      type: object
+      description: 'A bill line, a self-contained snapshot: it needs nothing from orders or catalog (R2).'
+      properties:
+        line_no:
+          type: integer
+          description: Position on the bill, from 1.
+          minimum: 1
+          example: 1
+        order_line_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        item_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        item_name:
+          type: string
+          description: Item name snapshot, English.
+          example: Paneer Tikka
+        variant_name:
+          type: string
+          description: Variant name snapshot.
+          example: Full
+        category_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        category_name:
+          type: string
+          description: Category name snapshot, for the category report.
+          example: Starters
+        qty_milli:
+          type: integer
+          description: Quantity in thousandths.
+          format: int64
+          minimum: 1
+          example: 2000
+        unit_price:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        modifier_delta:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        line_discount:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        bill_discount_alloc:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        net:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        comp:
+          type: boolean
+          description: 'True for a complimentary line: printed at zero with (Comp), list value kept, no tax.'
+        tax_class:
+          type: string
+          description: Tax class snapshot.
+          example: fnb_standard
+        hsn_sac:
+          type: string
+          description: HSN or SAC snapshot, up to 8 digits; absent until the CA advises.
+          pattern: ^[0-9]{4,8}$
+          example: '996331'
+      required:
+      - line_no
+      - item_id
+      - item_name
+      - category_name
+      - qty_milli
+      - unit_price
+      - modifier_delta
+      - line_discount
+      - bill_discount_alloc
+      - net
+      - comp
+      - tax_class
+    TaxLine:
+      type: object
+      description: 'One tax group of a document: (tax class, effective rate). Tax is computed per group, not per
+        line (RM-B4). The non-GST group carries no tax.'
+      properties:
+        tax_class:
+          type: string
+          description: Tax class.
+          example: fnb_standard
+        rate_bp:
+          type: integer
+          description: Total GST rate in basis points (500 is 5.00 percent).
+          minimum: 0
+          example: 500
+        gst_applies:
+          type: boolean
+          description: False for the non-GST group.
+        charge_alloc:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        taxable:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        cgst:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        sgst:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        igst:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+      required:
+      - tax_class
+      - rate_bp
+      - gst_applies
+      - charge_alloc
+      - taxable
+      - cgst
+      - sgst
+      - igst
+    Payment:
+      type: object
+      description: 'A recorded payment: how the guest paid. Nothing is authorised or verified by Hostry (RM-Y9).
+        A mixed tender is several payments.'
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        bill_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        target_kind:
+          type: string
+          description: What it pays; bill in Phase 2, order for advances in Phase 3.
+          enum:
+          - bill
+          example: bill
+        tender:
+          type: string
+          description: Tender kind; other is an outlet-defined named tender; on_account is reserved for Phase 5.
+          enum:
+          - cash
+          - upi
+          - card
+          - other
+          - eco
+          example: cash
+        tender_name:
+          type: string
+          description: Name of an other tender, for example Coupon.
+          maxLength: 30
+          example: Coupon
+        amount:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        tendered:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        change:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        reference:
+          type: string
+          description: UPI transaction reference (up to 40 characters) or the last four digits of a card (never
+            more).
+          maxLength: 40
+          example: '4821'
+        member_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        device_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        shift_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        business_date:
+          type: string
+          description: Business date the payment was taken on.
+          format: date
+          example: '2026-11-24'
+        paid_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+      required:
+      - id
+      - bill_id
+      - target_kind
+      - tender
+      - amount
+      - member_id
+      - device_id
+      - business_date
+      - paid_at
+    Bill:
+      type: object
+      description: A numbered sale document, immutable once created by bill.finalize (summary).
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        outlet_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        number:
+          type: string
+          description: <code>/<FY>/<running>, at most 16 characters; for a manual_book bill the book's own number.
+          maxLength: 16
+          example: A7K/2627/000001
+        doc_type:
+          $ref: '#/components/schemas/BillDocType'
+        source_kind:
+          $ref: '#/components/schemas/SourceKind'
+        check_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        order_type:
+          type: string
+          description: dine_in, takeaway or counter.
+          enum:
+          - dine_in
+          - takeaway
+          - counter
+          example: dine_in
+        eco:
+          type: boolean
+          description: True for an aggregator (ECO) order.
+        business_date:
+          type: string
+          description: Business date, kept for ever (A1.1 item 3).
+          format: date
+          example: '2026-11-24'
+        invoice_date:
+          type: string
+          description: IST calendar date of finalisation; decides the financial year and the tax reports.
+          format: date
+          example: '2026-11-24'
+        finalized_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+        cashier_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        waiter_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        device_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        calc_v:
+          type: integer
+          description: Calculation version.
+          minimum: 1
+          example: 1
+        ruleset_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        price_mode:
+          type: string
+          description: exclusive or inclusive.
+          enum:
+          - exclusive
+          - inclusive
+          example: exclusive
+        total:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        round_off:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        paid:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        payment_status:
+          $ref: '#/components/schemas/PaymentStatus'
+        credited:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        verification:
+          $ref: '#/components/schemas/Verification'
+        late:
+          type: boolean
+          description: True when the bill is a late document of a closed business day (A1.1 item 5).
+      required:
+      - id
+      - outlet_id
+      - number
+      - doc_type
+      - source_kind
+      - order_type
+      - eco
+      - business_date
+      - invoice_date
+      - finalized_at
+      - device_id
+      - calc_v
+      - price_mode
+      - total
+      - round_off
+      - paid
+      - payment_status
+      - credited
+      - verification
+      - late
+    BillDetail:
+      allOf:
+      - $ref: '#/components/schemas/Bill'
+      - type: object
+        description: A bill with everything printed on it.
+        properties:
+          customer_name:
+            type: string
+            description: Guest name when given; personal data kept in the erasable side table.
+            maxLength: 60
+            example: A. Kumar
+          customer_gstin:
+            $ref: ../../../common/components.yaml#/components/schemas/Gstin
+          discount_total:
+            $ref: ../../../common/components.yaml#/components/schemas/Money
+          service_charge:
+            $ref: ../../../common/components.yaml#/components/schemas/Money
+          packing_charge:
+            $ref: ../../../common/components.yaml#/components/schemas/Money
+          non_gst_subtotal:
+            $ref: ../../../common/components.yaml#/components/schemas/Money
+          lines:
+            type: array
+            description: Lines.
+            items:
+              $ref: '#/components/schemas/BillLine'
+          tax_lines:
+            type: array
+            description: Tax groups.
+            items:
+              $ref: '#/components/schemas/TaxLine'
+          payments:
+            type: array
+            description: Payments recorded against this bill.
+            items:
+              $ref: '#/components/schemas/Payment'
+        required:
+        - discount_total
+        - service_charge
+        - packing_charge
+        - non_gst_subtotal
+        - lines
+        - tax_lines
+        - payments
+    BillPage:
+      allOf:
+      - $ref: ../../../common/components.yaml#/components/schemas/PageCursor
+      - type: object
+        description: A page of Bill items.
+        required:
+        - items
+        properties:
+          items:
+            type: array
+            description: Items, in the order stated by the operation.
+            items:
+              $ref: '#/components/schemas/Bill'
+    CreditNote:
+      type: object
+      description: 'A credit note: the only correction of a numbered bill; cites the original number and date (RM-P8).
+        Computed by the same rules on the credited quantities (RM-B10).'
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        outlet_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        number:
+          type: string
+          description: Number from the issuing device's credit-note series.
+          maxLength: 16
+          example: A7M/2627/000001
+        bill_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        bill_number:
+          type: string
+          description: Number of the original bill.
+          maxLength: 16
+          example: A7K/2627/000001
+        bill_invoice_date:
+          type: string
+          description: Invoice date of the original bill.
+          format: date
+          example: '2026-11-24'
+        reason_code_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        rebill_group_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        business_date:
+          type: string
+          description: Business date the credit note was made on.
+          format: date
+          example: '2026-11-24'
+        invoice_date:
+          type: string
+          description: IST date of issue.
+          format: date
+          example: '2026-11-24'
+        device_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        member_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        calc_v:
+          type: integer
+          description: Calculation version.
+          minimum: 1
+          example: 1
+        ruleset_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        total:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        round_off:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        refund_tender:
+          type: string
+          description: Tender the money went back by, or adjusted against another bill.
+          enum:
+          - cash
+          - upi
+          - card
+          - other
+          - adjusted
+        lines:
+          type: array
+          description: Credited lines (qty_milli is the credited quantity).
+          items:
+            $ref: '#/components/schemas/BillLine'
+        tax_lines:
+          type: array
+          description: Tax groups reversed.
+          items:
+            $ref: '#/components/schemas/TaxLine'
+        verification:
+          $ref: '#/components/schemas/Verification'
+        created_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+      required:
+      - id
+      - outlet_id
+      - number
+      - bill_id
+      - bill_number
+      - bill_invoice_date
+      - business_date
+      - invoice_date
+      - device_id
+      - member_id
+      - calc_v
+      - total
+      - round_off
+      - lines
+      - tax_lines
+      - verification
+      - created_at
+    CreditNotePage:
+      allOf:
+      - $ref: ../../../common/components.yaml#/components/schemas/PageCursor
+      - type: object
+        description: A page of CreditNote items.
+        required:
+        - items
+        properties:
+          items:
+            type: array
+            description: Items, in the order stated by the operation.
+            items:
+              $ref: '#/components/schemas/CreditNote'
+    PaymentPage:
+      allOf:
+      - $ref: ../../../common/components.yaml#/components/schemas/PageCursor
+      - type: object
+        description: A page of Payment items.
+        required:
+        - items
+        properties:
+          items:
+            type: array
+            description: Items, in the order stated by the operation.
+            items:
+              $ref: '#/components/schemas/Payment'
+    Refund:
+      type: object
+      description: Money returned for a recorded payment (a double payment, a wrong tender). It never changes the
+        bill (RM-Y6).
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        bill_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        payment_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        amount:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        tender:
+          type: string
+          description: Tender the money went back by.
+          enum:
+          - cash
+          - upi
+          - card
+          - other
+          example: cash
+        reason_code_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        member_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        business_date:
+          type: string
+          description: Business date of the refund.
+          format: date
+          example: '2026-11-24'
+        refunded_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+      required:
+      - id
+      - bill_id
+      - amount
+      - tender
+      - reason_code_id
+      - member_id
+      - business_date
+      - refunded_at
+    RefundPage:
+      allOf:
+      - $ref: ../../../common/components.yaml#/components/schemas/PageCursor
+      - type: object
+        description: A page of Refund items.
+        required:
+        - items
+        properties:
+          items:
+            type: array
+            description: Items, in the order stated by the operation.
+            items:
+              $ref: '#/components/schemas/Refund'
+    TenderTotal:
+      type: object
+      description: Total for one tender in a day.
+      properties:
+        tender:
+          type: string
+          description: Tender kind; upi is labelled recorded, not verified by Hostry (RM-Y9).
+          enum:
+          - cash
+          - upi
+          - card
+          - other
+          - eco
+          example: cash
+        name:
+          type: string
+          description: Name of an other tender.
+          example: Coupon
+        count:
+          type: integer
+          description: Payments.
+          minimum: 0
+          example: 12
+        amount:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+      required:
+      - tender
+      - count
+      - amount
+    DayTotals:
+      type: object
+      description: Money totals of a business day or of a Z revision's added documents. Cash and UPI are never combined
+        (RM-R1 report 1).
+      properties:
+        gross:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        discounts:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        net:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        service_charge:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        cgst:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        sgst:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        non_gst:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        round_off:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        total:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        bill_count:
+          type: integer
+          description: Bills.
+          minimum: 0
+          example: 12
+        credit_note_count:
+          type: integer
+          description: Credit notes.
+          minimum: 0
+          example: 0
+        credit_note_total:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        refund_total:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        internal_consumption:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        tenders:
+          type: array
+          description: Totals by tender.
+          items:
+            $ref: '#/components/schemas/TenderTotal'
+      required:
+      - gross
+      - discounts
+      - net
+      - service_charge
+      - cgst
+      - sgst
+      - non_gst
+      - round_off
+      - total
+      - bill_count
+      - credit_note_count
+      - credit_note_total
+      - refund_total
+      - internal_consumption
+      - tenders
+    SeriesRange:
+      type: object
+      description: First, last and count of one series in a day (RM-S10).
+      properties:
+        series_code:
+          type: string
+          description: Three-character series code.
+          maxLength: 3
+          example: A7K
+        doc_type:
+          type: string
+          description: Document type.
+          enum:
+          - tax_invoice
+          - bill_of_supply
+          - plain_bill
+          - credit_note
+          - manual_book
+          example: tax_invoice
+        first_number:
+          type: string
+          description: First number seen.
+          maxLength: 16
+          example: A7K/2627/000001
+        last_number:
+          type: string
+          description: Last number seen.
+          maxLength: 16
+          example: A7K/2627/000001
+        count:
+          type: integer
+          description: Numbers seen.
+          minimum: 1
+          example: 12
+      required:
+      - series_code
+      - doc_type
+      - first_number
+      - last_number
+      - count
+    DayClose:
+      type: object
+      description: 'The canonical day_close fact: the cutoff, totals and ranges the device printed (A1.1 item 4).'
+      properties:
+        z_number:
+          type: string
+          description: Display number Z/<business date>/<device code>; no running counter exists.
+          example: Z/2026-11-24/P1
+        closing_device_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        closing_member_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        closed_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+        cutoff:
+          type: string
+          description: Version vector of the outlet stream the device held, as canonical JSON text.
+          example: '{"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e":812}'
+        cutoff_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+          description: 'The instant the day was closed (RFC 3339 UTC). The only input of the late-bill rule: a document of this business
+            date finalised after it is late (`late: true`, a Z revision). Compared as instants, never as dates; `cutoff` is not a time.'
+        totals:
+          $ref: '#/components/schemas/DayTotals'
+        series_ranges:
+          type: array
+          description: Series ranges printed.
+          items:
+            $ref: '#/components/schemas/SeriesRange'
+      required:
+      - z_number
+      - closing_device_id
+      - closing_member_id
+      - closed_at
+      - cutoff
+      - cutoff_at
+      - totals
+      - series_ranges
+    BusinessDay:
+      type: object
+      description: One business day of an outlet, keyed by (outlet, date); id is a UUIDv5 of the two (A1.1 item
+        1).
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        outlet_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        business_date:
+          type: string
+          description: The business date.
+          format: date
+          example: '2026-11-24'
+        status:
+          type: string
+          description: open or closed; a closed day is never reopened or edited.
+          enum:
+          - open
+          - closed
+          example: closed
+        opened_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+        close:
+          $ref: '#/components/schemas/DayClose'
+        revision_count:
+          type: integer
+          description: Z revisions so far.
+          minimum: 0
+          example: 0
+        late_document_count:
+          type: integer
+          description: Late documents so far.
+          minimum: 0
+          example: 0
+      required:
+      - id
+      - outlet_id
+      - business_date
+      - status
+      - revision_count
+      - late_document_count
+    BusinessDayPage:
+      allOf:
+      - $ref: ../../../common/components.yaml#/components/schemas/PageCursor
+      - type: object
+        description: A page of BusinessDay items.
+        required:
+        - items
+        properties:
+          items:
+            type: array
+            description: Items, in the order stated by the operation.
+            items:
+              $ref: '#/components/schemas/BusinessDay'
+    BusinessDayRevision:
+      type: object
+      description: A numbered revision of a closed day's Z-report; billing is the only writer, so a printed number
+        never changes (A1.1 item 6).
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        business_day_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        revision:
+          type: integer
+          description: 1, 2, 3 per day.
+          minimum: 1
+          example: 1
+        display_number:
+          type: string
+          description: Z/<date>/<device>/R<n>.
+          example: Z/2026-11-24/P1/R1
+        cause:
+          type: string
+          description: Why the revision exists.
+          enum:
+          - late_device
+          - in_flight
+          - second_close
+          - recovered
+          example: late_device
+        origin_device_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        op_from_seq:
+          type: integer
+          description: First op sequence of the origin covered.
+          format: int64
+          minimum: 1
+          example: 813
+        op_to_seq:
+          type: integer
+          description: Last op sequence covered.
+          format: int64
+          minimum: 1
+          example: 830
+        added_totals:
+          $ref: '#/components/schemas/DayTotals'
+        added_series_ranges:
+          type: array
+          description: Series ranges added.
+          items:
+            $ref: '#/components/schemas/SeriesRange'
+        created_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+      required:
+      - id
+      - business_day_id
+      - revision
+      - display_number
+      - cause
+      - origin_device_id
+      - op_from_seq
+      - op_to_seq
+      - added_totals
+      - added_series_ranges
+      - created_at
+    BusinessDayRevisionPage:
+      allOf:
+      - $ref: ../../../common/components.yaml#/components/schemas/PageCursor
+      - type: object
+        description: A page of BusinessDayRevision items.
+        required:
+        - items
+        properties:
+          items:
+            type: array
+            description: Items, in the order stated by the operation.
+            items:
+              $ref: '#/components/schemas/BusinessDayRevision'
+    Shift:
+      type: object
+      description: One member's turn at a cash drawer on one billing device (RM-S3, RM-S5).
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        outlet_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        device_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        member_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        business_date:
+          type: string
+          description: Business date of the shift.
+          format: date
+          example: '2026-11-24'
+        status:
+          type: string
+          description: open or closed.
+          enum:
+          - open
+          - closed
+          example: closed
+        opened_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+        opening_float:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        closed_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+        counted:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        expected:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        variance:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        force_closed:
+          type: boolean
+          description: Closed by a manager with "not counted".
+        handover_counted:
+          type: boolean
+          description: False when a handover was skipped (listed as an exception).
+      required:
+      - id
+      - outlet_id
+      - device_id
+      - member_id
+      - business_date
+      - status
+      - opened_at
+      - opening_float
+    ShiftPage:
+      allOf:
+      - $ref: ../../../common/components.yaml#/components/schemas/PageCursor
+      - type: object
+        description: A page of Shift items.
+        required:
+        - items
+        properties:
+          items:
+            type: array
+            description: Items, in the order stated by the operation.
+            items:
+              $ref: '#/components/schemas/Shift'
+    InternalConsumption:
+      type: object
+      description: 'A check closed as staff meal, owner consumption, sample or guest complimentary: no invoice,
+        no payment, no number from the sale series, excluded from sales and tax (RM-O27). x-provisional (O2-1):
+        owned by billing as a non-tax internal document with its own non-invoice register; ADR needed.'
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        outlet_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        check_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        ref:
+          type: string
+          description: Display reference IC/<device code>/<counter>; not a legal number, may have gaps.
+          example: IC/P1/0004
+        kind:
+          type: string
+          description: Why it was closed.
+          enum:
+          - staff_meal
+          - owner_consumption
+          - sample
+          - guest_complimentary
+          example: staff_meal
+        reason_code_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        list_value:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        member_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        device_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        business_date:
+          type: string
+          description: Business date.
+          format: date
+          example: '2026-11-24'
+        closed_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+      required:
+      - id
+      - outlet_id
+      - check_id
+      - ref
+      - kind
+      - reason_code_id
+      - list_value
+      - member_id
+      - device_id
+      - business_date
+      - closed_at
+    InternalConsumptionPage:
+      allOf:
+      - $ref: ../../../common/components.yaml#/components/schemas/PageCursor
+      - type: object
+        description: A page of InternalConsumption items.
+        required:
+        - items
+        properties:
+          items:
+            type: array
+            description: Items, in the order stated by the operation.
+            items:
+              $ref: '#/components/schemas/InternalConsumption'
+    RegisterSeries:
+      type: object
+      description: 'One series in the document register: every number seen per registration, financial year and
+        series (R5). billing builds it from accepted ops and quarantine notices and never allocates.'
+      properties:
+        tax_registration_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        series_code:
+          type: string
+          description: Series code.
+          maxLength: 3
+          example: A7K
+        kind:
+          type: string
+          description: 'device: allocated by a device; manual_book: typed from a paper book.'
+          enum:
+          - device
+          - manual_book
+          example: device
+        doc_type:
+          type: string
+          description: Document type.
+          enum:
+          - tax_invoice
+          - bill_of_supply
+          - plain_bill
+          - credit_note
+          example: tax_invoice
+        financial_year:
+          type: string
+          description: Four digits, 2627 is 2026-27.
+          pattern: ^[0-9]{4}$
+          example: '2627'
+        device_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        first_number:
+          type: string
+          description: First number seen.
+          example: A7K/2627/000001
+        last_number:
+          type: string
+          description: Highest number seen.
+          example: A7K/2627/000001
+        count:
+          type: integer
+          description: Numbers seen.
+          minimum: 0
+          example: 123
+        gap_count:
+          type: integer
+          description: Open gaps.
+          minimum: 0
+          example: 0
+        state:
+          type: string
+          description: active; closed; open_tail when the device was revoked and has not uploaded; closed_unreconciled.
+          enum:
+          - active
+          - closed
+          - open_tail
+          - closed_unreconciled
+          example: active
+        last_seen_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+      required:
+      - tax_registration_id
+      - series_code
+      - kind
+      - doc_type
+      - financial_year
+      - count
+      - gap_count
+      - state
+    RegisterSeriesPage:
+      allOf:
+      - $ref: ../../../common/components.yaml#/components/schemas/PageCursor
+      - type: object
+        description: A page of RegisterSeries items.
+        required:
+        - items
+        properties:
+          items:
+            type: array
+            description: Items, in the order stated by the operation.
+            items:
+              $ref: '#/components/schemas/RegisterSeries'
+    RegisterGap:
+      type: object
+      description: A gap in a series; never a silent state (S7). Book gaps are listed apart from device-series alerts
+        (A1.6 item 4).
+      properties:
+        tax_registration_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        series_code:
+          type: string
+          description: Series code.
+          example: A7K
+        financial_year:
+          type: string
+          description: Four-digit FY.
+          example: '2627'
+        kind:
+          type: string
+          description: device or manual_book.
+          enum:
+          - device
+          - manual_book
+          example: device
+        missing_from:
+          type: integer
+          description: First missing running number.
+          minimum: 1
+          example: 57
+        missing_to:
+          type: integer
+          description: Last missing running number.
+          minimum: 1
+          example: 57
+        detected_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+        status:
+          type: string
+          description: open until the numbers arrive or a manager explains them.
+          enum:
+          - open
+          - arrived
+          - explained
+          example: open
+      required:
+      - tax_registration_id
+      - series_code
+      - financial_year
+      - kind
+      - missing_from
+      - missing_to
+      - detected_at
+      - status
+    RegisterGapPage:
+      allOf:
+      - $ref: ../../../common/components.yaml#/components/schemas/PageCursor
+      - type: object
+        description: A page of RegisterGap items.
+        required:
+        - items
+        properties:
+          items:
+            type: array
+            description: Items, in the order stated by the operation.
+            items:
+              $ref: '#/components/schemas/RegisterGap'
+    SeriesLastSeen:
+      type: object
+      description: The highest number billing has seen in a series, for tenancy to close it with a last confirmed
+        number (R5).
+      properties:
+        series_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        last_number:
+          type: string
+          description: Highest number seen; absent when none.
+          example: A7K/2627/000001
+        count:
+          type: integer
+          description: Numbers seen.
+          minimum: 0
+          example: 123
+        as_of:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+      required:
+      - series_id
+      - count
+      - as_of
+    ExceptionPage:
+      allOf:
+      - $ref: ../../../common/components.yaml#/components/schemas/PageCursor
+      - type: object
+        description: A page of billing exceptions.
+        required:
+        - items
+        properties:
+          items:
+            type: array
+            description: Newest first.
+            items:
+              $ref: ../../../common/exceptions.yaml#/components/schemas/Exception
+    DaySummaryRow:
+      type: object
+      description: 'Totals of one business day as billing projects it (report 1, cloud side): original Z-report
+        plus its revisions equals this (RM-R3).'
+      properties:
+        business_date:
+          type: string
+          description: Business date.
+          format: date
+          example: '2026-11-24'
+        status:
+          type: string
+          description: open or closed.
+          enum:
+          - open
+          - closed
+          example: closed
+        totals:
+          $ref: '#/components/schemas/DayTotals'
+        revision_count:
+          type: integer
+          description: Z revisions.
+          minimum: 0
+          example: 0
+      required:
+      - business_date
+      - status
+      - totals
+      - revision_count
+    DaySummaryReport:
+      allOf:
+      - $ref: ../../../common/components.yaml#/components/schemas/PageCursor
+      - type: object
+        description: 'Totals of one business day as billing projects it (report 1, cloud side): original Z-report
+          plus its revisions equals this (RM-R3).'
+        properties:
+          outlet_id:
+            $ref: ../../../common/components.yaml#/components/schemas/Id
+          from:
+            type: string
+            description: First date included.
+            format: date
+            example: '2026-11-24'
+          to:
+            type: string
+            description: Last date included.
+            format: date
+            example: '2026-11-24'
+          basis:
+            type: string
+            description: 'Date basis: business_date for operational reports, invoice_date for tax filing (RM-R4).'
+            enum:
+            - business_date
+            - invoice_date
+            example: business_date
+          items:
+            type: array
+            description: Rows.
+            items:
+              $ref: '#/components/schemas/DaySummaryRow'
+        required:
+        - outlet_id
+        - from
+        - to
+        - basis
+        - items
+    TaxSummaryRow:
+      type: object
+      description: Tax by rate and tax class, bills and credit notes shown separately (report 3). By invoice date.
+      properties:
+        tax_class:
+          type: string
+          description: Tax class.
+          example: fnb_standard
+        rate_bp:
+          type: integer
+          description: Total rate in basis points.
+          minimum: 0
+          example: 500
+        gst_applies:
+          type: boolean
+          description: False for non-GST and composition lines.
+        bill_taxable:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        bill_cgst:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        bill_sgst:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        credit_taxable:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        credit_cgst:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        credit_sgst:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+      required:
+      - tax_class
+      - rate_bp
+      - gst_applies
+      - bill_taxable
+      - bill_cgst
+      - bill_sgst
+      - credit_taxable
+      - credit_cgst
+      - credit_sgst
+    TaxSummaryReport:
+      allOf:
+      - $ref: ../../../common/components.yaml#/components/schemas/PageCursor
+      - type: object
+        description: Tax by rate and tax class, bills and credit notes shown separately (report 3). By invoice date.
+        properties:
+          outlet_id:
+            $ref: ../../../common/components.yaml#/components/schemas/Id
+          from:
+            type: string
+            description: First date included.
+            format: date
+            example: '2026-11-24'
+          to:
+            type: string
+            description: Last date included.
+            format: date
+            example: '2026-11-24'
+          basis:
+            type: string
+            description: 'Date basis: business_date for operational reports, invoice_date for tax filing (RM-R4).'
+            enum:
+            - business_date
+            - invoice_date
+            example: invoice_date
+          items:
+            type: array
+            description: Rows.
+            items:
+              $ref: '#/components/schemas/TaxSummaryRow'
+          totals:
+            type: object
+            description: Totals over the whole range, not only this page.
+            properties:
+              net_taxable:
+                $ref: ../../../common/components.yaml#/components/schemas/Money
+              net_cgst:
+                $ref: ../../../common/components.yaml#/components/schemas/Money
+              net_sgst:
+                $ref: ../../../common/components.yaml#/components/schemas/Money
+              non_gst:
+                $ref: ../../../common/components.yaml#/components/schemas/Money
+            required:
+            - net_taxable
+            - net_cgst
+            - net_sgst
+            - non_gst
+        required:
+        - outlet_id
+        - from
+        - to
+        - basis
+        - items
+        - totals
+    TenderSummaryRow:
+      type: object
+      description: Totals by tender, other tenders by name (report 4). UPI is recorded, not verified by Hostry.
+      properties:
+        tender:
+          type: string
+          description: Tender kind.
+          enum:
+          - cash
+          - upi
+          - card
+          - other
+          - eco
+          example: cash
+        name:
+          type: string
+          description: Other tender name.
+          example: Coupon
+        payment_count:
+          type: integer
+          description: Payments.
+          minimum: 0
+          example: 12
+        paid:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        refunded:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        net:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+      required:
+      - tender
+      - payment_count
+      - paid
+      - refunded
+      - net
+    TenderSummaryReport:
+      allOf:
+      - $ref: ../../../common/components.yaml#/components/schemas/PageCursor
+      - type: object
+        description: Totals by tender, other tenders by name (report 4). UPI is recorded, not verified by Hostry.
+        properties:
+          outlet_id:
+            $ref: ../../../common/components.yaml#/components/schemas/Id
+          from:
+            type: string
+            description: First date included.
+            format: date
+            example: '2026-11-24'
+          to:
+            type: string
+            description: Last date included.
+            format: date
+            example: '2026-11-24'
+          basis:
+            type: string
+            description: 'Date basis: business_date for operational reports, invoice_date for tax filing (RM-R4).'
+            enum:
+            - business_date
+            - invoice_date
+            example: business_date
+          items:
+            type: array
+            description: Rows.
+            items:
+              $ref: '#/components/schemas/TenderSummaryRow'
+        required:
+        - outlet_id
+        - from
+        - to
+        - basis
+        - items
+    ItemSalesRow:
+      type: object
+      description: Item-wise sales at variant level (report 5); credit notes reduce the figures.
+      properties:
+        item_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        item_name:
+          type: string
+          description: Item name snapshot.
+          example: Paneer Tikka
+        variant_name:
+          type: string
+          description: Variant name snapshot.
+          example: Full
+        qty_milli:
+          type: integer
+          description: Net quantity sold in thousandths.
+          format: int64
+          example: 24000
+        gross:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        net:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+      required:
+      - item_id
+      - item_name
+      - qty_milli
+      - gross
+      - net
+    ItemSalesReport:
+      allOf:
+      - $ref: ../../../common/components.yaml#/components/schemas/PageCursor
+      - type: object
+        description: Item-wise sales at variant level (report 5); credit notes reduce the figures.
+        properties:
+          outlet_id:
+            $ref: ../../../common/components.yaml#/components/schemas/Id
+          from:
+            type: string
+            description: First date included.
+            format: date
+            example: '2026-11-24'
+          to:
+            type: string
+            description: Last date included.
+            format: date
+            example: '2026-11-24'
+          basis:
+            type: string
+            description: 'Date basis: business_date for operational reports, invoice_date for tax filing (RM-R4).'
+            enum:
+            - business_date
+            - invoice_date
+            example: business_date
+          items:
+            type: array
+            description: Rows.
+            items:
+              $ref: '#/components/schemas/ItemSalesRow'
+        required:
+        - outlet_id
+        - from
+        - to
+        - basis
+        - items
+    CategorySalesRow:
+      type: object
+      description: Category-wise sales (report 6).
+      properties:
+        category_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        category_name:
+          type: string
+          description: Category name snapshot.
+          example: Starters
+        qty_milli:
+          type: integer
+          description: Net quantity in thousandths.
+          format: int64
+          example: 24000
+        gross:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        net:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+      required:
+      - category_id
+      - category_name
+      - qty_milli
+      - gross
+      - net
+    CategorySalesReport:
+      allOf:
+      - $ref: ../../../common/components.yaml#/components/schemas/PageCursor
+      - type: object
+        description: Category-wise sales (report 6).
+        properties:
+          outlet_id:
+            $ref: ../../../common/components.yaml#/components/schemas/Id
+          from:
+            type: string
+            description: First date included.
+            format: date
+            example: '2026-11-24'
+          to:
+            type: string
+            description: Last date included.
+            format: date
+            example: '2026-11-24'
+          basis:
+            type: string
+            description: 'Date basis: business_date for operational reports, invoice_date for tax filing (RM-R4).'
+            enum:
+            - business_date
+            - invoice_date
+            example: business_date
+          items:
+            type: array
+            description: Rows.
+            items:
+              $ref: '#/components/schemas/CategorySalesRow'
+        required:
+        - outlet_id
+        - from
+        - to
+        - basis
+        - items
+    DiscountRow:
+      type: object
+      description: 'A discount, comp, refund, credit note, re-bill, internal closure or open item: who, when, reason,
+        approver, value (report 7, billing part, with the allowance rows).'
+      properties:
+        kind:
+          type: string
+          description: Row kind.
+          enum:
+          - discount
+          - comp
+          - refund
+          - credit_note
+          - rebill
+          - internal_closure
+          - open_item
+          - handover_skipped
+          example: discount
+        subject_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        bill_number:
+          type: string
+          description: Number of the bill concerned, when it has one.
+          example: A7K/2627/000001
+        reason_code_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        member_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        approver_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        within_allowance:
+          type: boolean
+          description: True when the row used a per-shift allowance rather than an approval (RM-A11).
+        value:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+        business_date:
+          type: string
+          description: Business date.
+          format: date
+          example: '2026-11-24'
+      required:
+      - kind
+      - subject_id
+      - reason_code_id
+      - member_id
+      - within_allowance
+      - value
+      - at
+      - business_date
+    DiscountReport:
+      allOf:
+      - $ref: ../../../common/components.yaml#/components/schemas/PageCursor
+      - type: object
+        description: 'A discount, comp, refund, credit note, re-bill, internal closure or open item: who, when,
+          reason, approver, value (report 7, billing part, with the allowance rows).'
+        properties:
+          outlet_id:
+            $ref: ../../../common/components.yaml#/components/schemas/Id
+          from:
+            type: string
+            description: First date included.
+            format: date
+            example: '2026-11-24'
+          to:
+            type: string
+            description: Last date included.
+            format: date
+            example: '2026-11-24'
+          basis:
+            type: string
+            description: 'Date basis: business_date for operational reports, invoice_date for tax filing (RM-R4).'
+            enum:
+            - business_date
+            - invoice_date
+            example: business_date
+          items:
+            type: array
+            description: Rows.
+            items:
+              $ref: '#/components/schemas/DiscountRow'
+          totals:
+            type: object
+            description: Totals over the whole range, not only this page.
+            properties:
+              count:
+                type: integer
+                description: Rows.
+                minimum: 0
+                example: 1
+              value:
+                $ref: ../../../common/components.yaml#/components/schemas/Money
+            required:
+            - count
+            - value
+        required:
+        - outlet_id
+        - from
+        - to
+        - basis
+        - items
+        - totals
+    StaffSalesRow:
+      type: object
+      description: Sales by cashier and by waiter (report 8).
+      properties:
+        member_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        role:
+          type: string
+          description: cashier or waiter attribution.
+          enum:
+          - cashier
+          - waiter
+          example: cashier
+        bill_count:
+          type: integer
+          description: Bills.
+          minimum: 0
+          example: 12
+        net:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+      required:
+      - member_id
+      - role
+      - bill_count
+      - net
+    StaffSalesReport:
+      allOf:
+      - $ref: ../../../common/components.yaml#/components/schemas/PageCursor
+      - type: object
+        description: Sales by cashier and by waiter (report 8).
+        properties:
+          outlet_id:
+            $ref: ../../../common/components.yaml#/components/schemas/Id
+          from:
+            type: string
+            description: First date included.
+            format: date
+            example: '2026-11-24'
+          to:
+            type: string
+            description: Last date included.
+            format: date
+            example: '2026-11-24'
+          basis:
+            type: string
+            description: 'Date basis: business_date for operational reports, invoice_date for tax filing (RM-R4).'
+            enum:
+            - business_date
+            - invoice_date
+            example: business_date
+          items:
+            type: array
+            description: Rows.
+            items:
+              $ref: '#/components/schemas/StaffSalesRow'
+        required:
+        - outlet_id
+        - from
+        - to
+        - basis
+        - items
+    HourlySalesRow:
+      type: object
+      description: Sales by order type and hour of the day, IST (report 10).
+      properties:
+        business_date:
+          type: string
+          description: Business date.
+          format: date
+          example: '2026-11-24'
+        hour:
+          type: integer
+          description: Hour of the day in IST, 0 to 23.
+          minimum: 0
+          maximum: 23
+          example: 13
+        order_type:
+          type: string
+          description: Order type.
+          enum:
+          - dine_in
+          - takeaway
+          - counter
+          example: dine_in
+        bill_count:
+          type: integer
+          description: Bills.
+          minimum: 0
+          example: 4
+        net:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+      required:
+      - business_date
+      - hour
+      - order_type
+      - bill_count
+      - net
+    HourlySalesReport:
+      allOf:
+      - $ref: ../../../common/components.yaml#/components/schemas/PageCursor
+      - type: object
+        description: Sales by order type and hour of the day, IST (report 10).
+        properties:
+          outlet_id:
+            $ref: ../../../common/components.yaml#/components/schemas/Id
+          from:
+            type: string
+            description: First date included.
+            format: date
+            example: '2026-11-24'
+          to:
+            type: string
+            description: Last date included.
+            format: date
+            example: '2026-11-24'
+          basis:
+            type: string
+            description: 'Date basis: business_date for operational reports, invoice_date for tax filing (RM-R4).'
+            enum:
+            - business_date
+            - invoice_date
+            example: business_date
+          items:
+            type: array
+            description: Rows.
+            items:
+              $ref: '#/components/schemas/HourlySalesRow'
+        required:
+        - outlet_id
+        - from
+        - to
+        - basis
+        - items
+    OutletTaxProfile:
+      type: object
+      description: 'Per outlet and financial year: the specified-premises flag and FSSAI number. The regime and
+        GSTIN come from the tax registration in tenancy (RM-T2).'
+      properties:
+        outlet_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        financial_year:
+          type: string
+          description: Four-digit FY, 2627 is 2026-27.
+          pattern: ^[0-9]{4}$
+          example: '2627'
+        specified_premises:
+          type: boolean
+          description: Hotel-premises flag that selects the higher rate for fnb_standard; settable only for a financial
+            year that has not started or has just started, never retroactively.
+        fssai_number:
+          type: string
+          description: Exactly 14 digits; when absent printing is not blocked (a banner shows).
+          pattern: ^[0-9]{14}$
+          example: '12345678901234'
+        updated_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+      required:
+      - outlet_id
+      - financial_year
+      - specified_premises
+    BillingSettings:
+      type: object
+      description: Outlet billing settings (lww + review). number_at, the discount limit and the GST profile are
+        strong-session edits; the rest are edited on devices with settings.outlet.edit.
+      properties:
+        outlet_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        number_at:
+          type: string
+          description: 'settle (default): the bill takes its number at the first payment or Issue invoice after
+            a recorded pre-bill; print: at the first Present (ADR-0014 A1.5).'
+          enum:
+          - settle
+          - print
+          example: settle
+        price_mode:
+          type: string
+          description: exclusive (default) or inclusive menu prices.
+          enum:
+          - exclusive
+          - inclusive
+          example: exclusive
+        round_off:
+          type: boolean
+          description: Round the total to the nearest rupee as a separate line.
+        service_charge_bp:
+          type: integer
+          description: Service charge in basis points; 0 is off (default off, CCPA 2022).
+          minimum: 0
+          maximum: 2500
+          example: 0
+        discount_limit_bp:
+          type: integer
+          description: Cashier discount limit in basis points of the bill (default 1000).
+          minimum: 0
+          maximum: 10000
+          example: 1000
+        rebill_allowance_per_shift:
+          type: integer
+          description: Re-bills a cashier may do per shift without approval (default 3).
+          minimum: 0
+          example: 3
+        comp_allowance:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        open_item_limit:
+          $ref: ../../../common/components.yaml#/components/schemas/Money
+        manual_entry_max_days_back:
+          type: integer
+          description: Days back a bill-book entry may be dated (default 2).
+          minimum: 0
+          maximum: 7
+          example: 2
+        shift_required:
+          type: boolean
+          description: Track cash shifts (default on).
+        handover_count:
+          type: boolean
+          description: Offer a counted handover when the cashier changes (default on).
+        updated_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+      required:
+      - outlet_id
+      - number_at
+      - price_mode
+      - round_off
+      - service_charge_bp
+      - discount_limit_bp
+      - rebill_allowance_per_shift
+      - comp_allowance
+      - open_item_limit
+      - manual_entry_max_days_back
+      - shift_required
+      - handover_count
+    TenderKind:
+      type: object
+      description: A tender the outlet offers (data, not code). on_account is reserved for Phase 5 and not enabled.
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        outlet_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        kind:
+          type: string
+          description: Tender kind.
+          enum:
+          - cash
+          - upi
+          - card
+          - other
+          - eco
+          example: other
+        name:
+          type: string
+          description: Shown and totalled by this name.
+          maxLength: 30
+          example: Coupon
+        enabled:
+          type: boolean
+          description: Whether it is offered.
+      required:
+      - id
+      - outlet_id
+      - kind
+      - name
+      - enabled
+    OutletBillingConfig:
+      type: object
+      description: Everything billing holds about how an outlet bills.
+      properties:
+        outlet_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        tax_profiles:
+          type: array
+          description: One per financial year, newest first.
+          items:
+            $ref: '#/components/schemas/OutletTaxProfile'
+        settings:
+          $ref: '#/components/schemas/BillingSettings'
+        tenders:
+          type: array
+          description: Tenders.
+          items:
+            $ref: '#/components/schemas/TenderKind'
+      required:
+      - outlet_id
+      - tax_profiles
+      - settings
+      - tenders
+    SetOutletTaxProfile:
+      type: object
+      description: Edit of the GST profile; also carries the price mode, which RM-T2 places in the same strong session.
+      properties:
+        financial_year:
+          type: string
+          description: Four-digit FY.
+          pattern: ^[0-9]{4}$
+          example: '2627'
+        specified_premises:
+          type: boolean
+          description: Specified-premises flag for that FY.
+        fssai_number:
+          type: string
+          description: 14 digits.
+          pattern: ^[0-9]{14}$
+          example: '12345678901234'
+        price_mode:
+          type: string
+          description: exclusive or inclusive.
+          enum:
+          - exclusive
+          - inclusive
+          example: exclusive
+      required:
+      - financial_year
+      - specified_premises
+    SetNumberingMode:
+      type: object
+      description: Change of the numbering trigger.
+      properties:
+        number_at:
+          type: string
+          description: settle or print.
+          enum:
+          - settle
+          - print
+          example: print
+      required:
+      - number_at
+    SetDiscountLimit:
+      type: object
+      description: Change of the cashier discount limit.
+      properties:
+        discount_limit_bp:
+          type: integer
+          description: Limit in basis points of the bill, 0 to 10000.
+          minimum: 0
+          maximum: 10000
+          example: 1500
+      required:
+      - discount_limit_bp
+    ConfigChange:
+      type: object
+      description: Result of a strong-session setting change; the op was emitted to the outlet stream.
+      properties:
+        outlet_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        updated_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+        op_id:
+          type: string
+          description: Identity of the emitted op.
+          example: cloud-1/outlet:0190a1b2/731
+      required:
+      - outlet_id
+      - updated_at
+      - op_id
+    TaxRule:
+      type: object
+      description: One mapping of (tax class, regime, specified-premises flag, order channel) to rate components
+        and a document type. Components for an intra-state supply are two equal halves; igst_bp is 0 in Phase 2
+        (RM-T8). Maps one-to-one to the tax_rule entity.
+      properties:
+        tax_class:
+          type: string
+          description: Tax class key.
+          pattern: ^[a-z][a-z0-9_]{1,31}$
+          example: fnb_standard
+        regime:
+          type: string
+          description: Registration regime.
+          enum:
+          - regular
+          - composition
+          - unregistered
+          example: regular
+        specified_premises:
+          type: boolean
+          description: Specified-premises flag of the outlet for the FY.
+        order_channel:
+          type: string
+          description: Order channel; eco supplies may carry their own rule.
+          enum:
+          - dine_in
+          - takeaway
+          - counter
+          - eco
+          example: dine_in
+        doc_type:
+          $ref: '#/components/schemas/BillDocType'
+        gst_applies:
+          type: boolean
+          description: False for non-GST items (for example alcohol) and for composition and unregistered.
+        cgst_bp:
+          type: integer
+          description: CGST in basis points.
+          minimum: 0
+          maximum: 2800
+          example: 250
+        sgst_bp:
+          type: integer
+          description: SGST in basis points; equals cgst_bp.
+          minimum: 0
+          maximum: 2800
+          example: 250
+        igst_bp:
+          type: integer
+          description: IGST in basis points; must be 0 in Phase 2.
+          minimum: 0
+          maximum: 0
+          example: 0
+        sac:
+          type: string
+          description: SAC or HSN code, up to 8 digits; not shipped until the CA advises (RM-T7).
+          pattern: ^[0-9]{4,8}$
+      required:
+      - tax_class
+      - regime
+      - specified_premises
+      - order_channel
+      - doc_type
+      - gst_applies
+      - cgst_bp
+      - sgst_bp
+      - igst_bp
+    TaxRuleSet:
+      type: object
+      description: 'A published tax rule set as a tenant sees it: immutable, no end date until superseded, so a
+        device always has a rule (R6.3). Rates are Hostry''s data, never typed by an owner.'
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        version:
+          type: integer
+          description: Platform-wide version number, rising.
+          minimum: 1
+          example: 1
+        name:
+          type: string
+          description: Label.
+          maxLength: 80
+          example: GST restaurant services 2026
+        effective_date:
+          type: string
+          description: First IST invoice date the version applies to.
+          format: date
+          example: '2026-11-24'
+        calc_v:
+          type: integer
+          description: Calculation version the set is meant for.
+          minimum: 1
+          example: 1
+        review_status:
+          type: string
+          description: unreviewed marks a draft rule set built before CA sign-off (ADR-0014 Data needed 1); a production
+            publication needs a sign-off record.
+          enum:
+          - reviewed
+          - unreviewed
+          example: unreviewed
+        content_hash:
+          type: string
+          description: "Lowercase hex SHA-256 over the rules in canonical form (provisional): the RFC 8785 (JCS) text of each rule, with every TaxRule field the rule has set, ordered ascending by tax_class, regime, specified_premises, order_channel and doc_type, each text followed by a line feed. The same construction as an entity digest row list (sync/protocol-v1.md)."
+          example: 17a8ae58b11bd6a005a39c800ce8cbd44f7a1ff5ea213dbd25ecb7bf3e2aaf74
+        published_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+        rules:
+          type: array
+          description: Mappings.
+          items:
+            $ref: '#/components/schemas/TaxRule'
+      required:
+      - id
+      - version
+      - name
+      - effective_date
+      - calc_v
+      - review_status
+      - content_hash
+      - published_at
+      - rules
+    TaxRuleSetPage:
+      allOf:
+      - $ref: ../../../common/components.yaml#/components/schemas/PageCursor
+      - type: object
+        description: A page of TaxRuleSet items.
+        required:
+        - items
+        properties:
+          items:
+            type: array
+            description: Items, in the order stated by the operation.
+            items:
+              $ref: '#/components/schemas/TaxRuleSet'
+    SignOff:
+      type: object
+      description: The CA sign-off record (reviewer, date and a reference note); immutable once signed.
+      properties:
+        reviewer_name:
+          type: string
+          description: Reviewer's name.
+          maxLength: 80
+          minLength: 2
+          example: A. Reviewer
+        signed_on:
+          type: string
+          description: Date of sign-off.
+          format: date
+          example: '2026-11-24'
+        reference_note:
+          type: string
+          description: Where the advice is recorded, at least 10 characters.
+          maxLength: 200
+          minLength: 10
+          example: CA advice note 2026-11 ref 12
+      required:
+      - reviewer_name
+      - signed_on
+      - reference_note
+    TaxRuleSetMaster:
+      type: object
+      description: 'A rule-set version in the vendor master: draft (editable), signed (immutable, sign-off recorded)
+        or published (emitted to every organisation).'
+      properties:
+        id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        version:
+          type: integer
+          description: Platform-wide version number, assigned at creation.
+          minimum: 1
+          example: 2
+        revision:
+          type: integer
+          description: Edit counter of a draft; the ETag is its string form.
+          minimum: 1
+          example: 1
+        name:
+          type: string
+          description: Label.
+          maxLength: 80
+          example: GST restaurant services 2026 B
+        effective_date:
+          type: string
+          description: Effective date; immutable from signing.
+          format: date
+          example: '2026-11-24'
+        calc_v:
+          type: integer
+          description: Calculation version.
+          minimum: 1
+          example: 1
+        state:
+          type: string
+          description: draft, signed or published. A published version is never edited, withdrawn or deleted (BR-A1-81).
+          enum:
+          - draft
+          - signed
+          - published
+          example: draft
+        review_status:
+          type: string
+          description: reviewed (sign-off recorded) or unreviewed.
+          enum:
+          - reviewed
+          - unreviewed
+          example: unreviewed
+        signoff:
+          $ref: '#/components/schemas/SignOff'
+        content_hash:
+          type: string
+          description: Hash stored at signing.
+          example: 17a8ae58b11bd6a005a39c800ce8cbd44f7a1ff5ea213dbd25ecb7bf3e2aaf74
+        rules:
+          type: array
+          description: Mappings.
+          items:
+            $ref: '#/components/schemas/TaxRule'
+        organisations_total:
+          type: integer
+          description: Organisations the version was queued for (published only).
+          minimum: 0
+          example: 0
+        organisations_acknowledged:
+          type: integer
+          description: Acknowledged emits (BR-A1-84); counts only, no tenant data.
+          minimum: 0
+          example: 0
+        created_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+        published_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+      required:
+      - id
+      - version
+      - revision
+      - name
+      - effective_date
+      - calc_v
+      - state
+      - review_status
+      - rules
+      - created_at
+    TaxRuleSetMasterPage:
+      allOf:
+      - $ref: ../../../common/components.yaml#/components/schemas/PageCursor
+      - type: object
+        description: A page of TaxRuleSetMaster items.
+        required:
+        - items
+        properties:
+          items:
+            type: array
+            description: Items, in the order stated by the operation.
+            items:
+              $ref: '#/components/schemas/TaxRuleSetMaster'
+    TaxRuleSetDraft:
+      type: object
+      description: Content of a draft.
+      properties:
+        name:
+          type: string
+          description: Label.
+          maxLength: 80
+          example: GST restaurant services 2026 B
+        effective_date:
+          type: string
+          description: Effective date.
+          format: date
+          example: '2026-11-24'
+        calc_v:
+          type: integer
+          description: Calculation version.
+          minimum: 1
+          example: 1
+        rules:
+          type: array
+          description: Mappings.
+          items:
+            $ref: '#/components/schemas/TaxRule'
+      required:
+      - name
+      - effective_date
+      - calc_v
+      - rules
+    TaxRuleSetValidation:
+      type: object
+      description: Outcome of the BR-A1-82 checks and the shared conformance vectors.
+      properties:
+        valid:
+          type: boolean
+          description: True when every check and every vector passes.
+        errors:
+          type: array
+          description: Failed checks.
+          items:
+            type: object
+            description: One failed check.
+            properties:
+              code:
+                type: string
+                description: Stable code, for example mapping_missing, odd_rate, unequal_halves, vector_failed.
+                example: mapping_missing
+              detail:
+                type: string
+                description: Which mapping or vector.
+                example: fnb_standard/regular/false/dine_in
+            required:
+            - code
+            - detail
+        vectors_total:
+          type: integer
+          description: Conformance vectors run.
+          minimum: 0
+          example: 48
+        vectors_passed:
+          type: integer
+          description: Vectors passed.
+          minimum: 0
+          example: 48
+      required:
+      - valid
+      - errors
+      - vectors_total
+      - vectors_passed
+    SignTaxRuleSet:
+      type: object
+      description: Sign-off of a validated draft.
+      properties:
+        signoff:
+          $ref: '#/components/schemas/SignOff'
+      required:
+      - signoff
+    PublishTaxRuleSet:
+      type: object
+      description: Publication request; the grant header carries the approval.
+      properties:
+        note:
+          type: string
+          description: Optional note for the vendor log, at most 200 characters, no personal data.
+          maxLength: 200
+          example: Notified rate change
+    EntityDigest:
+      type: object
+      description: Hash of the canonical state of one entity for a business day.
+      properties:
+        entity:
+          type: string
+          description: Synced entity name.
+          example: bill
+        row_count:
+          type: integer
+          description: Rows included.
+          minimum: 0
+          example: 12
+        hash:
+          type: string
+          description: Lowercase hex SHA-256 over the canonical row texts of the entity, ascending id, each followed by a line feed.
+          example: 9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08
+      required:
+      - entity
+      - row_count
+      - hash
+    ProjectionDigest:
+      type: object
+      description: 'Digest of this service''s projection of one outlet business day, to compare with a device''s local state (ADR-0014 tests T2, T9, T11). Algorithm sha256-canon-v1 (sync/protocol-v1.md, Projection digest): the rows of the entities this service owns that belong to the business day (a business_date equal to it, or a parent that has one), tombstoned rows left out. A row is the canonical JSON (RFC 8785, integers only) of an object holding id and every schema field the row has set, without pii fields and without absent fields. An entity digest is the lower-case hex SHA-256 over the row texts in ascending id order, each followed by a line feed; state_hash is the SHA-256 over the line ''<entity>, line feed, row_count, line feed, hash, line feed'' for each listed entity in ascending name order. Only entities with at least one row are listed. examples/digests holds the rows of the example world and CI recomputes the example from them.'
+      properties:
+        outlet_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        business_date:
+          type: string
+          description: Business date digested.
+          format: date
+          example: '2026-11-24'
+        algorithm:
+          type: string
+          description: Digest algorithm id.
+          enum:
+          - sha256-canon-v1
+          example: sha256-canon-v1
+        state_hash:
+          type: string
+          description: Lower-case hex SHA-256 over the entity digests in ascending entity-name order (see the schema description).
+          example: 2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae
+        entities:
+          type: array
+          description: Per-entity digests, entity name ascending.
+          items:
+            $ref: '#/components/schemas/EntityDigest'
+        computed_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+      required:
+      - outlet_id
+      - business_date
+      - algorithm
+      - state_hash
+      - entities
+      - computed_at
+  responses:
+    PreconditionFailed:
+      description: If-Match did not match the current revision.
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../../../common/components.yaml#/components/schemas/Problem
+          example:
+            type: urn:hostry:problem:precondition_failed
+            title: Stale version
+            status: 412
+            code: precondition_failed
+    GrantRefused:
+      description: Grant missing (grant.required), malformed or not for this operation (grant.invalid, for signature, kid, typ, realm, aud, kind, organisation or approver), expired (grant.expired), for another subject (grant.subject_mismatch) or used (grant.used).
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../../../common/components.yaml#/components/schemas/Problem
+          example:
+            type: urn:hostry:problem:grant.used
+            title: Approval grant refused
+            status: 403
+            code: grant.used
+    LeadTooShort:
+      description: The effective date is less than the lead time (deployment configuration, at least 24 hours) ahead
+        when publication executes.
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../../../common/components.yaml#/components/schemas/Problem
+          example:
+            type: urn:hostry:problem:effective_date_too_soon
+            title: Effective date too soon
+            status: 422
+            code: effective_date_too_soon
+    NotSigned:
+      description: The version is not in the state this operation needs.
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../../../common/components.yaml#/components/schemas/Problem
+          example:
+            type: urn:hostry:problem:not_signed
+            title: Rule set not signed
+            status: 409
+            code: not_signed
+    OpenChecks:
+      description: number_at changes only with no open check on the outlet (RM-O21).
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../../../common/components.yaml#/components/schemas/Problem
+          example:
+            type: urn:hostry:problem:open_checks_exist
+            title: Open checks exist
+            status: 409
+            code: open_checks_exist
+    StrongSessionRequired:
+      description: The permission is strong_only and the session is a pin or device session.
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../../../common/components.yaml#/components/schemas/Problem
+          example:
+            type: urn:hostry:problem:strong_session_required
+            title: Strong session required
+            status: 403
+            code: strong_session_required

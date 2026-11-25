@@ -1,0 +1,18 @@
+# Shared example world: sync (gateway, hub, bus events). The organisation, brand, outlet, device 4a5e and member Asha 4a64
+# are the platform world's. The two example ops are the ones in sync/conformance (menu.availability.set on item_outlet
+# a7ac8341-..., chained from the genesis hash of origin 4a5e on stream outlet:4a61) and in openapi/sync/v1; the Go test in
+# sync/ verifies their hashes, chain and seal. The gateway epoch is cloud-1 and the device key id dev-4a5e-1.
+world: sync
+id_prefix: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f
+constants:
+  epoch: cloud-1
+  device_kid: dev-4a5e-1
+  op_body_limit_bytes: 262144
+  op_pii_limit_bytes: 16384
+  emit_batch_max: 200
+entries:
+- {name: ev_sync_op, id: '9201', kind: event}
+- {name: ev_sync_quarantine_recorded, id: '9202', kind: event}
+- {name: ev_sync_op_flagged, id: '9203', kind: event}
+- {name: ev_sync_pii_erased, id: '9204', kind: event}
+- {name: emit_edit, id: '4ab1', kind: emit_edit, note: Idempotency-Key of the interactive tax-class edit in the emitOps example}

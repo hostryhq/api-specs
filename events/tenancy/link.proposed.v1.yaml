@@ -23,7 +23,7 @@ allOf:
           type: string
           description: The link.
 examples:
-- id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a81
+- id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f9111
   type: tenancy.link.proposed
   v: 1
   source: tenancy

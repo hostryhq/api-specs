@@ -1,0 +1,63 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: urn:hostry:events:billing.tax_rule_set.published:v1
+title: billing.tax_rule_set.published v1
+description: 'A rule-set version was published and queued for emission to every organisation (ADR-0014 A1.4). Counts
+  only; concerns no organisation, so it is not in any owner''s log. Platform-level: tenant_id is the literal platform
+  (allow-listed type, ADR-0011 B6).'
+x-publisher: billing
+x-subscribers: []
+allOf:
+- $ref: urn:hostry:events:envelope:v1
+- type: object
+  properties:
+    type:
+      const: billing.tax_rule_set.published
+    v:
+      const: 1
+    source:
+      const: billing
+    data:
+      type: object
+      required:
+      - rule_set_id
+      - version
+      - effective_date
+      - content_hash
+      - review_status
+      properties:
+        rule_set_id:
+          type: string
+          description: The version.
+        version:
+          type: integer
+          description: Platform version number.
+          minimum: 1
+        effective_date:
+          type: string
+          description: Effective date.
+          format: date
+        content_hash:
+          type: string
+          description: Content hash of the signed version.
+        review_status:
+          type: string
+          description: reviewed or unreviewed.
+          enum:
+          - reviewed
+          - unreviewed
+examples:
+- id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f9006
+  type: billing.tax_rule_set.published
+  v: 1
+  source: billing
+  tenant_id: platform
+  key: 72bdd3f5-68b5-59b0-8e62-2075a1f43c47
+  key_seq: 1
+  occurred_at: '2026-11-24T13:05:11.120Z'
+  actor: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a78
+  data:
+    rule_set_id: 72bdd3f5-68b5-59b0-8e62-2075a1f43c47
+    version: 2
+    effective_date: '2026-12-15'
+    content_hash: 17a8ae58b11bd6a005a39c800ce8cbd44f7a1ff5ea213dbd25ecb7bf3e2aaf74
+    review_status: reviewed
