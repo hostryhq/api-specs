@@ -1,0 +1,44 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Cancel superseded runs to save Actions minutes.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  openapi:
+    uses: hostryhq/.github/.github/workflows/openapi-ci.yml@main
+    with:
+      go-version-file: go.mod
+      setup-command: make tools generate-go
+      # Spectral plus the repo validators (events, cross-document conventions, and any
+      # entities/intents validators the Makefile adds to `lint`).
+      lint-command: make lint
+      breaking-command: make breaking BASE="origin/$BASE_REF"
+      # Contract harness: runs the contract-tests packages against the spec examples.
+      test-command: go vet ./... && go test ./...
+
+  secrets-scan:
+    uses: hostryhq/.github/.github/workflows/gitleaks.yml@main
+
+  # Single status check for the ruleset: "ci / required".
+  required:
+    if: always()
+    needs: [openapi, secrets-scan]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: All required jobs passed
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "results: $RESULTS"
+          for r in $RESULTS; do [ "$r" = success ] || exit 1; done
