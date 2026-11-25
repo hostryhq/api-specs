@@ -20,6 +20,7 @@ info:
     registration-spare-verified: "The base world plus a second open registration 4a93 (GSTIN 29ABCDE1234F1ZW, state 29, verified at 13:10:11) that no outlet references and that has no series."
     link-none: "The base world with LINKS_ENABLED true, organisation 4a63 (Example Restaurants, outlet 4a94, registration with verified GSTIN 33AAAAA0000A1Z9) existing, and no link."
     link-proposed: "LINKS_ENABLED true. The caller is the proposer 4a60. Link 4a62 (template on_premises_outlet, grant 4a72 test.echo.read outbound for outlet 4a61, pending) was proposed to nobody in particular at 13:05:11 and is still proposed; its first invitation code was shown once and is not stored; a later code was never issued."
+    link-accepted-changed: "LINKS_ENABLED true. The caller is the acceptor 4a63. Link 4a62 was accepted by 4a63 at 13:10:11 and awaits confirmation; 4a63 changed its registration details afterwards, so the proposer's confirmation was refused 409 counterparty_changed; grant 4a72 is pending."
     link-proposed-to-caller: "LINKS_ENABLED true. The caller is organisation 4a63 (outlet 4a94). Organisation 4a60 proposed link 4a62 (template on_premises_outlet, grant 4a72 test.echo.read outbound from 4a60 for outlet 4a61, pending) at 13:05:11; invitation code 7QK3M9XD7QK3M9XD is unused and unexpired. 4a60 has a verified registration 4a6b."
     link-accepted: "LINKS_ENABLED true. The caller is the proposer 4a60. Link 4a62 was accepted by 4a63 at 13:10:11 and awaits confirmation; grant 4a72 is pending."
     link-active: "LINKS_ENABLED true. The caller is the proposer 4a60. Link 4a62 is active (accepted 13:10:11, confirmed 13:20:11) with grant 4a72 active; activity holds link.proposed, link.accepted and link.confirmed. The service token of getLinkDecision acts for 4a63."
@@ -940,7 +941,7 @@ paths:
               - 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
       responses:
         '201':
-          description: Link proposed; the invitation code is shown once and never stored (ADR-0003 Note N1 R1). Expires in 14 days. A replay with the same Idempotency-Key returns the link without invitation_code; use reissueLinkInvitation for a fresh code. No one-time secret is kept in an idempotency record.
+          description: Link proposed; the invitation code is shown once and never stored (ADR-0003 Note N1 R1). Expires in 14 days. A replay with the same Idempotency-Key returns the link without invitation_code and with secret_withheld true; use reissueLinkInvitation for a fresh code. No one-time secret is kept in an idempotency record.
           content:
             application/json:
               schema:
@@ -1076,6 +1077,64 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/Conflict
         '429':
           $ref: ../../../common/components.yaml#/components/responses/TooManyRequests
+  /v1/links/{link_id}/re-acceptance:
+    put:
+      operationId: reacceptLink
+      summary: Acceptor refreshes its details after counterparty_changed
+      description: 'Only the acceptor, only while the link is accepted and not yet confirmed (409 link_not_accepted otherwise). Takes a new snapshot of the acceptor''s details for the proposer to review (ADR-0003 Note N1 R3, never refreshed on its own), keeps the acceptance and its grants pending, and publishes tenancy.link.accepted again. The proposer then confirms or declines. Needs no invitation code: the code was used up at acceptance.'
+      tags:
+      - links
+      x-permission: link.manage
+      x-step-up: true
+      x-feature-flag: LINKS_ENABLED
+      x-example-world: link-accepted-changed
+      parameters:
+      - name: link_id
+        in: path
+        required: true
+        description: Link ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a62
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      responses:
+        '200':
+          description: The link as the acceptor sees it, still accepted, with the new snapshot.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Link'
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a62
+                template: on_premises_outlet
+                status: accepted
+                role: acceptor
+                counterparty_organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                counterparty:
+                  display_name: Example Hospitality
+                  registrations:
+                  - legal_name: Example Hospitality Pvt Ltd
+                    gstin: 33ABCDE1234F1Z7
+                    state_code: '33'
+                    gstin_verified: true
+                grants:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a72
+                  scope: test.echo.read
+                  direction: inbound
+                  outlet_ids:
+                  - 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  status: pending
+                proposed_at: '2026-11-24T13:05:11.120Z'
+                expires_at: '2026-12-08T13:05:11.120Z'
+                accepted_at: '2026-11-24T13:12:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/StepUpRequired'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
   /v1/link-acceptances:
     post:
       operationId: acceptLink
@@ -1142,6 +1201,7 @@ paths:
     put:
       operationId: confirmLink
       summary: Proposer confirms the accepting organisation
+      description: 'The details of the accepting organisation are re-checked against the snapshot taken at acceptance (ADR-0003 Note N1 R3). When they changed the answer is 409 counterparty_changed and the link stays accepted: the acceptor can refresh the snapshot with reacceptLink, or the proposer can decline the accepted link (declineLink) or ask for a new invitation after declining and proposing again; nothing else moves the link. A replay of a confirmed link returns it.'
       tags:
       - links
       x-permission: link.manage
@@ -4860,6 +4920,12 @@ components:
             use, 14 days. Shown once; also the QR payload. Absent on an idempotent replay and never stored, so a lost code is replaced with reissueLinkInvitation.
           pattern: ^[0-9A-HJKMNP-TV-Z]{16}$
           example: 7QK3M9XD7QK3M9XD
+          x-one-time-secret:
+            withheld_flag: secret_withheld
+        secret_withheld:
+          type: boolean
+          description: True on a replay of the same Idempotency-Key, where the invitation code is withheld because it is never stored (ADR-0003 Note N1 R1); use reissueLinkInvitation for a new one. Absent on the first response. The contract harness compares a replay with every field except invitation_code and this flag.
+          example: true
     AcceptLink:
       type: object
       description: Accept a link with its invitation code. The code is used up at acceptance; the acceptor

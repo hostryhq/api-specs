@@ -176,7 +176,7 @@ func (h *harness) checkOperation(ctx context.Context, path, method string, item 
 				fail("replay failed: %v", err)
 			case s2 != status:
 				fail("idempotent replay returned status %d, want %d", s2, status)
-			case !jsonEqual2(body, b2):
+			case !jsonEqual2(stripOneTime(expResp, body), stripOneTime(expResp, b2)):
 				fail("idempotent replay returned a different body")
 			}
 		}
@@ -404,4 +404,49 @@ func truncate(b []byte) string {
 		return string(b[:200]) + "..."
 	}
 	return string(b)
+}
+
+// stripOneTime removes from a top-level JSON object the response properties marked x-one-time-secret in the spec, and the
+// flag named by their withheld_flag. A one-time secret (an invitation code) is shown once and never stored, so a replay
+// legitimately omits it; everything else must be identical.
+func stripOneTime(resp *openapi3.Response, body []byte) []byte {
+	if resp == nil {
+		return body
+	}
+	var drop []string
+	for _, mt := range resp.Content {
+		if mt.Schema == nil || mt.Schema.Value == nil {
+			continue
+		}
+		for name, ref := range mt.Schema.Value.Properties {
+			if ref.Value == nil {
+				continue
+			}
+			ext, ok := ref.Value.Extensions["x-one-time-secret"]
+			if !ok {
+				continue
+			}
+			drop = append(drop, name)
+			if m, ok := ext.(map[string]any); ok {
+				if f, ok := m["withheld_flag"].(string); ok {
+					drop = append(drop, f)
+				}
+			}
+		}
+	}
+	if len(drop) == 0 {
+		return body
+	}
+	var m map[string]any
+	if json.Unmarshal(body, &m) != nil {
+		return body
+	}
+	for _, d := range drop {
+		delete(m, d)
+	}
+	out, err := json.Marshal(m)
+	if err != nil {
+		return body
+	}
+	return out
 }
