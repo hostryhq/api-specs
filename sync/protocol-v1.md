@@ -4,7 +4,7 @@ The contract of record for the sync wire. Machine-readable parts: `openapi/sync/
 operations under `/sync/v1`, the internal emit operation under `/internal/v1`), `sync/conformance/v1.json` (shared vectors
 for the Go and TypeScript engines, ADR-0002 S15), the entity registry is `entities/` (named `sync/entities` in ADR-0002 A2.3), the intent registry is `sync/intents/`,
 and the bus events are `events/sync/`. This file holds the rules a schema cannot state: canonical form, hashing, chain,
-seal, endorsement and attestation messages, LAN assertion and hub proof, hold codes, void encoding, the size limit and the
+seal, endorsement and attestation messages, the LAN handshake proofs and session token, hold codes, void encoding, the size limit and the
 op event. `svc-sync/contract/` keeps only the Go contract suite, which reads these files at the pinned `api-specs` version.
 
 **Change rule (ADR-0002 A2.3).** A change under `sync/` or `openapi/sync/` merges only with the Go and the TypeScript engine
@@ -76,11 +76,54 @@ defeat the seal). `KeyRing.addCloudKey(kid, pub)` is the right entry. Seals carr
 ## Authentication
 - Cloud: `Authorization: Bearer` go-auth device token (typ `device`). Drain tokens only at
   `quarantine-upload`; a recovery drain token has subject `recovers:<old device id>`.
-- LAN hub: `Hostry-Device-Assertion` = base64url JSON `{cred, ts, sig}`, `sig` over
-  `sha256("hostry-lan-v1\n" + METHOD + "\n" + path + "\n" + ts + "\n" + hex SHA-256 of the request body bytes **as sent**
-  (after gzip, if gzipped))`. The hub answers every call with `Hostry-Hub-Proof` = base64url JSON `{cred, sig}`, `sig`
-  over `sha256("hostry-hub-v1\n" + requestSig + "\n" + hex SHA-256 of the response body)`. Timestamp window 2 minutes.
-  TLS is not in the PoC.
+- LAN hub: TLS 1.3, then the handshake of the next section, then `Hostry-Lan-Session: <token>` on every call. The per-request signed
+  assertion (`Hostry-Device-Assertion`) and the per-response hub proof of earlier drafts are gone; protocol v1 is unreleased, so they are
+  replaced in place (ADR-0002 A3.1 item 8).
+
+## LAN handshake (ADR-0002 A3.1; operations `helloLan`, `openLanSession`; vectors `lan_handshake`)
+**Channel.** TLS 1.3 only, on every interface including loopback, for every `/sync/v1` route and the poke (`wss`). The hub makes a P-256 key
+and a self-signed certificate in memory at each start and again after 7 days of running; names and dates in it mean nothing and no node checks
+them. A device accepts whatever certificate is offered, computes **`spki`** = lower-case hex SHA-256 of the certificate's DER
+`SubjectPublicKeyInfo`, and sends nothing but `helloLan` until the hub is proven. No pin is stored. A plain listener exists only in a binary
+built with the tag `devlan`, which refuses to start outside `HOSTRY_ENV` dev, test and ci.
+
+**LAN credential.** The device's identity-signed credential as a compact JWS: ES256, header `{"alg":"ES256","kid":<identity kid>,"typ":"hostry-cred+jws"}`,
+payload = RFC 8785 JSON of the `Credential` (`device_id`, `tenant_id`, `outlet_id`, `brand_id`, `kind`, `kid`, `pub`, `store`, `not_after`;
+`recovers` for a key-loss adopter). `not_after` = the pack's `offline_valid_until`; it is re-issued with every pack (`device.credential` of the
+pack). It is the same credential `getDeviceCredential` serves (which omits `not_after`) and the `CredentialEnvelope` of ops (`hostry-cred-v1`
+signs that envelope; the `typ` header separates the two). It holds no member data, so it may be shown to any peer. One credential, no
+separate LAN key.
+
+**Steps.**
+1. Device to hub, `helloLan`: `{credential, nonce_d}`; `nonce_d` is 32 random bytes, base64url without padding.
+2. Hub to device: `{credential, nonce_h, hub_proof}`. `hub_proof` = ES256 (r||s, base64url) by the hub's device key over the UTF-8 message
+   `"hostry-lan-hub-v1\n" + nonce_d + "\n" + nonce_h + "\n" + device_id + "\n" + hub_id + "\n" + spki`.
+3. The device checks: the credential signature against the identity keys of its own pack (current or next); `kind` is `hub`; same `tenant_id` and
+   `outlet_id`; `not_after` not past; the hub is not in its revoked list; `hub_proof` under the credential's `pub`; and that the `spki` in the
+   message is the one it saw. Any failure closes the connection.
+4. Device to hub, `openLanSession`: `{nonce_d, nonce_h, device_proof}`, `device_proof` the same over the tag `hostry-lan-device-v1` with
+   the same fields and the `spki` the device saw. The hub checks the device credential the same way (same tenant and outlet, `not_after`, not revoked,
+   any device kind of the outlet, `store` as the placement rule needs), the proof, and that the `spki` is its own certificate's.
+5. Hub to device: `{token, expires_in: 900}`. The token is 256 random bits, base64url without padding (43 characters), held in hub memory only, bound to the
+   device id, valid 15 minutes from issue. A relay on the Wi-Fi must present its own certificate, so the two `spki` values differ and both sides refuse
+   (vector case "relay"). A pending `nonce_h` lapses after 30 seconds and is single use.
+6. Every other call carries `Hostry-Lan-Session`. A missing, unknown or lapsed token is `401` with problem code `lan_session_expired`: run the handshake
+   again. The hub drops a device's sessions when a pack refresh lists it revoked, and every session ends when the hub restarts. There is no timestamp
+   window and nothing to replay: a captured request on a new connection has no valid token.
+
+The domain tags are final for v1 (a change takes `-v2`). Vectors `lan_handshake`: proof messages with valid and invalid signatures (including
+the relay and role-swap cases), credential cases (valid, altered, wrong issuer, expired, other outlet, wrong kind) judged against the vector's `now`, and token
+shape cases.
+
+**Hub packs and `store` (ADR-0002 A3.4, A3.5).** A hub is activated like any device (`activateDevice`, a code bound to kind `hub`) and receives a `hub` pack
+(`HubPackClaims`: its credential, `pack_v`, member ids with status and permissions, the revoked device ids, the intent table version, the identity keys, the
+gateway's op-signing key, the dates; never display names, PIN verifiers, salts or series codes). It refreshes the pack at every cloud contact and never hands
+packs to devices. The credential claim `store` is `protected` or `unprotected`, declared at activation, fixed for the life of the device id; identity
+refuses `unprotected` outside `HOSTRY_ENV` dev, test and ci.
+
+**Release lint expectations (ADR-0002 A3.3).** A release build of an app (a) fails CI if it bundles the browser `ShellBridge` or `IndexedDbPersistence`,
+(b) declares `store: protected` only from the native shell's encrypted store, so the browser bridge always declares `unprotected`, which identity
+refuses on live packs, and (c) the browser bridge refuses a pack whose issuer is not a dev, test or ci identity. In short: live packs are refused to browser builds.
 
 ## hello
 - `snapshot_required` is always `false`; the PoC does not need a snapshot client (`GET /snapshot` exists in its
@@ -223,7 +266,7 @@ after the approval's; no other op cites the approval (the lowest `hlc` keeps it)
   is not the requester.
 
 ## Device credential (ADR-0005 A3.2 row 1, ADR-0014 A3.4)
-`Credential` = `device_id`, `tenant_id`, `outlet_id`, **`brand_id`**, `kind` (`pos`, `waiter`, `personal`, `kds`, `hub`), `kid`, `pub`, `not_after`, and
+`Credential` = `device_id`, `tenant_id`, `outlet_id`, **`brand_id`**, `kind` (`pos`, `waiter`, `personal`, `kds`, `hub`), `kid`, `pub`, **`store`** (`protected` or `unprotected`), `not_after`, and
 `recovers` for a key-loss adopter; identity signs it (`hostry-cred-v1`). **`brand_id` is always present**: identity reads it from
 tenancy when the device is activated, stores it on the device row and signs it; nothing re-asks. A hub and LAN peers therefore judge
 whether a device may write a `brand:<id>` stream offline from the credential alone. The offline pack's `device` object carries the
@@ -333,7 +376,8 @@ guessed back from one). It travels in `Item.pii` outside the hash so that erasur
 - **Salts on the wire.** Each field's salt travels in the same `pii` object under the key `~s:<field>` (base64url, no padding).
   A field name starting with `~s:` is reserved. The gateway, hubs and the owning services keep value and salt together.
 - **Who receives `pii` (A3.1 item 1).** Same-outlet devices whose credential kind is `pos`, `waiter`, `personal` (bound to the
-  outlet) or `hub`, and the cloud. A node answering a **pull or snapshot** to a puller whose credential kind is **`kds`** removes the
+  outlet) or `hub`, and the cloud, **and only when the puller's credential says `store: protected`** (ADR-0002 A3.5 item 2; the puller's own `pii` is
+  unaffected; the soak's named dev/test/ci switch lifts the rule). An `unprotected` puller receives commitments only and its rows show `pii_incomplete`. A node answering a **pull or snapshot** to a puller whose credential kind is **`kds`** removes the
   whole `pii` object (and the `~s:` salts with it); the commitments in the body stay. This is one rule on the envelope, so the hub
   stays domain-agnostic (ADR-0002 S8); there is no per-field `pii_to` list in Phase 2 (named extension for Phase 5). A field a
   kitchen screen must show (token, table) is not personal data and is never declared `pii`. Vectors `pii_placement`.

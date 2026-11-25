@@ -511,7 +511,7 @@ paths:
       - $ref: ../../../common/components.yaml#/components/parameters/ApprovalToken
       responses:
         '201':
-          description: The code, shown once. A replay with the same Idempotency-Key returns the same code.
+          description: The code, shown once. The code is never stored, so a replay with the same Idempotency-Key is 409 `idempotency.replay_secret`.
           content:
             application/json:
               schema:
@@ -530,7 +530,26 @@ paths:
         '404':
           $ref: ../../../common/components.yaml#/components/responses/NotFound
         '409':
-          $ref: ../../../common/components.yaml#/components/responses/Conflict
+          description: The device is already revoked, drained or recovered; or the Idempotency-Key was used before. The code is never stored, so a
+            replay is 409 `idempotency.replay_secret` and creates nothing (ADR-0002 A2.5, ADR-0005 A3.4); the owner asks again under a new key,
+            which replaces the earlier code.
+          content:
+            application/problem+json:
+              schema:
+                $ref: ../../../common/components.yaml#/components/schemas/Problem
+              examples:
+                replay_secret:
+                  value:
+                    type: urn:hostry:problem:idempotency.replay_secret
+                    title: The result of this request is a secret and is not stored
+                    status: 409
+                    code: idempotency.replay_secret
+                in_progress:
+                  value:
+                    type: urn:hostry:problem:idempotency.in_progress
+                    title: Conflict
+                    status: 409
+                    code: idempotency.in_progress
         '429':
           $ref: ../../../common/components.yaml#/components/responses/TooManyRequests
   /v1/activation-codes/{activation_code_id}:
@@ -582,6 +601,9 @@ paths:
       operationId: activateDevice
       summary: Activate a device with an activation code
       description: The owners of the organisation are notified with device name, kind, outlet and key_protection.
+        A `hub` is activated here like any other device (ADR-0002 A3.4 item 2); the 8-character code is already bound to the outlet and kind
+        `hub`, and the answer carries a `hub` pack (`HubPackClaims`). `store` is declared here, and `unprotected` outside HOSTRY_ENV dev, test and ci
+        is 422 `store.unprotected_refused` and nothing is registered.
         In the same step identity reads the outlet's `brand_id` from tenancy (every kind, `kds` and `hub` included), stores it on the device row
         and signs it into the credential and the pack (ADR-0014 A3.4); tenancy unreachable is 503 and nothing is registered.
         A pending series registration that is unverified does not block registration, only billing. Recovery when the
@@ -612,6 +634,7 @@ paths:
                 x: f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU
                 y: x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0
               key_protection: hardware
+              store: protected
               nonce: nonce_example_01
               nonce_signature: sig.example
       responses:
@@ -631,6 +654,7 @@ paths:
                   outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
                   state: active
                   key_protection: hardware
+                  store: protected
                   registered_at: '2026-11-24T13:05:11.120Z'
                   last_contact_at: '2026-11-24T13:10:11.120Z'
                   billing_capability: active
@@ -653,6 +677,8 @@ paths:
                       kind: pos
                       kid: dev-4a5e-1
                       brand_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6a
+                      store: protected
+                      credential: cred.jws.example
                     members:
                     - member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
                       display_name: Asha
@@ -961,6 +987,8 @@ paths:
                     kind: pos
                     kid: dev-4a5e-1
                     brand_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6a
+                    store: protected
+                    credential: cred.jws.example
                   members:
                   - member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
                     display_name: Asha
@@ -2404,6 +2432,9 @@ paths:
     put:
       operationId: recordDeviceDrained
       summary: Record that a device is drained
+      description: 'The request example is verifiable: `statement.sig` verifies under the example key published in sync/conformance/v1.json
+        (`drain_statement`, the case "recordDeviceDrained example"), and `drained_through` is exactly the statement''s `streams` (stream and seq).
+        The signature is over "hostry-drain-v1\n" + the RFC 8785 JSON of the statement without `sig` (sync/protocol-v1.md).'
       tags:
       - internal
       x-permission: device.drain.record
@@ -2429,8 +2460,8 @@ paths:
               $ref: '#/components/schemas/RecordDrain'
             example:
               drained_through:
-              - stream: device-ops
-                seq: 1842
+              - stream: outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                seq: 42
               series:
               - series_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6c
                 fy: '2627'
@@ -2456,7 +2487,7 @@ paths:
                 by: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
                 kid: dev-4a5e-1
                 at: '2026-11-24T13:05:11Z'
-                sig: aIYOIXaYv_eMlGk6dtvRvIKBcQGlQQWjczUR3menYCf7rQ0FlCPwrYPbbI3fESRZ3AoTC0LHWsIUjOEwwxhOFw
+                sig: I1iZD5bJnESIqEKRB-O5TnkNEQIuFegu1wmIpyWILETe3G9qVsiZG09kSS-sXMmscgoRDbwmJ9GRdrgFcyJmAQ
       responses:
         '200':
           description: Device state becomes drained; the 15-minute wipe delay starts on the server clock. Identity verifies the
@@ -2611,6 +2642,7 @@ paths:
                 kind: pos
                 kid: dev-4a5e-1
                 pub: BH2h0y2hJ3H0p0m1Yw7kP8cQxX1e0kqQb1d3Qk0YwK0c8m3B1w7V2m9R4s5T6u7V8w9X0y1Z2a3B4c5D6e7F8g9H0i
+                store: protected
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -4884,11 +4916,21 @@ components:
     KeyProtection:
       type: string
       description: Protection tier of the device key, reported by the device at registration. Information,
-        not proof, and no permission depends on it (ADR-0005 A1).
+        not proof, and no permission depends on it (ADR-0005 A1). The hub's `dev` key file (CI and the soak, ADR-0002 A3.2 item 3) reports os-software here and `store` unprotected in its credential.
       enum:
       - hardware
       - os-software
       example: hardware
+    StoreProtection:
+      type: string
+      description: 'Whether the device''s local store is protected: `protected` is an encrypted store (SQLCipher with a keystore-held key on a
+        device; the hub''s column encryption with a tier other than `dev`), `unprotected` anything else (the browser build, a hub with a `dev` key file). Declared by the build at activation, signed into the credential, fixed for the life of the device id (ADR-0002 A3.5 item 1).
+        It is the build''s own statement: it guards against a wrong build, not a modified one. Identity refuses `unprotected` outside
+        HOSTRY_ENV dev, test and ci (422 store.unprotected_refused). Another origin''s personal data goes only to `protected` devices.'
+      enum:
+      - protected
+      - unprotected
+      example: protected
     BillingCapability:
       type: string
       description: 'Whether the device may finalise legal documents: active series, dormant series (waiter),
@@ -4926,6 +4968,8 @@ components:
           $ref: '#/components/schemas/DeviceState'
         key_protection:
           $ref: '#/components/schemas/KeyProtection'
+        store:
+          $ref: '#/components/schemas/StoreProtection'
         registered_at:
           $ref: ../../../common/components.yaml#/components/schemas/Timestamp
         last_contact_at:
@@ -4976,6 +5020,9 @@ components:
           $ref: '#/components/schemas/PublicJwk'
         key_protection:
           $ref: '#/components/schemas/KeyProtection'
+        store:
+          $ref: '#/components/schemas/StoreProtection'
+          description: Optional; absent means `unprotected`. Fixed for the life of the device id.
         nonce:
           type: string
           description: Nonce from createDeviceNonce.
@@ -5123,6 +5170,10 @@ components:
           $ref: '#/components/schemas/PublicJwk'
         key_protection:
           $ref: '#/components/schemas/KeyProtection'
+        store:
+          $ref: '#/components/schemas/StoreProtection'
+          description: Optional; absent means `unprotected`, which identity refuses outside HOSTRY_ENV dev, test and ci. Fixed for the life of
+            the device id and signed into the credential (ADR-0002 A3.5 item 1).
         nonce:
           type: string
           description: Nonce from createDeviceNonce.
@@ -5131,6 +5182,169 @@ components:
           type: string
           description: Signature of the nonce with the submitted key.
           example: sig.example
+    PackDevice:
+      type: object
+      description: The device's own credential, as identity signs it for the sync gateway (the same `kid`, `brand_id`, `kind` and `store`
+        as `getDeviceCredential`). The offline shell stamps `kid` into the seals and endorsements it makes and `brand_id` into the
+        stream it may write (ADR-0005 A3.2 row 1, ADR-0014 A3.4). `credential` is the same credential as the LAN credential (ADR-0002 A3.4
+        item 1); every pack of every kind carries the device's own.
+      required:
+      - device_id
+      - public_key
+      - outlet_id
+      - brand_id
+      - kind
+      - kid
+      - store
+      - credential
+      properties:
+        device_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        public_key:
+          $ref: '#/components/schemas/PublicJwk'
+        outlet_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        brand_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+          description: Brand of the outlet, read from tenancy at activation and fixed for the device's life (ADR-0014 A3.4).
+        kind:
+          $ref: '#/components/schemas/DeviceKind'
+        kid:
+          type: string
+          description: Key id of the device's own credential, the one the gateway holds for `device_id` (one key per device id for life,
+            ADR-0002 S7). A seal, endorsement or drain statement the device makes names this `kid`.
+          example: dev-4a5e-1
+        store:
+          $ref: '#/components/schemas/StoreProtection'
+        credential:
+          type: string
+          description: 'The LAN credential: the device''s identity-signed credential as a compact JWS (ES256, header typ `hostry-cred+jws`
+            and the identity `kid`; payload the RFC 8785 JSON of the Credential in sync/protocol-v1.md, `LAN credential`), with `not_after`
+            = the pack''s `offline_valid_until` and the `store` claim. It holds no member data, so a device may show it to any peer, and
+            a hub may show it to a device it refuses. Re-issued with every pack.'
+          example: cred.jws.example
+    HubPackMember:
+      type: object
+      description: A member as a hub pack lists it, for the structural checks of ADR-0002 S8 only. No display name, PIN salt, verifier
+        or version; a hub holds nothing a PIN guess could use.
+      additionalProperties: false
+      required:
+      - member_id
+      - status
+      - permissions
+      properties:
+        member_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        status:
+          type: string
+          description: Member state.
+          enum:
+          - active
+          - suspended
+          example: active
+        permissions:
+          type: array
+          description: Effective permission strings at this outlet.
+          items:
+            type: string
+            description: Permission string.
+            example: order.create
+    HubPackClaims:
+      type: object
+      description: 'Payload of the signed offline pack of a device of kind `hub` (ADR-0002 A3.4 item 3). Holds its LAN credential, `pack_v`,
+        member ids with status and permissions, the outlet''s revoked device ids, the intent table version, the current and next identity
+        keys, the gateway''s op-signing key, `issued_at` and `offline_valid_until`. It never holds display names, PIN verifiers or salts,
+        series codes or manual books, so it carries no secret and the hub may show it to a device it refuses as revoked (ADR-0005 section 4
+        item 2). The hub fetches it at every cloud contact with a device-key assertion (getDeviceOfflinePack) and never hands packs to devices.'
+      additionalProperties: false
+      required:
+      - pack_v
+      - organisation_id
+      - device
+      - members
+      - revoked_device_ids
+      - intent_table_version
+      - issued_at
+      - offline_valid_until
+      - identity_public_keys
+      - op_signing_public_key
+      properties:
+        pack_v:
+          type: integer
+          description: Pack version.
+          minimum: 1
+          example: 7
+        organisation_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        device:
+          $ref: '#/components/schemas/PackDevice'
+        members:
+          type: array
+          description: Members allowed at the outlet, ids only.
+          items:
+            $ref: '#/components/schemas/HubPackMember'
+        revoked_device_ids:
+          type: array
+          description: Revoked device ids for the outlet.
+          items:
+            $ref: ../../../common/components.yaml#/components/schemas/Id
+        intent_table_version:
+          type: integer
+          description: Version of the signed intent table.
+          minimum: 1
+          example: 3
+        issued_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+        offline_valid_until:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+        identity_public_keys:
+          type: array
+          description: Current and next identity public keys.
+          items:
+            $ref: '#/components/schemas/Jwk'
+        op_signing_public_key:
+          $ref: '#/components/schemas/Jwk'
+      example:
+        pack_v: 7
+        organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+        device:
+          device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5f
+          public_key:
+            kty: EC
+            crv: P-256
+            x: f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU
+            y: x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0
+          outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+          kind: hub
+          kid: dev-4a5f-1
+          brand_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6a
+          store: protected
+          credential: cred.jws.example
+        members:
+        - member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
+          status: active
+          permissions:
+          - order.create
+        revoked_device_ids: []
+        intent_table_version: 3
+        issued_at: '2026-11-24T13:05:11.120Z'
+        offline_valid_until: '2026-12-08T13:05:11.120Z'
+        identity_public_keys:
+        - kty: EC
+          crv: P-256
+          x: f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU
+          y: x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0
+          kid: k-2026-09
+          alg: ES256
+          use: sig
+        op_signing_public_key:
+          kty: EC
+          crv: P-256
+          x: f83OJ3D2xF1Bg8vub9tLe1gHMzV76e8Tus9uPHvRVEU
+          y: x_FEzRu9m36HLN_tue659LNpXW6pCyStikYjKIWI5a0
+          kid: o-2026-09
+          alg: ES256
+          use: sig
     PackMember:
       type: object
       description: A member usable at the device outlet. Verifier fields appear only for device kinds
@@ -5253,34 +5467,7 @@ components:
         organisation_id:
           $ref: ../../../common/components.yaml#/components/schemas/Id
         device:
-          type: object
-          description: The device's own credential, as identity signs it for the sync gateway (the same `kid`, `brand_id` and `kind`
-            as `getDeviceCredential`). The offline shell stamps `kid` into the seals and endorsements it makes and `brand_id` into the
-            stream it may write (ADR-0005 A3.2 row 1, ADR-0014 A3.4).
-          required:
-          - device_id
-          - public_key
-          - outlet_id
-          - brand_id
-          - kind
-          - kid
-          properties:
-            device_id:
-              $ref: ../../../common/components.yaml#/components/schemas/Id
-            public_key:
-              $ref: '#/components/schemas/PublicJwk'
-            outlet_id:
-              $ref: ../../../common/components.yaml#/components/schemas/Id
-            brand_id:
-              $ref: ../../../common/components.yaml#/components/schemas/Id
-              description: Brand of the outlet, read from tenancy at activation and fixed for the device's life (ADR-0014 A3.4).
-            kind:
-              $ref: '#/components/schemas/DeviceKind'
-            kid:
-              type: string
-              description: Key id of the device's own credential, the one the gateway holds for `device_id` (one key per device id for life,
-                ADR-0002 S7). A seal, endorsement or drain statement the device makes names this `kid`.
-              example: dev-4a5e-1
+          $ref: '#/components/schemas/PackDevice'
         members:
           type: array
           description: Members allowed at the outlet.
@@ -5350,10 +5537,13 @@ components:
           example: 7
         jws:
           type: string
-          description: Compact ES256 JWS whose payload is OfflinePackClaims.
+          description: Compact ES256 JWS whose payload is OfflinePackClaims, or HubPackClaims for a hub.
           example: pack.jws.example
         claims:
-          $ref: '#/components/schemas/OfflinePackClaims'
+          description: OfflinePackClaims for every device kind but `hub`; HubPackClaims for a `hub` (ADR-0002 A3.4 item 3).
+          oneOf:
+          - $ref: '#/components/schemas/OfflinePackClaims'
+          - $ref: '#/components/schemas/HubPackClaims'
         issued_at:
           $ref: ../../../common/components.yaml#/components/schemas/Timestamp
         offline_valid_until:
@@ -5440,7 +5630,7 @@ components:
       properties:
         drained_through:
           type: array
-          description: Sequence stored per device stream.
+          description: Head per device stream, copied from the statement's `streams` (the same streams, the same `seq`).
           items:
             $ref: '#/components/schemas/StreamSequence'
         series:
@@ -6110,7 +6300,8 @@ components:
     DeviceCredential:
       type: object
       description: The identity-signed credential of a device as the offline pack carries it (ADR-0005 A3.2 row 1). `not_after` is
-        not part of this answer; the gateway ignores it. `brand_id` is always present (ADR-0014 A3.4).
+        not part of this answer; the gateway ignores it. `brand_id` and `store` are always present (ADR-0014 A3.4, ADR-0002 A3.5 item 1); the
+        gateway's cache has no expiry because both are fixed for the life of the device id.
       required:
       - device_id
       - tenant_id
@@ -6119,6 +6310,7 @@ components:
       - kind
       - kid
       - pub
+      - store
       properties:
         device_id:
           $ref: ../../../common/components.yaml#/components/schemas/Id
@@ -6141,6 +6333,8 @@ components:
         pub:
           type: string
           description: Uncompressed X9.62 P-256 point, base64url (the sync wire form of the key).
+        store:
+          $ref: '#/components/schemas/StoreProtection'
         recovers:
           $ref: ../../../common/components.yaml#/components/schemas/Id
           description: Old device this one adopted by key-loss recovery (ADR-0002 A1.3).
