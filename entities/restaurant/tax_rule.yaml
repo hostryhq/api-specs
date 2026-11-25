@@ -85,4 +85,4 @@ fields:
     max_length: 8
     description: SAC or HSN.
 written_by_intents:
-- cloud.emit
+- tax.rule_set.publish

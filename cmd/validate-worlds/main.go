@@ -34,12 +34,12 @@ type entry struct {
 }
 
 type world struct {
-	World     string            `yaml:"world"`
-	Prefix    string            `yaml:"id_prefix"`
-	Alphabet  string            `yaml:"series_alphabet"`
-	Namespace string            `yaml:"uuid_namespace"`
-	Constants map[string]any    `yaml:"constants"`
-	Entries   []entry           `yaml:"entries"`
+	World     string         `yaml:"world"`
+	Prefix    string         `yaml:"id_prefix"`
+	Alphabet  string         `yaml:"series_alphabet"`
+	Namespace string         `yaml:"uuid_namespace"`
+	Constants map[string]any `yaml:"constants"`
+	Entries   []entry        `yaml:"entries"`
 	file      string
 	full      map[string]string // entry name -> full id
 }

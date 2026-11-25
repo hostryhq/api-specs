@@ -152,5 +152,5 @@ fields:
     description: 'Canonical JSON text: [{series_code, doc_type, first_number, last_number, count}].'
     policy: immutable
 written_by_intents:
-- cloud.emit
+- day.revision.record
 x-provisional: Totals reuse the day_close layout; one revision per origin device and push batch.

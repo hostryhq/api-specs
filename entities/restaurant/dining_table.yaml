@@ -33,5 +33,8 @@ fields:
     required: true
     policy: lww
     description: Active.
+replicated_to:
+- service: orders
+  purpose: Shows the table name on checks and tickets (table_name display join).
 written_by_intents:
 - floor.manage

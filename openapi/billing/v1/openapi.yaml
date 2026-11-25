@@ -1146,6 +1146,7 @@ paths:
       tags:
       - billing
       x-permission: bill.discount.limit.edit
+      x-emits-intent: settings.discount_limit.set
       x-step-up: true
       parameters:
       - name: outlet_id
@@ -1165,6 +1166,8 @@ paths:
             example:
               discount_limit_bp: 1500
       responses:
+        '503':
+          $ref: ../../../common/components.yaml#/components/responses/EmitUnavailable
         '200':
           description: The change.
           content:
@@ -1195,6 +1198,7 @@ paths:
       tags:
       - billing
       x-permission: settings.numbering.edit
+      x-emits-intent: settings.numbering.set
       x-step-up: true
       parameters:
       - name: outlet_id
@@ -1214,6 +1218,8 @@ paths:
             example:
               number_at: print
       responses:
+        '503':
+          $ref: ../../../common/components.yaml#/components/responses/EmitUnavailable
         '200':
           description: The change.
           content:
@@ -1244,6 +1250,7 @@ paths:
       tags:
       - billing
       x-permission: settings.gst_profile.edit
+      x-emits-intent: settings.tax_profile.set
       x-step-up: true
       parameters:
       - name: outlet_id
@@ -1266,6 +1273,8 @@ paths:
               fssai_number: '12345678901234'
               price_mode: exclusive
       responses:
+        '503':
+          $ref: ../../../common/components.yaml#/components/responses/EmitUnavailable
         '200':
           description: The change.
           content:
@@ -2518,6 +2527,7 @@ paths:
       tags:
       - vendor
       x-permission: admin.taxrules.publish
+      x-emits-intent: tax.rule_set.publish
       x-service-callers:
       - admin
       x-vendor-class: operational

@@ -69,6 +69,9 @@ fields:
     policy: lww
     minimum: 1
     description: Ticket age turning red (default 20).
+replicated_to:
+- service: orders
+  purpose: The stale-ticket window and other non-money outlet settings that orders detectors read.
 written_by_intents:
 - settings.outlet.edit
 x-provisional: New entity; confirm in ADR-0014 R3 on acceptance.

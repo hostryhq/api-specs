@@ -79,3 +79,7 @@ entries:
 - {name: ev_menu_import_committed, id: '9008', kind: event}
 - {name: ev_exception_opened, id: '9009', kind: event}
 - {name: ev_series_reconciled, id: '9010', kind: event}
+- name: item_outlet_paneer
+  id: a7ac8341-e6c5-58a2-8a75-d00c40f77035
+  kind: item_outlet
+  derive: {entity: item_outlet, args: {outlet_id: outlet, item_id: item_paneer_tikka}}

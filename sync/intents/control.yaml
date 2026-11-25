@@ -90,6 +90,30 @@ intents:
     was never given (ADR-0003 A1.5).
   x-provisional: The permission series.activate is added to the catalogue by this change; confirm with security-reviewer and
     ADR-0005 owner.
+- intent: series.close
+  intent_v: 1
+  class: control
+  owner: identity
+  description: "The device's own statement that a series it holds is closed: when a pack tells a device the series is closed it stops allocating from it and records its last number in the same local transaction (ADR-0014 A2.5 item 2). Billing reads it with the series.activate records and publishes billing.series.reconciled when its register holds every number up to it."
+  permission: null
+  permission_reason: A device statement about its own series, made automatically when the pack closes the series; no person acts and the gateway checks the series was issued to the device.
+  proof:
+    kind: session
+  override: false
+  sessions:
+  - pin
+  - strong
+  - device
+  device_kinds:
+  - pos
+  - waiter
+  streams:
+  - outlet
+  numbering: none
+  entities: {}
+  records:
+  - series_close
+  idempotency: One statement per (device, series); a replay is ignored and a second statement with a different last number is refused and alerted. For a revoked device the statement is its drain record (ADR-0005 section 4), published by identity as identity.device.drained.
 - intent: device.clock.confirm
   intent_v: 1
   class: control

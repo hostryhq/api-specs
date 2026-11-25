@@ -89,3 +89,4 @@ written_by_intents:
 - menu.item.edit
 - menu.item.archive
 - menu.import.apply
+- menu.tax_class.set

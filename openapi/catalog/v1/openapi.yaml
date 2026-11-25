@@ -83,6 +83,7 @@ paths:
       tags:
       - catalog
       x-permission: menu.tax_class.edit
+      x-emits-intent: menu.tax_class.set
       x-step-up: true
       parameters:
       - name: category_id
@@ -103,6 +104,8 @@ paths:
               tax_class: fnb_non_gst
               reason: Alcohol items are outside GST.
       responses:
+        '503':
+          $ref: ../../../common/components.yaml#/components/responses/EmitUnavailable
         '200':
           description: The change.
           content:
@@ -415,6 +418,7 @@ paths:
       tags:
       - catalog
       x-permission: menu.tax_class.edit
+      x-emits-intent: menu.tax_class.set
       x-step-up: true
       parameters:
       - name: item_id
@@ -435,6 +439,8 @@ paths:
               tax_class: fnb_non_gst
               reason: Alcohol items are outside GST.
       responses:
+        '503':
+          $ref: ../../../common/components.yaml#/components/responses/EmitUnavailable
         '200':
           description: The change.
           content:
@@ -729,6 +735,7 @@ paths:
       tags:
       - menu-import
       x-permission: menu.import
+      x-emits-intent: menu.import.apply
       x-step-up: true
       x-permission-widened-by: catalog.import
       parameters:

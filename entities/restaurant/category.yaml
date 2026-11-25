@@ -58,3 +58,4 @@ detectors:
 - category archived with active items
 written_by_intents:
 - menu.category.edit
+- menu.tax_class.set

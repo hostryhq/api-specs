@@ -27,6 +27,9 @@ fields:
     description: open then closed; never reopened.
 detectors:
 - two open days on one outlet
+replicated_to:
+- service: orders
+  purpose: Tells whether the trading day is open or closed for the day-close detectors.
 written_by_intents:
 - day.open
 - day.close

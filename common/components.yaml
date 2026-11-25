@@ -271,6 +271,15 @@ components:
             status: 422
             code: validation
             errors: [{field: name, code: required, message: must not be empty}]
+    EmitUnavailable:
+      description: The cloud sync gateway cannot take the emit now (unreachable, 5xx, timeout, or not ready after a restore; ADR-0014 A2.2 item 7). Nothing changed anywhere. Retry with the same Idempotency-Key, which is safe even if the first call did land. One code for every service.
+      headers:
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+          example: {type: 'urn:hostry:problem:emit.unavailable', title: Cloud emit unavailable, status: 503, code: emit.unavailable}
     TooManyRequests:
       description: Rate limit exceeded; honour Retry-After.
       headers:

@@ -49,4 +49,4 @@ fields:
     max_length: 64
     description: SHA-256 of the canonical rules.
 written_by_intents:
-- cloud.emit
+- tax.rule_set.publish

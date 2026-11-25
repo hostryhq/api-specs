@@ -73,14 +73,19 @@ type field struct {
 }
 
 type entity struct {
-	Entity      string           `yaml:"entity"`
-	Owner       string           `yaml:"owner"`
-	Stream      string           `yaml:"stream"`
-	Tombstone   bool             `yaml:"tombstone"`
-	CloudOrigin bool             `yaml:"cloud_origin_only"`
-	Guarded     bool             `yaml:"guarded"`
-	Fields      map[string]field `yaml:"fields"`
-	Intents     []string         `yaml:"written_by_intents"`
+	Entity      string `yaml:"entity"`
+	Owner       string `yaml:"owner"`
+	Stream      string `yaml:"stream"`
+	Tombstone   bool   `yaml:"tombstone"`
+	CloudOrigin bool   `yaml:"cloud_origin_only"`
+	Guarded     bool   `yaml:"guarded"`
+	Replicated  []struct {
+		Service          string `yaml:"service"`
+		Purpose          string `yaml:"purpose"`
+		GuardedException string `yaml:"guarded_exception"`
+	} `yaml:"replicated_to"`
+	Fields  map[string]field `yaml:"fields"`
+	Intents []string         `yaml:"written_by_intents"`
 }
 
 var (
@@ -92,7 +97,7 @@ var (
 	streamsT   = set("outlet", "brand", "tenant")
 	numberingT = set("none", "allocated", "typed")
 	docsT      = set("tax_invoice", "bill_of_supply", "plain_bill", "credit_note")
-	recordsT   = set("session", "approval", "series_activation", "clock_confirmation", "sync_void")
+	recordsT   = set("session", "approval", "series_activation", "series_close", "clock_confirmation", "sync_void")
 	mutKinds   = set("insert", "set", "delta", "rank", "del", "undel")
 )
 
@@ -412,12 +417,32 @@ func run(root string) (errs []string, summary string) {
 		} else if in.Owner != "identity" && in.Owner != "gateway" {
 			fail("%s: an intent with no entity is owned by identity or gateway", id)
 		}
-		for s := range entOwners {
-			ns := name[:strings.Index(name, ".")]
-			if subs[ns] == nil {
-				subs[ns] = map[string]bool{}
+		// A cloud-origin intent's owner owns every entity it touches: this is the emit caller check (ADR-0014 A2.3 item 3).
+		if cloud && len(in.Entities) > 0 {
+			for o := range entOwners {
+				if o != in.Owner {
+					fail("%s: cloud-origin intent owned by %s touches an entity of %s; the emit caller must own every entity", id, in.Owner, o)
+				}
 			}
+		}
+		// Subscribers of namespace N (ADR-0014 A2.1 item 6): owners and declared readers of every entity an intent of N may
+		// touch, plus billing for the series records (A2.5 item 2).
+		ns := name[:strings.Index(name, ".")]
+		if subs[ns] == nil {
+			subs[ns] = map[string]bool{}
+		}
+		for s := range entOwners {
 			subs[ns][s] = true
+		}
+		for en := range in.Entities {
+			for _, r := range ents[en].Replicated {
+				subs[ns][r.Service] = true
+			}
+		}
+		for _, r := range in.Records {
+			if r == "series_activation" || r == "series_close" {
+				subs[ns]["billing"] = true
+			}
 		}
 
 		// numbering and documents
@@ -473,11 +498,180 @@ func run(root string) (errs []string, summary string) {
 			fail("entity %s is written by no intent", n)
 		}
 	}
+	// replicated_to (ADR-0014 A2.4): a read-only replica of another owner's reference entity.
+	nrep := 0
+	for _, n := range enames {
+		e := ents[n]
+		for _, r := range e.Replicated {
+			nrep++
+			if !owners[r.Service] || r.Service == "gateway" || r.Service == "identity" {
+				fail("entity %s: replicated_to %q is not a service that applies synced entities", n, r.Service)
+			}
+			if r.Service == e.Owner {
+				fail("entity %s: replicated_to names its own owner", n)
+			}
+			if strings.TrimSpace(r.Purpose) == "" {
+				fail("entity %s: replicated_to %s needs a one-line purpose", n, r.Service)
+			}
+		}
+		if len(e.Replicated) > 0 {
+			for _, r := range e.Replicated {
+				if e.Guarded && strings.TrimSpace(r.GuardedException) == "" {
+					fail("entity %s is guarded (money or tax) and is never replicated (ADR-0014 A2.4 item 3) unless the entry states guarded_exception", n)
+				}
+			}
+			for fn, f := range e.Fields {
+				if f.PII {
+					fail("entity %s: a replica holds no pii field, but %s is pii", n, fn)
+				}
+			}
+		}
+	}
+
+	// the generated subscriptions of the sync.op event match the registries (ADR-0014 A2.1 item 6)
+	evPath := filepath.Join(root, "events", "sync", "op.v1.yaml")
+	if b, err := os.ReadFile(evPath); err != nil {
+		fail("events/sync/op.v1.yaml: %v", err)
+	} else {
+		var ev struct {
+			ByNS map[string][]string `yaml:"x-subscribers-by-namespace"`
+			Subs []string            `yaml:"x-subscribers"`
+		}
+		if err := yaml.Unmarshal(b, &ev); err != nil {
+			fail("events/sync/op.v1.yaml: %v", err)
+		} else {
+			union := map[string]bool{}
+			for ns, want := range subs {
+				got := set(ev.ByNS[ns]...)
+				for w := range want {
+					if !got[w] {
+						fail("events/sync/op.v1.yaml: x-subscribers-by-namespace.%s lacks %s (regenerate from the registries)", ns, w)
+					}
+					union[w] = true
+				}
+				for g := range got {
+					if !want[g] {
+						fail("events/sync/op.v1.yaml: x-subscribers-by-namespace.%s lists %s, which owns or reads no entity of the namespace", ns, g)
+					}
+				}
+			}
+			for ns := range ev.ByNS {
+				if _, ok := subs[ns]; !ok {
+					fail("events/sync/op.v1.yaml: namespace %s has no intent", ns)
+				}
+			}
+			if !equalSets(union, set(ev.Subs...)) {
+				fail("events/sync/op.v1.yaml: x-subscribers must be the union of x-subscribers-by-namespace")
+			}
+		}
+	}
+
+	// x-emits-intent (ADR-0014 A2.3 item 3), checked both ways
+	emitted := map[string]map[string]bool{} // intent -> permissions of its emitting operations
+	specs, _ := filepath.Glob(filepath.Join(root, "openapi", "*", "v1", "openapi.yaml"))
+	for _, f := range specs {
+		svc := filepath.Base(filepath.Dir(filepath.Dir(f)))
+		b, err := os.ReadFile(f)
+		if err != nil {
+			continue
+		}
+		var doc struct {
+			Paths map[string]map[string]any `yaml:"paths"`
+		}
+		if yaml.Unmarshal(b, &doc) != nil {
+			continue
+		}
+		for path, item := range doc.Paths {
+			for m, v := range item {
+				op, _ := v.(map[string]any)
+				name, _ := op["x-emits-intent"].(string)
+				if name == "" {
+					continue
+				}
+				at := fmt.Sprintf("%s %s %s", svc, strings.ToUpper(m), path)
+				in, ok := all[name]
+				switch {
+				case !ok:
+					fail("%s: x-emits-intent %s is not an intent", at, name)
+					continue
+				case len(in.Kinds) != 1 || in.Kinds[0] != "cloud":
+					fail("%s: x-emits-intent %s is not a cloud-origin intent", at, name)
+				case in.Owner != svc:
+					fail("%s: x-emits-intent %s is owned by %s; only the owner emits it", at, name, in.Owner)
+				}
+				perm, _ := op["x-permission"].(string)
+				okPerm := false
+				for _, a := range in.AuthBy {
+					if a == perm {
+						okPerm = true
+					}
+				}
+				if !okPerm {
+					fail("%s: x-permission %s is not in authorised_online_by of %s", at, perm, name)
+				}
+				if emitted[name] == nil {
+					emitted[name] = map[string]bool{}
+				}
+				emitted[name][perm] = true
+				if w, ok := op["x-permission-widened-by"].(string); ok {
+					emitted[name][w] = true
+				}
+			}
+		}
+	}
+	for _, name := range order {
+		in := all[name]
+		if len(in.Kinds) == 1 && in.Kinds[0] == "cloud" && len(in.AuthBy) > 0 {
+			if emitted[name] == nil {
+				fail("intent %s is cloud-origin with authorised_online_by but no operation declares x-emits-intent: %s", name, name)
+				continue
+			}
+			for _, a := range in.AuthBy {
+				if !emitted[name][a] {
+					fail("intent %s: authorised_online_by %s is the permission of no emitting operation", name, a)
+				}
+			}
+		}
+	}
+
+	// emitOps x-service-callers are exactly the owners of cloud-origin intents (ADR-0014 A2.2 item 1)
+	cloudOwners := map[string]bool{}
+	for _, name := range order {
+		in := all[name]
+		if len(in.Kinds) == 1 && in.Kinds[0] == "cloud" && in.Owner != "gateway" {
+			cloudOwners[in.Owner] = true
+		}
+	}
+	if b, err := os.ReadFile(filepath.Join(root, "openapi", "sync", "v1", "openapi.yaml")); err == nil {
+		var doc struct {
+			Paths map[string]map[string]struct {
+				Callers []string `yaml:"x-service-callers"`
+			} `yaml:"paths"`
+		}
+		if yaml.Unmarshal(b, &doc) == nil {
+			if !equalSets(cloudOwners, set(doc.Paths["/internal/v1/emit"]["post"].Callers...)) {
+				fail("openapi/sync: emitOps x-service-callers must be exactly the owners of cloud-origin intents (%d owners)", len(cloudOwners))
+			}
+		}
+	}
+
 	counts := map[string]int{}
 	for _, name := range order {
 		counts[all[name].Class]++
 	}
-	summary = fmt.Sprintf("intents: %d intents (%d trading, %d config, %d control) in %d files; %d entities each written by at least one intent",
-		len(order), counts["trading"], counts["config"], counts["control"], len(files), len(enames)-untouched)
+	summary = fmt.Sprintf("intents: %d intents (%d trading, %d config, %d control) in %d files; %d entities each written by at least one intent; %d replicas; sync.op subscribers and x-emits-intent agree",
+		len(order), counts["trading"], counts["config"], counts["control"], len(files), len(enames)-untouched, nrep)
 	return errs, summary
+}
+
+func equalSets(a, b map[string]bool) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k := range a {
+		if !b[k] {
+			return false
+		}
+	}
+	return true
 }

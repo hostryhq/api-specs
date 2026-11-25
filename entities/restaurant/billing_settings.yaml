@@ -130,4 +130,5 @@ fields:
     description: Minutes after midnight IST after which an open day shows a close banner (default 300).
 written_by_intents:
 - settings.outlet.edit
-- cloud.emit
+- settings.numbering.set
+- settings.discount_limit.set

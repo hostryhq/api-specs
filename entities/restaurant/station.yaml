@@ -49,5 +49,8 @@ fields:
     required: false
     policy: lww
     description: Print a COPY on the counter printer (Should).
+replicated_to:
+- service: orders
+  purpose: Routes a ticket to a station and prints its name (station_id, station display).
 written_by_intents:
 - settings.outlet.edit

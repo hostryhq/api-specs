@@ -126,5 +126,9 @@ fields:
     policy: immutable
 detectors:
 - late document (outside the canonical cutoff)
+replicated_to:
+- service: orders
+  purpose: The day-close detectors need to know whether a day was closed and when; no money total is displayed from it.
+  guarded_exception: ADR-0014 A2.4 item 2 lists day_close for orders although the entity is guarded; the replica is read-only and shown in no total (ADR inconsistency reported for the architect).
 written_by_intents:
 - day.close
