@@ -492,8 +492,6 @@ intents:
   proof:
     kind: action
     binds:
-    - check_id
-    - order_line_id
     - discount_kind
     - discount_value
   override: true
@@ -523,7 +521,7 @@ intents:
   proof:
     kind: action
     binds:
-    - order_line_id
+    - comp
     - comp_reason_code_id
   override: true
   sessions:
