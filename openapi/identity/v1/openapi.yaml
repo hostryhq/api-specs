@@ -1927,6 +1927,8 @@ paths:
               $ref: '#/components/schemas/CreateApprovalRequest'
             example:
               operation_id: createMember
+              request_method: POST
+              request_path: /v1/members
               request_body:
                 display_name: Latha
                 id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a9d
@@ -1944,6 +1946,9 @@ paths:
               example:
                 id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a70
                 operation_id: createMember
+                subject: Create member
+                request_method: POST
+                request_path: /v1/members
                 body_hash: sha256:cf03a846706f29a88ba61a212f79e7c224142fdd5df92fc1d7ed8bb1283fb8c8
                 state: pending
                 created_at: '2026-11-24T13:05:11.120Z'
@@ -5176,12 +5181,31 @@ components:
         The approver sees what will happen, built from the stored operation, never from requester text.
       required:
       - operation_id
+      - request_method
+      - request_path
       - request_body
       properties:
         operation_id:
           type: string
           description: operationId of the refused operation.
           example: createMember
+        request_method:
+          type: string
+          description: HTTP method of the refused request. The approval token is bound to it (claim th).
+          enum:
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+          example: POST
+        request_path:
+          type: string
+          description: 'Concrete path of the refused request, with every path parameter filled in (for
+            example /v1/members/0198a000-0000-7000-8000-000000000001/owner-role), as it will be sent. The
+            approval token is bound to method, this path and the body (claim th), so an approval for one
+            resource cannot release the same operation on another.'
+          pattern: ^/v1/[^?#]*$
+          example: /v1/members
         request_body:
           type: object
           description: The exact body that will be repeated with the approval token.
@@ -5228,11 +5252,26 @@ components:
           $ref: ../../../common/components.yaml#/components/schemas/Timestamp
         expires_at:
           $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+        subject:
+          type: string
+          description: 'Human-readable summary of what the approver is approving, built by identity from
+            the stored operation, method, path and body (for example "Add member Sita"), never from
+            requester text.'
+          example: Create member
+        request_method:
+          type: string
+          description: HTTP method the approval is bound to.
+          example: POST
+        request_path:
+          type: string
+          description: Concrete path the approval is bound to.
+          example: /v1/members
         approval_token:
           type: string
           description: 'ES256 approval token, 5 minutes, single use; present once on approval. Claims:
-            typ approval, sid, op (operationId) and bh (hash of the request body). Sent on the repeated
-            request in the Hostry-Approval header.'
+            typ approval, sid, op (operationId), bh (hash of the request body), th (lower-case hex SHA-256
+            over METHOD, newline, concrete path, newline, bh in go-auth encoding) and lbl (the subject).
+            Sent on the repeated request in the Hostry-Approval header.'
           example: tok_example_approval
     ApprovalRequestPage:
       type: object
@@ -5430,6 +5469,14 @@ components:
           - verified
           - unverified
           example: verified
+        locked:
+          type: boolean
+          description: 'True when the member and device pair is locked by the failed-proof cap (ADR-0005
+            A2.1 item 5: 10 failed proofs in 24 hours, or 5 in 15 minutes). A locked pair is answered
+            without a check, so the answer is never an oracle for the proof; label is unverified. The
+            count is kept by identity and shared by the pin grant and this operation; a successful
+            sign-in never clears the 24-hour count. Absent means false.'
+          example: false
     PackHistoryCheck:
       type: object
       description: Was the member and/or series code issued to the device in the given pack?
