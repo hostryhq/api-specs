@@ -5308,6 +5308,11 @@ components:
             $ref: '#/components/schemas/Jwk'
         op_signing_public_key:
           $ref: '#/components/schemas/Jwk'
+        entitlements:
+          $ref: ../../../common/components.yaml#/components/schemas/EntitlementSnapshot
+          description: The organisation's entitlement snapshot when the pack was issued (tenancy `getEntitlements`), refreshed into a newer pack on
+            `tenancy.subscription.changed`. Optional so an older pack still validates; an app treats an absent snapshot as "no optional feature
+            known" and still trades (ADR-0014 T10). Never gates a sale, print or day close.
     OfflinePack:
       type: object
       description: A signed offline pack. Clients verify jws and use only its payload.

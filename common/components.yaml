@@ -20,6 +20,55 @@ components:
       format: date-time
       description: RFC 3339 instant in UTC.
       example: '2026-11-24T13:05:11.120Z'
+    EntitlementSnapshot:
+      type: object
+      description: 'What an organisation is entitled to at one moment (ADR-0003 section 7, ADR-0008 S5), the shape carried by tenancy `getEntitlements` and by the `entitlements` claim of the offline pack. It never gates trading (ADR-0014 T10): an absent, stale or expired snapshot changes which optional features an app offers, never whether a sale, print or day close completes. Billing state (overdue, unpaid) is not part of it.'
+      required: [entitlements_v, features, limits, organisation_status, as_of]
+      properties:
+        entitlements_v:
+          type: integer
+          minimum: 1
+          description: Version of the snapshot, per organisation, increased by every plan change and every organisation status change. A device keeps the highest version it has seen.
+          example: 3
+        plan_key:
+          type: string
+          description: Plan key of the current subscription. Absent when the organisation has no subscription.
+          example: table_service
+        plan_version:
+          type: integer
+          minimum: 1
+          description: Plan version of the current subscription. Absent when there is no subscription.
+          example: 1
+        features:
+          type: array
+          description: Feature keys granted, sorted. An app ignores a key it does not know and treats a key that is not listed as not granted.
+          items:
+            type: string
+            description: Feature key, lower_snake with dots.
+            example: restaurant.core
+        limits:
+          type: object
+          description: Quantities the plan includes, by name. Informational on a device, a limit is never enforced against a sale. Unknown names are ignored.
+          additionalProperties:
+            type: integer
+            minimum: 0
+            description: Included quantity.
+          example: {outlets: 1}
+        organisation_status:
+          type: string
+          description: Lifecycle status of the organisation. `suspended` takes effect on a device only when it holds no day in progress (ADR-0014 A1.2, BR-A1-71).
+          enum: [trial, active, suspended, closed]
+          example: active
+        valid_until:
+          type: string
+          format: date-time
+          description: Instant after which the snapshot is stale and the device refreshes it when online. Absent in A1 because plan entitlements carry no expiry (BR-A1-61). Stale never removes a feature or blocks trading.
+          example: '2026-12-31T00:00:00Z'
+        as_of:
+          type: string
+          format: date-time
+          description: Instant the snapshot was read from tenancy, UTC.
+          example: '2026-11-24T13:05:11.120Z'
     Money:
       type: object
       description: Amount in integer paise. Never a float.

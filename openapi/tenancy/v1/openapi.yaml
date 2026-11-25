@@ -2093,6 +2093,44 @@ paths:
           $ref: ../../../common/components.yaml#/components/responses/Forbidden
         '404':
           $ref: ../../../common/components.yaml#/components/responses/NotFound
+  /internal/v1/entitlements:
+    get:
+      operationId: getEntitlements
+      summary: The caller organisation's current entitlement snapshot
+      description: 'Directory question of identity (offline pack, ADR-0014 T10). The service token names the tenant; there is no
+        organisation id in the path. Plan features and included quantities of the current subscription plus the organisation status. Billing state
+        (overdue, unpaid charges) never appears and never changes the answer (ADR-0008 S5, BR-A1-60): an organisation with every charge
+        overdue gets the same snapshot. An organisation with no subscription gets an empty `features` list, not an error. Identity refreshes on
+        `tenancy.subscription.changed` and `tenancy.organisation.status_changed`.'
+      tags:
+      - internal
+      x-permission: entitlement.directory.read
+      x-example-world: subscribed
+      x-service-callers:
+      - identity
+      security:
+      - serviceAuth: []
+      responses:
+        '200':
+          description: The snapshot.
+          content:
+            application/json:
+              schema:
+                $ref: ../../../common/components.yaml#/components/schemas/EntitlementSnapshot
+              example:
+                entitlements_v: 2
+                plan_key: table_service
+                plan_version: 1
+                features:
+                - restaurant.core
+                limits:
+                  outlets: 1
+                organisation_status: active
+                as_of: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
   /internal/v1/stream-owners/{stream_id}:
     get:
       operationId: getStreamOwner

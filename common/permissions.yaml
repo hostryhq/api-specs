@@ -119,6 +119,7 @@ permissions:
   - {key: device.drain.record, realm: service, service: identity, description_key: perm.device.drain.record, flags: []}
   - {key: proof.verify, realm: service, service: identity, description_key: perm.proof.verify, flags: []}
   - {key: device.directory.read, realm: service, service: identity, description_key: perm.device.directory.read, flags: []}  # sync gateway directory questions: credential, pack grants, member grants, recovery, session (ADR-0005 A3.2)
+  - {key: entitlement.directory.read, realm: service, service: tenancy, description_key: perm.entitlement.directory.read, flags: []}  # identity reads the organisation's entitlement snapshot for the offline pack (ADR-0014 T10)
   - {key: series.directory.read, realm: service, service: tenancy, description_key: perm.series.directory.read, flags: []}  # sync gateway: series of a device, owner of a stream (ADR-0005 A3.2 row 8)
   - {key: series.issue, realm: service, service: tenancy, description_key: perm.series.issue, flags: []}
   - {key: link.decide, realm: service, service: tenancy, description_key: perm.link.decide, flags: []}
