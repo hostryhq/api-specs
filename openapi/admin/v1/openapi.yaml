@@ -24,6 +24,16 @@ info:
     support-session-active: "Support session 4a68 (view mode) started by Priya for organisation 4a60, ticket SUP-2041, 13:05:11 to 13:35:11, active. The organisation is as in the identity base world and the tenancy series-issued world: registration 4a6b verified at 13:10:11 (certificate_seen), series A7K (tax_invoice 4a6c) and A7M (credit_note 4a95) active for device 4a5e, members Asha 4a64 (owner) and Ravi 4a9e, roles Owner 4a9a, Cashier 4a65 and Waiter 4a9b."
     approval-pending: "Base plus vendor approval 4a6d (kind device_revoke_over_quota, organisation 4a60, subject device 4a5e, requested by Priya 4a66, ticket SUP-2041) pending, created 13:05:11, expiring 2026-11-25T13:05:11. The caller is Arun 4a78 (platform_admin), who may approve and cancel it."
     signin-code-approved: "Base plus vendor approval 4a6d (kind sign_in_code, organisation 4a60, +919876543210, requested by Priya 4a66) approved by Arun 4a78; the caller is Priya, who has not claimed her code half."
+    plan-seeded: The tenancy world "plan-seeded" (The base world's organisation 4a60 (trial, no subscription) and, platform-wide, plan table_service with draft version 1 (feature keys restaurant.core, restaurant.kds, restaurant.captain, restaurant.reports.core; one outlet; monthly list price 129900) and Hostry billing configuration 8041 effective 2026-12-01 (state 33, SAC 997331, 1800 bp, registered, tolerance 99, terms 7 days). The caller is a platform admin). The caller is signed in to the admin panel (cookie and CSRF token csrf_example_token) as a vendor user whose role holds the permission of the operation.
+    subscribed: The tenancy world "subscribed" (The plan-active world after subscription 8011 (table_service v1, monthly, 129900, start 2026-12-01, active) was assigned to 4a60, with open charge 8021 for 2026-12-01 to 2026-12-31 (taxable 129900, CGST 11691, SGST 11691, total 153282, due 2026-12-08), no payment, no invoice reference). The caller is signed in to the admin panel (cookie and CSRF token csrf_example_token) as a vendor user whose role holds the permission of the operation.
+    charge-overdue: 'The tenancy world "charge-overdue" (The subscribed world on 2026-12-11: charge 8021 is open and three days past due). The caller is signed in to the admin panel (cookie and CSRF token csrf_example_token) as a vendor user whose role holds the permission of the operation.'
+    plan-active: The tenancy world "plan-active" (The plan-seeded world with version 1 of table_service active; organisation 4a60 has no subscription). The caller is signed in to the admin panel (cookie and CSRF token csrf_example_token) as a vendor user whose role holds the permission of the operation.
+    payment-recorded: The tenancy world "payment-recorded" (The subscribed world after payment 8031 (153282, upi, UTR1234567890, received 2026-12-02) was recorded against charge 8021, which is paid). The caller is signed in to the admin panel (cookie and CSRF token csrf_example_token) as a vendor user whose role holds the permission of the operation.
+    org-active-approved-close: Organisation 4a60 active (a plan was assigned), outlet 4a61 with no business day in progress. Vendor approval 4a6d of kind org_close was approved by the caller (Arun 4a78, platform_admin), and the admin service holds its grant in memory. The caller is signed in to the admin panel (cookie and CSRF token csrf_example_token) as Arun.
+    org-suspended-approved-reinstate: Organisation 4a60 suspended, outlet 4a61 with no business day in progress. Vendor approval 4a6d of kind org_reinstate was approved by the caller (Arun 4a78, platform_admin), and the admin service holds its grant in memory. The caller is signed in to the admin panel (cookie and CSRF token csrf_example_token) as Arun.
+    org-active-approved-suspend: Organisation 4a60 active (a plan was assigned), outlet 4a61 with no business day in progress. Vendor approval 4a6d of kind org_suspend was approved by the caller (Arun 4a78, platform_admin), and the admin service holds its grant in memory. The caller is signed in to the admin panel (cookie and CSRF token csrf_example_token) as Arun.
+    rule-set-draft: The billing world "rule-set-draft" (Base plus draft rule set 7042 (version 2, revision 1, effective 2026-12-15, unreviewed, one rule)). The caller is signed in to the admin panel (cookie and CSRF token csrf_example_token) as a vendor user whose role holds the permission of the operation.
+    rule-set-signed-approved: Base plus rule set 7042 signed (reviewed, sign-off recorded, effective 2026-12-15) and a valid single-use vendor approval grant for it; the caller is the approver, a second platform admin. Vendor approval 4a6d of kind tax_rule_set_publish was approved by the caller (Arun 4a78, platform_admin), and the admin service holds its grant in memory. The caller is signed in to the admin panel (cookie and CSRF token csrf_example_token) as Arun.
 servers:
 - url: /
 tags:
@@ -2096,6 +2106,2410 @@ paths:
           $ref: '#/components/responses/SupportSessionRequired'
         '503':
           $ref: '#/components/responses/UpstreamUnavailable'
+  /v1/billing-configurations:
+    get:
+      operationId: listBillingConfigurations
+      summary: List Hostry GST configuration versions
+      description: 'Named panel operation (ADR-0013 V4) on tenancy listBillingConfigurations, called with the admin
+        service token and the signed-in vendor user''s access token and the browser''s Idempotency-Key where it writes.
+        A directory read: no vendor audit entry is written (ADR-0013 V5).'
+      tags:
+      - admin
+      x-permission: admin.subscription.read
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorLimit
+      responses:
+        '200':
+          description: A page, newest first.
+          content:
+            application/json:
+              schema:
+                $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/BillingConfigurationPage
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8041
+                  effective_from: '2026-12-01'
+                  hostry_state_code: '33'
+                  sac: '997331'
+                  gst_rate_bp: 1800
+                  gst_registered: true
+                  payment_tolerance_paise: 99
+                  payment_terms_days: 7
+                  created_at: '2026-11-24T13:05:11.120Z'
+                next_cursor: eyJhZnRlciI6IjAxOTBhMWIyIn0
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+      x-example-world: plan-seeded
+    post:
+      operationId: createBillingConfiguration
+      summary: Add a GST configuration version
+      description: Named panel operation (ADR-0013 V4) on tenancy createBillingConfiguration, called with the admin
+        service token and the signed-in vendor user's access token and the browser's Idempotency-Key where it writes.
+        The serving service records the vendor audit entry in its own transaction and answers with the browser-safe
+        result; the admin service writes no audit record.
+      tags:
+      - admin
+      x-permission: admin.plan.manage
+      parameters:
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        description: Per-session CSRF token from signIn or getSession. Required on every state-changing request together
+          with a matching Origin.
+        schema:
+          type: string
+        example: csrf_example_token
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/CreateBillingConfiguration
+            example:
+              effective_from: '2026-12-01'
+              hostry_state_code: '33'
+              sac: '997331'
+              gst_rate_bp: 1800
+              gst_registered: true
+              payment_tolerance_paise: 99
+              payment_terms_days: 7
+      responses:
+        '201':
+          description: The configuration.
+          content:
+            application/json:
+              schema:
+                $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/BillingConfiguration
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8041
+                effective_from: '2026-12-01'
+                hostry_state_code: '33'
+                sac: '997331'
+                gst_rate_bp: 1800
+                gst_registered: true
+                payment_tolerance_paise: 99
+                payment_terms_days: 7
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+  /v1/ledger-exports:
+    get:
+      operationId: exportLedger
+      summary: Export the ledger as CSV
+      description: 'Named panel operation (ADR-0013 V4) on tenancy exportLedger, called with the admin service token
+        and the signed-in vendor user''s access token and the browser''s Idempotency-Key where it writes. The serving
+        service records the vendor audit entry in its own transaction and answers with the browser-safe result; the
+        admin service writes no audit record. Should (A1-Q12): organisation ids and names only, no GSTIN, phone or
+        email (BR-A1-38). Audited per export.'
+      tags:
+      - admin
+      x-permission: admin.report.ledger
+      parameters:
+      - name: from
+        in: query
+        required: false
+        description: First charge due date.
+        schema:
+          type: string
+          format: date
+        example: '2026-11-24'
+      - name: to
+        in: query
+        required: false
+        description: Last charge due date.
+        schema:
+          type: string
+          format: date
+        example: '2026-11-24'
+      responses:
+        '200':
+          description: CSV text.
+          content:
+            text/csv:
+              schema:
+                type: string
+                description: 'CSV with a header row: organisation_id, organisation_name, period_start, period_end,
+                  taxable_paise, total_paise, due_date, invoice_number, status, outstanding_paise.'
+              example: 'organisation_id,organisation_name,period_start,period_end,taxable_paise,total_paise,due_date,invoice_number,status,outstanding_paise
+
+                '
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+      x-example-world: subscribed
+  /v1/ledger-lists/{list_kind}:
+    get:
+      operationId: listLedgerEntries
+      summary: Work lists for billing staff
+      description: 'Named panel operation (ADR-0013 V4) on tenancy listLedgerEntries, called with the admin service
+        token and the signed-in vendor user''s access token and the browser''s Idempotency-Key where it writes. A
+        directory read: no vendor audit entry is written (ADR-0013 V5). overdue_charges (outstanding above tolerance
+        and due before today IST), charges_to_raise (paid_through within 7 days or passed, no charge for the next
+        period), charges_without_invoice_reference, pilots_ending (review date within 14 days), retired_version_subscriptions,
+        outlets_over_limit. Derived on read; no scheduled tasks, nothing is sent.'
+      tags:
+      - admin
+      x-permission: admin.subscription.read
+      parameters:
+      - name: list_kind
+        in: path
+        required: true
+        description: Which list.
+        schema:
+          $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/LedgerListKind
+        example: overdue_charges
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorLimit
+      responses:
+        '200':
+          description: A page, oldest first.
+          content:
+            application/json:
+              schema:
+                $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/LedgerListRowPage
+              example:
+                items:
+                - organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                  organisation_name: Example Hospitality
+                  subject_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8021
+                  due_date: '2026-12-08'
+                  age_days: 3
+                  amount:
+                    amount_paise: 153282
+                    currency: INR
+                next_cursor: eyJhZnRlciI6IjAxOTBhMWIyIn0
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+      x-example-world: charge-overdue
+  /v1/organisations/{organisation_id}/charges:
+    get:
+      operationId: listCharges
+      summary: List an organisation's charges
+      description: 'Named panel operation (ADR-0013 V4) on tenancy listCharges, called with the admin service token
+        and the signed-in vendor user''s access token and the browser''s Idempotency-Key where it writes. A directory
+        read: no vendor audit entry is written (ADR-0013 V5).'
+      tags:
+      - admin
+      x-permission: admin.subscription.read
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - name: status
+        in: query
+        required: false
+        description: Filter by status.
+        schema:
+          type: string
+          enum:
+          - open
+          - paid
+          - waived
+          - cancelled
+        example: open
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorLimit
+      responses:
+        '200':
+          description: A page, newest period first.
+          content:
+            application/json:
+              schema:
+                $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/ChargePage
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8021
+                  organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                  subscription_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8011
+                  kind: period
+                  period_start: '2026-12-01'
+                  period_end: '2026-12-31'
+                  taxable:
+                    amount_paise: 129900
+                    currency: INR
+                  cgst:
+                    amount_paise: 11691
+                    currency: INR
+                  sgst:
+                    amount_paise: 11691
+                    currency: INR
+                  igst:
+                    amount_paise: 0
+                    currency: INR
+                  total:
+                    amount_paise: 153282
+                    currency: INR
+                  due_date: '2026-12-08'
+                  status: open
+                  outstanding:
+                    amount_paise: 153282
+                    currency: INR
+                  created_at: '2026-11-24T13:05:11.120Z'
+                next_cursor: eyJhZnRlciI6IjAxOTBhMWIyIn0
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+      x-example-world: subscribed
+    post:
+      operationId: raiseCharge
+      summary: Raise a charge
+      description: Named panel operation (ADR-0013 V4) on tenancy raiseCharge, called with the admin service token
+        and the signed-in vendor user's access token and the browser's Idempotency-Key where it writes. The serving
+        service records the vendor audit entry in its own transaction and answers with the browser-safe result; the
+        admin service writes no audit record. A second charge for a period that already has an open or paid charge
+        is refused 409 duplicate_period unless it is an extra charge with a reason (BR-A1-31). GST is taken from the
+        billing configuration at this moment and stored.
+      tags:
+      - admin
+      x-permission: admin.subscription.manage
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        description: Per-session CSRF token from signIn or getSession. Required on every state-changing request together
+          with a matching Origin.
+        schema:
+          type: string
+        example: csrf_example_token
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/RaiseCharge
+            example:
+              kind: period
+              period_start: '2026-12-01'
+              period_end: '2026-12-31'
+      responses:
+        '201':
+          description: The charge.
+          content:
+            application/json:
+              schema:
+                $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/Charge
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8021
+                organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                subscription_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8011
+                kind: period
+                period_start: '2026-12-01'
+                period_end: '2026-12-31'
+                taxable:
+                  amount_paise: 129900
+                  currency: INR
+                cgst:
+                  amount_paise: 11691
+                  currency: INR
+                sgst:
+                  amount_paise: 11691
+                  currency: INR
+                igst:
+                  amount_paise: 0
+                  currency: INR
+                total:
+                  amount_paise: 153282
+                  currency: INR
+                due_date: '2026-12-08'
+                status: open
+                outstanding:
+                  amount_paise: 153282
+                  currency: INR
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+      x-example-world: plan-active
+  /v1/organisations/{organisation_id}/charges/{charge_id}:
+    get:
+      operationId: getCharge
+      summary: Read a charge (audited per read)
+      description: Named panel operation (ADR-0013 V4) on tenancy getCharge, called with the admin service token and
+        the signed-in vendor user's access token and the browser's Idempotency-Key where it writes. The serving service
+        records the vendor audit entry in its own transaction and answers with the browser-safe result; the admin
+        service writes no audit record.
+      tags:
+      - admin
+      x-permission: admin.subscription.read
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - name: charge_id
+        in: path
+        required: true
+        description: Charge id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8021
+      responses:
+        '200':
+          description: The charge.
+          content:
+            application/json:
+              schema:
+                $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/Charge
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8021
+                organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                subscription_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8011
+                kind: period
+                period_start: '2026-12-01'
+                period_end: '2026-12-31'
+                taxable:
+                  amount_paise: 129900
+                  currency: INR
+                cgst:
+                  amount_paise: 11691
+                  currency: INR
+                sgst:
+                  amount_paise: 11691
+                  currency: INR
+                igst:
+                  amount_paise: 0
+                  currency: INR
+                total:
+                  amount_paise: 153282
+                  currency: INR
+                due_date: '2026-12-08'
+                status: open
+                outstanding:
+                  amount_paise: 153282
+                  currency: INR
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+      x-example-world: subscribed
+  /v1/organisations/{organisation_id}/charges/{charge_id}/cancellation:
+    post:
+      operationId: cancelCharge
+      summary: Cancel a charge
+      description: Named panel operation (ADR-0013 V4) on tenancy cancelCharge, called with the admin service token
+        and the signed-in vendor user's access token and the browser's Idempotency-Key where it writes. The serving
+        service records the vendor audit entry in its own transaction and answers with the browser-safe result; the
+        admin service writes no audit record.
+      tags:
+      - admin
+      x-permission: admin.subscription.adjust
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - name: charge_id
+        in: path
+        required: true
+        description: Charge id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8021
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        description: Per-session CSRF token from signIn or getSession. Required on every state-changing request together
+          with a matching Origin.
+        schema:
+          type: string
+        example: csrf_example_token
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/ReasonBody
+            example:
+              reason: Duplicate period raised by mistake.
+      responses:
+        '200':
+          description: The charge, cancelled.
+          content:
+            application/json:
+              schema:
+                $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/Charge
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8021
+                organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                subscription_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8011
+                kind: period
+                period_start: '2026-12-01'
+                period_end: '2026-12-31'
+                taxable:
+                  amount_paise: 129900
+                  currency: INR
+                cgst:
+                  amount_paise: 11691
+                  currency: INR
+                sgst:
+                  amount_paise: 11691
+                  currency: INR
+                igst:
+                  amount_paise: 0
+                  currency: INR
+                total:
+                  amount_paise: 153282
+                  currency: INR
+                due_date: '2026-12-08'
+                status: cancelled
+                outstanding:
+                  amount_paise: 0
+                  currency: INR
+                created_at: '2026-11-24T13:05:11.120Z'
+                reason: Duplicate period raised by mistake.
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+      x-example-world: subscribed
+  /v1/organisations/{organisation_id}/charges/{charge_id}/invoice-reference:
+    put:
+      operationId: setChargeInvoiceReference
+      summary: Set the invoice reference once
+      description: 'Named panel operation (ADR-0013 V4) on tenancy setChargeInvoiceReference, called with the admin
+        service token and the signed-in vendor user''s access token and the browser''s Idempotency-Key where it writes.
+        The serving service records the vendor audit entry in its own transaction and answers with the browser-safe
+        result; the admin service writes no audit record. Set once; a second reference on the same charge is refused
+        409 invoice_reference_set. A mistyped reference cannot be edited: an admin cancels the charge and raises it
+        again (A1-Q8).'
+      tags:
+      - admin
+      x-permission: admin.subscription.manage
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - name: charge_id
+        in: path
+        required: true
+        description: Charge id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8021
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        description: Per-session CSRF token from signIn or getSession. Required on every state-changing request together
+          with a matching Origin.
+        schema:
+          type: string
+        example: csrf_example_token
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/SetInvoiceReference
+            example:
+              invoice_reference:
+                number: HQ/2627/0042
+                date: '2026-12-01'
+      responses:
+        '200':
+          description: The charge.
+          content:
+            application/json:
+              schema:
+                $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/Charge
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8021
+                organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                subscription_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8011
+                kind: period
+                period_start: '2026-12-01'
+                period_end: '2026-12-31'
+                taxable:
+                  amount_paise: 129900
+                  currency: INR
+                cgst:
+                  amount_paise: 11691
+                  currency: INR
+                sgst:
+                  amount_paise: 11691
+                  currency: INR
+                igst:
+                  amount_paise: 0
+                  currency: INR
+                total:
+                  amount_paise: 153282
+                  currency: INR
+                due_date: '2026-12-08'
+                status: open
+                outstanding:
+                  amount_paise: 153282
+                  currency: INR
+                created_at: '2026-11-24T13:05:11.120Z'
+                invoice_reference:
+                  number: HQ/2627/0042
+                  date: '2026-12-01'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+      x-example-world: subscribed
+  /v1/organisations/{organisation_id}/charges/{charge_id}/payments:
+    get:
+      operationId: listChargePayments
+      summary: List payments of a charge
+      description: 'Named panel operation (ADR-0013 V4) on tenancy listChargePayments, called with the admin service
+        token and the signed-in vendor user''s access token and the browser''s Idempotency-Key where it writes. A
+        directory read: no vendor audit entry is written (ADR-0013 V5).'
+      tags:
+      - admin
+      x-permission: admin.subscription.read
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - name: charge_id
+        in: path
+        required: true
+        description: Charge id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8021
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorLimit
+      responses:
+        '200':
+          description: A page.
+          content:
+            application/json:
+              schema:
+                $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/LedgerPaymentPage
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8031
+                  charge_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8021
+                  amount:
+                    amount_paise: 153282
+                    currency: INR
+                  method: upi
+                  reference: UTR1234567890
+                  received_on: '2026-12-02'
+                  recorded_by: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a90
+                  created_at: '2026-11-24T13:05:11.120Z'
+                next_cursor: eyJhZnRlciI6IjAxOTBhMWIyIn0
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+      x-example-world: payment-recorded
+    post:
+      operationId: recordPayment
+      summary: Record a payment received by hand
+      description: Named panel operation (ADR-0013 V4) on tenancy recordPayment, called with the admin service token
+        and the signed-in vendor user's access token and the browser's Idempotency-Key where it writes. The serving
+        service records the vendor audit entry in its own transaction and answers with the browser-safe result; the
+        admin service writes no audit record. Partial payments are allowed; a payment above the outstanding amount
+        is refused 422 overpayment; a duplicate reference on a different payment is a warning only (BR-A1-45).
+      tags:
+      - admin
+      x-permission: admin.subscription.manage
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - name: charge_id
+        in: path
+        required: true
+        description: Charge id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8021
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        description: Per-session CSRF token from signIn or getSession. Required on every state-changing request together
+          with a matching Origin.
+        schema:
+          type: string
+        example: csrf_example_token
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/RecordPayment
+            example:
+              amount:
+                amount_paise: 153282
+                currency: INR
+              method: upi
+              reference: UTR1234567890
+              received_on: '2026-12-02'
+      responses:
+        '201':
+          description: The payment.
+          content:
+            application/json:
+              schema:
+                $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/LedgerPayment
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8031
+                charge_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8021
+                amount:
+                  amount_paise: 153282
+                  currency: INR
+                method: upi
+                reference: UTR1234567890
+                received_on: '2026-12-02'
+                recorded_by: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a90
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '422':
+          $ref: ../../tenancy/v1/openapi.yaml#/components/responses/Overpayment
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+      x-example-world: subscribed
+  /v1/organisations/{organisation_id}/charges/{charge_id}/payments/{payment_id}/reversal:
+    post:
+      operationId: reversePayment
+      summary: Reverse a payment
+      description: Named panel operation (ADR-0013 V4) on tenancy reversePayment, called with the admin service token
+        and the signed-in vendor user's access token and the browser's Idempotency-Key where it writes. The serving
+        service records the vendor audit entry in its own transaction and answers with the browser-safe result; the
+        admin service writes no audit record.
+      tags:
+      - admin
+      x-permission: admin.subscription.adjust
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - name: charge_id
+        in: path
+        required: true
+        description: Charge id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8021
+      - name: payment_id
+        in: path
+        required: true
+        description: Payment id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8031
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        description: Per-session CSRF token from signIn or getSession. Required on every state-changing request together
+          with a matching Origin.
+        schema:
+          type: string
+        example: csrf_example_token
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/ReasonBody
+            example:
+              reason: Duplicate period raised by mistake.
+      responses:
+        '201':
+          description: The reversing row.
+          content:
+            application/json:
+              schema:
+                $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/LedgerPayment
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8032
+                charge_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8021
+                amount:
+                  amount_paise: 153282
+                  currency: INR
+                method: upi
+                reference: UTR1234567890
+                received_on: '2026-12-02'
+                recorded_by: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a90
+                created_at: '2026-11-24T13:05:11.120Z'
+                reversal_of: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8031
+                reason: Duplicate period raised by mistake.
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+      x-example-world: payment-recorded
+  /v1/organisations/{organisation_id}/charges/{charge_id}/waiver:
+    post:
+      operationId: waiveCharge
+      summary: Waive a charge
+      description: Named panel operation (ADR-0013 V4) on tenancy waiveCharge, called with the admin service token
+        and the signed-in vendor user's access token and the browser's Idempotency-Key where it writes. The serving
+        service records the vendor audit entry in its own transaction and answers with the browser-safe result; the
+        admin service writes no audit record.
+      tags:
+      - admin
+      x-permission: admin.subscription.adjust
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - name: charge_id
+        in: path
+        required: true
+        description: Charge id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8021
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        description: Per-session CSRF token from signIn or getSession. Required on every state-changing request together
+          with a matching Origin.
+        schema:
+          type: string
+        example: csrf_example_token
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/ReasonBody
+            example:
+              reason: Duplicate period raised by mistake.
+      responses:
+        '200':
+          description: The charge, waived.
+          content:
+            application/json:
+              schema:
+                $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/Charge
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8021
+                organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                subscription_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8011
+                kind: period
+                period_start: '2026-12-01'
+                period_end: '2026-12-31'
+                taxable:
+                  amount_paise: 129900
+                  currency: INR
+                cgst:
+                  amount_paise: 11691
+                  currency: INR
+                sgst:
+                  amount_paise: 11691
+                  currency: INR
+                igst:
+                  amount_paise: 0
+                  currency: INR
+                total:
+                  amount_paise: 153282
+                  currency: INR
+                due_date: '2026-12-08'
+                status: waived
+                outstanding:
+                  amount_paise: 0
+                  currency: INR
+                created_at: '2026-11-24T13:05:11.120Z'
+                reason: Duplicate period raised by mistake.
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+      x-example-world: subscribed
+  /v1/organisations/{organisation_id}/closure:
+    post:
+      operationId: closeOrganisation
+      summary: Execute an approved closure
+      description: 'Named panel operation (ADR-0013 V4) on tenancy closeOrganisation, called with the admin service
+        token and the signed-in vendor user''s access token and the browser''s Idempotency-Key where it writes. The
+        serving service records the vendor audit entry in its own transaction and answers with the browser-safe result;
+        the admin service writes no audit record. Executes an approved request of kind org_close (ADR-0014 A1.3):
+        the browser names the approval by approval_id and the admin service supplies the single-use grant it holds
+        for the signed-in approver; the grant is never in a request or response of this API. Refused 409 approval_not_executable
+        when the approval is not approved for this caller, was used or has expired (file and approve a new one). Upstream
+        rule: Executed with the approver''s token, the admin service token and a vendor approval grant of kind org_close
+        (ADR-0014 A1.3): the grant is verified, its subject hash (organisation and target status) recomputed, its
+        id recorded as used in this transaction, and the audit row written with the "show to owner" marker (V7). Refused
+        409 open_trading_day while any outlet has a day in progress (open, dated today or yesterday IST); the approval
+        stays approved and a fresh grant may be issued until the request lapses.  Suspended means read and export
+        only after the grace period; it never wipes devices and never blocks a trading day in progress; the device
+        rule is the guarantee (A1.2 item 5).'
+      tags:
+      - admin
+      x-permission: admin.org.lifecycle.approve
+      x-approval-kind: org_close
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        description: Per-session CSRF token from signIn or getSession. Required on every state-changing request together
+          with a matching Origin.
+        schema:
+          type: string
+        example: csrf_example_token
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExecuteLifecycle'
+            example:
+              approval_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6d
+              ticket: SUP-2041
+              reason: Owner asked to close the outlet group.
+              owner_export_offered: true
+      responses:
+        '200':
+          description: The organisation after the action.
+          content:
+            application/json:
+              schema:
+                $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/LifecycleResult
+              example:
+                organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                status: closed
+                changed_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: '#/components/responses/ExecuteConflict'
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+      x-example-world: org-active-approved-close
+  /v1/organisations/{organisation_id}/reinstatement:
+    post:
+      operationId: reinstateOrganisation
+      summary: Execute an approved reinstatement
+      description: 'Named panel operation (ADR-0013 V4) on tenancy reinstateOrganisation, called with the admin service
+        token and the signed-in vendor user''s access token and the browser''s Idempotency-Key where it writes. The
+        serving service records the vendor audit entry in its own transaction and answers with the browser-safe result;
+        the admin service writes no audit record. Executes an approved request of kind org_reinstate (ADR-0014 A1.3):
+        the browser names the approval by approval_id and the admin service supplies the single-use grant it holds
+        for the signed-in approver; the grant is never in a request or response of this API. Refused 409 approval_not_executable
+        when the approval is not approved for this caller, was used or has expired (file and approve a new one). Upstream
+        rule: Executed with the approver''s token, the admin service token and a vendor approval grant of kind org_reinstate
+        (ADR-0014 A1.3): the grant is verified, its subject hash (organisation and target status) recomputed, its
+        id recorded as used in this transaction, and the audit row written with the "show to owner" marker (V7). Reinstatement
+        is not guarded.  Suspended means read and export only after the grace period; it never wipes devices and never
+        blocks a trading day in progress; the device rule is the guarantee (A1.2 item 5).'
+      tags:
+      - admin
+      x-permission: admin.org.lifecycle.approve
+      x-approval-kind: org_reinstate
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        description: Per-session CSRF token from signIn or getSession. Required on every state-changing request together
+          with a matching Origin.
+        schema:
+          type: string
+        example: csrf_example_token
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExecuteLifecycle'
+            example:
+              approval_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6d
+              ticket: SUP-2041
+              reason: Owner asked to close the outlet group.
+              owner_export_offered: true
+      responses:
+        '200':
+          description: The organisation after the action.
+          content:
+            application/json:
+              schema:
+                $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/LifecycleResult
+              example:
+                organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                status: active
+                changed_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: '#/components/responses/ExecuteConflict'
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+      x-example-world: org-suspended-approved-reinstate
+  /v1/organisations/{organisation_id}/subscription:
+    get:
+      operationId: getOrganisationSubscription
+      summary: Get the current subscription and history
+      description: 'Named panel operation (ADR-0013 V4) on tenancy getOrganisationSubscription, called with the admin
+        service token and the signed-in vendor user''s access token and the browser''s Idempotency-Key where it writes.
+        A directory read: no vendor audit entry is written (ADR-0013 V5).'
+      tags:
+      - admin
+      x-permission: admin.subscription.read
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      responses:
+        '200':
+          description: The subscription.
+          content:
+            application/json:
+              schema:
+                $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/SubscriptionHistory
+              example:
+                current:
+                  id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8011
+                  organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                  plan_key: table_service
+                  plan_version: 1
+                  cycle: monthly
+                  agreed_price:
+                    amount_paise: 129900
+                    currency: INR
+                  addons: []
+                  start_date: '2026-12-01'
+                  paid_through: '2026-12-31'
+                  state: active
+                  overdue: false
+                  cancel_at_period_end: false
+                  outlets_over_limit: false
+                  created_at: '2026-11-24T13:05:11.120Z'
+                history: []
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+      x-example-world: subscribed
+    post:
+      operationId: startSubscription
+      summary: Assign a plan version or a pilot
+      description: Named panel operation (ADR-0013 V4) on tenancy startSubscription, called with the admin service
+        token and the signed-in vendor user's access token and the browser's Idempotency-Key where it writes. The
+        serving service records the vendor audit entry in its own transaction and answers with the browser-safe result;
+        the admin service writes no audit record. Changes the subscription row and the organisation's entitlement
+        rows in one transaction (BR-A1-14, CB1). Entitlements carry no expiry. A price below list needs admin.subscription.adjust
+        and a reason; a replay with the same key returns the same row. The first plan moves organisation status trial
+        to active (BR-A1-74).
+      tags:
+      - admin
+      x-permission: admin.subscription.start
+      x-permission-widened-by: admin.subscription.manage
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        description: Per-session CSRF token from signIn or getSession. Required on every state-changing request together
+          with a matching Origin.
+        schema:
+          type: string
+        example: csrf_example_token
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/StartSubscription
+            example:
+              plan_key: table_service
+              plan_version: 1
+              cycle: monthly
+              start_date: '2026-12-01'
+      responses:
+        '201':
+          description: The subscription.
+          content:
+            application/json:
+              schema:
+                $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/Subscription
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8011
+                organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                plan_key: table_service
+                plan_version: 1
+                cycle: monthly
+                agreed_price:
+                  amount_paise: 129900
+                  currency: INR
+                addons: []
+                start_date: '2026-12-01'
+                paid_through: '2026-12-31'
+                state: active
+                overdue: false
+                cancel_at_period_end: false
+                outlets_over_limit: false
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+      x-example-world: plan-active
+    put:
+      operationId: changeSubscription
+      summary: Change plan, price or add-ons from the next charge
+      description: Named panel operation (ADR-0013 V4) on tenancy changeSubscription, called with the admin service
+        token and the signed-in vendor user's access token and the browser's Idempotency-Key where it writes. The
+        serving service records the vendor audit entry in its own transaction and answers with the browser-safe result;
+        the admin service writes no audit record.
+      tags:
+      - admin
+      x-permission: admin.subscription.manage
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        description: Per-session CSRF token from signIn or getSession. Required on every state-changing request together
+          with a matching Origin.
+        schema:
+          type: string
+        example: csrf_example_token
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/ChangeSubscription
+            example:
+              plan_key: table_service
+              plan_version: 1
+              cycle: annual
+              effective_from: '2027-01-01'
+      responses:
+        '200':
+          description: The new subscription row.
+          content:
+            application/json:
+              schema:
+                $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/Subscription
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8011
+                organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                plan_key: table_service
+                plan_version: 1
+                cycle: annual
+                agreed_price:
+                  amount_paise: 129900
+                  currency: INR
+                addons: []
+                start_date: '2026-12-01'
+                paid_through: '2026-12-31'
+                state: active
+                overdue: false
+                cancel_at_period_end: false
+                outlets_over_limit: false
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+      x-example-world: subscribed
+  /v1/organisations/{organisation_id}/subscription/cancellation:
+    post:
+      operationId: cancelSubscription
+      summary: Record a cancellation at period end
+      description: Named panel operation (ADR-0013 V4) on tenancy cancelSubscription, called with the admin service
+        token and the signed-in vendor user's access token and the browser's Idempotency-Key where it writes. The
+        serving service records the vendor audit entry in its own transaction and answers with the browser-safe result;
+        the admin service writes no audit record. No further charge is raised after paid_through; no refund is modelled;
+        closing the organisation is a separate lifecycle action.
+      tags:
+      - admin
+      x-permission: admin.subscription.manage
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        description: Per-session CSRF token from signIn or getSession. Required on every state-changing request together
+          with a matching Origin.
+        schema:
+          type: string
+        example: csrf_example_token
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/CancelSubscription
+            example:
+              reason: Owner asked to stop after the current period.
+      responses:
+        '200':
+          description: The subscription.
+          content:
+            application/json:
+              schema:
+                $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/Subscription
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8011
+                organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                plan_key: table_service
+                plan_version: 1
+                cycle: monthly
+                agreed_price:
+                  amount_paise: 129900
+                  currency: INR
+                addons: []
+                start_date: '2026-12-01'
+                paid_through: '2026-12-31'
+                state: active
+                overdue: false
+                cancel_at_period_end: true
+                outlets_over_limit: false
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+      x-example-world: subscribed
+  /v1/organisations/{organisation_id}/suspension:
+    post:
+      operationId: suspendOrganisation
+      summary: Execute an approved suspension
+      description: 'Named panel operation (ADR-0013 V4) on tenancy suspendOrganisation, called with the admin service
+        token and the signed-in vendor user''s access token and the browser''s Idempotency-Key where it writes. The
+        serving service records the vendor audit entry in its own transaction and answers with the browser-safe result;
+        the admin service writes no audit record. Executes an approved request of kind org_suspend (ADR-0014 A1.3):
+        the browser names the approval by approval_id and the admin service supplies the single-use grant it holds
+        for the signed-in approver; the grant is never in a request or response of this API. Refused 409 approval_not_executable
+        when the approval is not approved for this caller, was used or has expired (file and approve a new one). Upstream
+        rule: Executed with the approver''s token, the admin service token and a vendor approval grant of kind org_suspend
+        (ADR-0014 A1.3): the grant is verified, its subject hash (organisation and target status) recomputed, its
+        id recorded as used in this transaction, and the audit row written with the "show to owner" marker (V7). Refused
+        409 open_trading_day while any outlet has a day in progress (open, dated today or yesterday IST); the approval
+        stays approved and a fresh grant may be issued until the request lapses.  Suspended means read and export
+        only after the grace period; it never wipes devices and never blocks a trading day in progress; the device
+        rule is the guarantee (A1.2 item 5).'
+      tags:
+      - admin
+      x-permission: admin.org.lifecycle.approve
+      x-approval-kind: org_suspend
+      parameters:
+      - name: organisation_id
+        in: path
+        required: true
+        description: Organisation id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        description: Per-session CSRF token from signIn or getSession. Required on every state-changing request together
+          with a matching Origin.
+        schema:
+          type: string
+        example: csrf_example_token
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExecuteLifecycle'
+            example:
+              approval_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6d
+              ticket: SUP-2041
+              reason: Owner asked to close the outlet group.
+              owner_export_offered: true
+      responses:
+        '200':
+          description: The organisation after the action.
+          content:
+            application/json:
+              schema:
+                $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/LifecycleResult
+              example:
+                organisation_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+                status: suspended
+                changed_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: '#/components/responses/ExecuteConflict'
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+      x-example-world: org-active-approved-suspend
+  /v1/plans:
+    get:
+      operationId: listPlans
+      summary: List plans with their versions
+      description: 'Named panel operation (ADR-0013 V4) on tenancy listPlans, called with the admin service token
+        and the signed-in vendor user''s access token and the browser''s Idempotency-Key where it writes. A directory
+        read: no vendor audit entry is written (ADR-0013 V5).'
+      tags:
+      - admin
+      x-permission: admin.subscription.read
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorLimit
+      responses:
+        '200':
+          description: A page.
+          content:
+            application/json:
+              schema:
+                $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/PlanPage
+              example:
+                items:
+                - key: table_service
+                  name_key: plan.table_service
+                  versions:
+                  - feature_keys:
+                    - restaurant.core
+                    - restaurant.kds
+                    - restaurant.captain
+                    - restaurant.reports.core
+                    included_outlets: 1
+                    prices:
+                    - cycle: monthly
+                      list_price:
+                        amount_paise: 129900
+                        currency: INR
+                    version: 1
+                    state: draft
+                    created_at: '2026-11-24T13:05:11.120Z'
+                  created_at: '2026-11-24T13:05:11.120Z'
+                next_cursor: eyJhZnRlciI6IjAxOTBhMWIyIn0
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+      x-example-world: plan-seeded
+    post:
+      operationId: createPlan
+      summary: Create a plan with a draft first version
+      description: Named panel operation (ADR-0013 V4) on tenancy createPlan, called with the admin service token
+        and the signed-in vendor user's access token and the browser's Idempotency-Key where it writes. The serving
+        service records the vendor audit entry in its own transaction and answers with the browser-safe result; the
+        admin service writes no audit record.
+      tags:
+      - admin
+      x-permission: admin.plan.manage
+      parameters:
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        description: Per-session CSRF token from signIn or getSession. Required on every state-changing request together
+          with a matching Origin.
+        schema:
+          type: string
+        example: csrf_example_token
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/CreatePlan
+            example:
+              key: table_service
+              name_key: plan.table_service
+              version:
+                feature_keys:
+                - restaurant.core
+                - restaurant.kds
+                - restaurant.captain
+                - restaurant.reports.core
+                included_outlets: 1
+                prices:
+                - cycle: monthly
+                  list_price:
+                    amount_paise: 129900
+                    currency: INR
+      responses:
+        '201':
+          description: The plan.
+          content:
+            application/json:
+              schema:
+                $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/Plan
+              example:
+                key: table_service
+                name_key: plan.table_service
+                versions:
+                - feature_keys:
+                  - restaurant.core
+                  - restaurant.kds
+                  - restaurant.captain
+                  - restaurant.reports.core
+                  included_outlets: 1
+                  prices:
+                  - cycle: monthly
+                    list_price:
+                      amount_paise: 129900
+                      currency: INR
+                  version: 1
+                  state: draft
+                  created_at: '2026-11-24T13:05:11.120Z'
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+  /v1/plans/{plan_key}:
+    get:
+      operationId: getPlan
+      summary: Get a plan
+      description: 'Named panel operation (ADR-0013 V4) on tenancy getPlan, called with the admin service token and
+        the signed-in vendor user''s access token and the browser''s Idempotency-Key where it writes. A directory
+        read: no vendor audit entry is written (ADR-0013 V5).'
+      tags:
+      - admin
+      x-permission: admin.subscription.read
+      parameters:
+      - name: plan_key
+        in: path
+        required: true
+        description: Plan key.
+        schema:
+          type: string
+          pattern: ^[a-z][a-z0-9_]{1,31}$
+        example: table_service
+      responses:
+        '200':
+          description: The plan.
+          content:
+            application/json:
+              schema:
+                $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/Plan
+              example:
+                key: table_service
+                name_key: plan.table_service
+                versions:
+                - feature_keys:
+                  - restaurant.core
+                  - restaurant.kds
+                  - restaurant.captain
+                  - restaurant.reports.core
+                  included_outlets: 1
+                  prices:
+                  - cycle: monthly
+                    list_price:
+                      amount_paise: 129900
+                      currency: INR
+                  version: 1
+                  state: draft
+                  created_at: '2026-11-24T13:05:11.120Z'
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+      x-example-world: plan-seeded
+  /v1/plans/{plan_key}/versions:
+    post:
+      operationId: createPlanVersion
+      summary: Create a draft version (a price or content change is a new version)
+      description: Named panel operation (ADR-0013 V4) on tenancy createPlanVersion, called with the admin service
+        token and the signed-in vendor user's access token and the browser's Idempotency-Key where it writes. The
+        serving service records the vendor audit entry in its own transaction and answers with the browser-safe result;
+        the admin service writes no audit record.
+      tags:
+      - admin
+      x-permission: admin.plan.manage
+      parameters:
+      - name: plan_key
+        in: path
+        required: true
+        description: Plan key.
+        schema:
+          type: string
+          pattern: ^[a-z][a-z0-9_]{1,31}$
+        example: table_service
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        description: Per-session CSRF token from signIn or getSession. Required on every state-changing request together
+          with a matching Origin.
+        schema:
+          type: string
+        example: csrf_example_token
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/PlanVersionDraft
+            example:
+              feature_keys:
+              - restaurant.core
+              - restaurant.kds
+              - restaurant.captain
+              - restaurant.reports.core
+              included_outlets: 1
+              prices:
+              - cycle: monthly
+                list_price:
+                  amount_paise: 129900
+                  currency: INR
+      responses:
+        '201':
+          description: The new draft.
+          content:
+            application/json:
+              schema:
+                $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/PlanVersion
+              example:
+                feature_keys:
+                - restaurant.core
+                - restaurant.kds
+                - restaurant.captain
+                - restaurant.reports.core
+                included_outlets: 1
+                prices:
+                - cycle: monthly
+                  list_price:
+                    amount_paise: 129900
+                    currency: INR
+                version: 2
+                state: draft
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+      x-example-world: plan-seeded
+  /v1/plans/{plan_key}/versions/{version}/activation:
+    post:
+      operationId: activatePlanVersion
+      summary: Activate a draft version (immutable from here)
+      description: Named panel operation (ADR-0013 V4) on tenancy activatePlanVersion, called with the admin service
+        token and the signed-in vendor user's access token and the browser's Idempotency-Key where it writes. The
+        serving service records the vendor audit entry in its own transaction and answers with the browser-safe result;
+        the admin service writes no audit record.
+      tags:
+      - admin
+      x-permission: admin.plan.manage
+      parameters:
+      - name: plan_key
+        in: path
+        required: true
+        description: Plan key.
+        schema:
+          type: string
+          pattern: ^[a-z][a-z0-9_]{1,31}$
+        example: table_service
+      - name: version
+        in: path
+        required: true
+        description: Version number.
+        schema:
+          type: integer
+          minimum: 1
+        example: 1
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        description: Per-session CSRF token from signIn or getSession. Required on every state-changing request together
+          with a matching Origin.
+        schema:
+          type: string
+        example: csrf_example_token
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      responses:
+        '200':
+          description: The active version.
+          content:
+            application/json:
+              schema:
+                $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/PlanVersion
+              example:
+                feature_keys:
+                - restaurant.core
+                - restaurant.kds
+                - restaurant.captain
+                - restaurant.reports.core
+                included_outlets: 1
+                prices:
+                - cycle: monthly
+                  list_price:
+                    amount_paise: 129900
+                    currency: INR
+                version: 1
+                state: active
+                created_at: '2026-11-24T13:05:11.120Z'
+                activated_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+      x-example-world: plan-seeded
+  /v1/plans/{plan_key}/versions/{version}/retirement:
+    post:
+      operationId: retirePlanVersion
+      summary: Retire an active version
+      description: Named panel operation (ADR-0013 V4) on tenancy retirePlanVersion, called with the admin service
+        token and the signed-in vendor user's access token and the browser's Idempotency-Key where it writes. The
+        serving service records the vendor audit entry in its own transaction and answers with the browser-safe result;
+        the admin service writes no audit record.
+      tags:
+      - admin
+      x-permission: admin.plan.manage
+      parameters:
+      - name: plan_key
+        in: path
+        required: true
+        description: Plan key.
+        schema:
+          type: string
+          pattern: ^[a-z][a-z0-9_]{1,31}$
+        example: table_service
+      - name: version
+        in: path
+        required: true
+        description: Version number.
+        schema:
+          type: integer
+          minimum: 1
+        example: 1
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        description: Per-session CSRF token from signIn or getSession. Required on every state-changing request together
+          with a matching Origin.
+        schema:
+          type: string
+        example: csrf_example_token
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      responses:
+        '200':
+          description: The retired version; existing subscriptions keep it.
+          content:
+            application/json:
+              schema:
+                $ref: ../../tenancy/v1/openapi.yaml#/components/schemas/PlanVersion
+              example:
+                feature_keys:
+                - restaurant.core
+                - restaurant.kds
+                - restaurant.captain
+                - restaurant.reports.core
+                included_outlets: 1
+                prices:
+                - cycle: monthly
+                  list_price:
+                    amount_paise: 129900
+                    currency: INR
+                version: 1
+                state: retired
+                created_at: '2026-11-24T13:05:11.120Z'
+                retired_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+      x-example-world: plan-active
+  /v1/tax-rule-sets:
+    get:
+      operationId: listTaxRuleSetMasters
+      summary: List rule-set versions with emit progress
+      description: 'Named panel operation (ADR-0013 V4) on billing listTaxRuleSetMasters, called with the admin service
+        token and the signed-in vendor user''s access token and the browser''s Idempotency-Key where it writes. A
+        directory read: no vendor audit entry is written (ADR-0013 V5). Counts only; no tenant data (BR-A1-84). Newest
+        version first.'
+      tags:
+      - admin
+      x-permission: admin.taxrules.manage
+      parameters:
+      - $ref: ../../../common/components.yaml#/components/parameters/Cursor
+      - $ref: ../../../common/components.yaml#/components/parameters/VendorLimit
+      - name: state
+        in: query
+        required: false
+        description: Filter by state.
+        schema:
+          type: string
+          enum:
+          - draft
+          - signed
+          - published
+        example: draft
+      responses:
+        '200':
+          description: A page.
+          content:
+            application/json:
+              schema:
+                $ref: ../../billing/v1/openapi.yaml#/components/schemas/TaxRuleSetMasterPage
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7042
+                  version: 2
+                  revision: 1
+                  name: GST restaurant services 2026 B
+                  effective_date: '2026-12-15'
+                  calc_v: 1
+                  state: draft
+                  review_status: unreviewed
+                  rules:
+                  - tax_class: fnb_standard
+                    regime: regular
+                    specified_premises: false
+                    order_channel: dine_in
+                    doc_type: tax_invoice
+                    gst_applies: true
+                    cgst_bp: 250
+                    sgst_bp: 250
+                    igst_bp: 0
+                  created_at: '2026-11-24T13:05:11.120Z'
+                next_cursor: eyJhZnRlciI6IjAxOTBhMWIyIn0
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+      x-example-world: rule-set-draft
+    post:
+      operationId: createTaxRuleSetDraft
+      summary: Create a draft rule set
+      description: Named panel operation (ADR-0013 V4) on billing createTaxRuleSetDraft, called with the admin service
+        token and the signed-in vendor user's access token and the browser's Idempotency-Key where it writes. The
+        serving service records the vendor audit entry in its own transaction and answers with the browser-safe result;
+        the admin service writes no audit record.
+      tags:
+      - admin
+      x-permission: admin.taxrules.manage
+      parameters:
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        description: Per-session CSRF token from signIn or getSession. Required on every state-changing request together
+          with a matching Origin.
+        schema:
+          type: string
+        example: csrf_example_token
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../../billing/v1/openapi.yaml#/components/schemas/TaxRuleSetDraft
+            example:
+              name: GST restaurant services 2026 B
+              effective_date: '2026-12-15'
+              calc_v: 1
+              rules:
+              - tax_class: fnb_standard
+                regime: regular
+                specified_premises: false
+                order_channel: dine_in
+                doc_type: tax_invoice
+                gst_applies: true
+                cgst_bp: 250
+                sgst_bp: 250
+                igst_bp: 0
+      responses:
+        '201':
+          description: The draft. A replay returns the same draft.
+          content:
+            application/json:
+              schema:
+                $ref: ../../billing/v1/openapi.yaml#/components/schemas/TaxRuleSetMaster
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7042
+                version: 2
+                revision: 1
+                name: GST restaurant services 2026 B
+                effective_date: '2026-12-15'
+                calc_v: 1
+                state: draft
+                review_status: unreviewed
+                rules:
+                - tax_class: fnb_standard
+                  regime: regular
+                  specified_premises: false
+                  order_channel: dine_in
+                  doc_type: tax_invoice
+                  gst_applies: true
+                  cgst_bp: 250
+                  sgst_bp: 250
+                  igst_bp: 0
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+  /v1/tax-rule-sets/{rule_set_id}:
+    get:
+      operationId: getTaxRuleSetMaster
+      summary: Read a rule-set version with emit progress
+      description: 'Named panel operation (ADR-0013 V4) on billing getTaxRuleSetMaster, called with the admin service
+        token and the signed-in vendor user''s access token and the browser''s Idempotency-Key where it writes. A
+        directory read: no vendor audit entry is written (ADR-0013 V5).'
+      tags:
+      - admin
+      x-permission: admin.taxrules.manage
+      parameters:
+      - name: rule_set_id
+        in: path
+        required: true
+        description: Rule set id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7042
+      responses:
+        '200':
+          description: The version; the ETag header carries its revision.
+          content:
+            application/json:
+              schema:
+                $ref: ../../billing/v1/openapi.yaml#/components/schemas/TaxRuleSetMaster
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7042
+                version: 2
+                revision: 1
+                name: GST restaurant services 2026 B
+                effective_date: '2026-12-15'
+                calc_v: 1
+                state: draft
+                review_status: unreviewed
+                rules:
+                - tax_class: fnb_standard
+                  regime: regular
+                  specified_premises: false
+                  order_channel: dine_in
+                  doc_type: tax_invoice
+                  gst_applies: true
+                  cgst_bp: 250
+                  sgst_bp: 250
+                  igst_bp: 0
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+      x-example-world: rule-set-draft
+    patch:
+      operationId: updateTaxRuleSetDraft
+      summary: Edit a draft rule set
+      description: 'Named panel operation (ADR-0013 V4) on billing updateTaxRuleSetDraft, called with the admin service
+        token and the signed-in vendor user''s access token and the browser''s Idempotency-Key where it writes. The
+        serving service records the vendor audit entry in its own transaction and answers with the browser-safe result;
+        the admin service writes no audit record. Draft only; 409 not_signed is not used here: a signed or published
+        version answers 409 conflict. Needs If-Match.'
+      tags:
+      - admin
+      x-permission: admin.taxrules.manage
+      parameters:
+      - name: rule_set_id
+        in: path
+        required: true
+        description: Rule set id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7042
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        description: Per-session CSRF token from signIn or getSession. Required on every state-changing request together
+          with a matching Origin.
+        schema:
+          type: string
+        example: csrf_example_token
+      - $ref: ../../../common/vendor.yaml#/components/parameters/IfMatch
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../../billing/v1/openapi.yaml#/components/schemas/TaxRuleSetDraft
+            example:
+              name: GST restaurant services 2026 B
+              effective_date: '2026-12-15'
+              calc_v: 1
+              rules:
+              - tax_class: fnb_standard
+                regime: regular
+                specified_premises: false
+                order_channel: dine_in
+                doc_type: tax_invoice
+                gst_applies: true
+                cgst_bp: 250
+                sgst_bp: 250
+                igst_bp: 0
+      responses:
+        '200':
+          description: The updated draft.
+          content:
+            application/json:
+              schema:
+                $ref: ../../billing/v1/openapi.yaml#/components/schemas/TaxRuleSetMaster
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7042
+                version: 2
+                revision: 2
+                name: GST restaurant services 2026 B
+                effective_date: '2026-12-15'
+                calc_v: 1
+                state: draft
+                review_status: unreviewed
+                rules:
+                - tax_class: fnb_standard
+                  regime: regular
+                  specified_premises: false
+                  order_channel: dine_in
+                  doc_type: tax_invoice
+                  gst_applies: true
+                  cgst_bp: 250
+                  sgst_bp: 250
+                  igst_bp: 0
+                created_at: '2026-11-24T13:05:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '412':
+          $ref: ../../billing/v1/openapi.yaml#/components/responses/PreconditionFailed
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+      x-example-world: rule-set-draft
+    delete:
+      operationId: deleteTaxRuleSetDraft
+      summary: Delete a draft rule set
+      description: Named panel operation (ADR-0013 V4) on billing deleteTaxRuleSetDraft, called with the admin service
+        token and the signed-in vendor user's access token and the browser's Idempotency-Key where it writes. The
+        serving service records the vendor audit entry in its own transaction and answers with the browser-safe result;
+        the admin service writes no audit record. Draft only; a signed or published version is never deleted (no such
+        route).
+      tags:
+      - admin
+      x-permission: admin.taxrules.manage
+      parameters:
+      - name: rule_set_id
+        in: path
+        required: true
+        description: Rule set id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7042
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        description: Per-session CSRF token from signIn or getSession. Required on every state-changing request together
+          with a matching Origin.
+        schema:
+          type: string
+        example: csrf_example_token
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      responses:
+        '204':
+          description: Deleted.
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+      x-example-world: rule-set-draft
+  /v1/tax-rule-sets/{rule_set_id}/publication:
+    post:
+      operationId: publishTaxRuleSet
+      summary: Publish a signed rule set
+      description: 'Named panel operation (ADR-0013 V4) on billing publishTaxRuleSet, called with the admin service
+        token and the signed-in vendor user''s access token and the browser''s Idempotency-Key where it writes. The
+        serving service records the vendor audit entry in its own transaction and answers with the browser-safe result;
+        the admin service writes no audit record. Executes an approved request of kind tax_rule_set_publish (ADR-0014
+        A1.3): the browser names the approval by approval_id and the admin service supplies the single-use grant it
+        holds for the signed-in approver; the grant is never in a request or response of this API. Refused 409 approval_not_executable
+        when the approval is not approved for this caller, was used or has expired (file and approve a new one). Upstream
+        rule: Needs a tax_rule_set_publish grant (parameter) whose subject hash (rule-set id, content hash, effective
+        date) matches; the lead time (deployment configuration, at least 24 hours) is checked here on billing''s clock:
+        422 effective_date_too_soon. Marks published and queues one emit per organisation (op id UUIDv5(tenant, version))
+        in one transaction; also emitted to every organisation created later (BR-A1-120). Publishes billing.tax_rule_set.published
+        and billing.vendor_access.recorded (vendor log only, no tenant).'
+      tags:
+      - admin
+      x-permission: admin.taxrules.publish
+      x-approval-kind: tax_rule_set_publish
+      parameters:
+      - name: rule_set_id
+        in: path
+        required: true
+        description: Rule set id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7042
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        description: Per-session CSRF token from signIn or getSession. Required on every state-changing request together
+          with a matching Origin.
+        schema:
+          type: string
+        example: csrf_example_token
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExecutePublication'
+            example:
+              approval_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6d
+      responses:
+        '200':
+          description: The published version.
+          content:
+            application/json:
+              schema:
+                $ref: ../../billing/v1/openapi.yaml#/components/schemas/TaxRuleSetMaster
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7042
+                version: 2
+                revision: 1
+                name: GST restaurant services 2026 B
+                effective_date: '2026-12-15'
+                calc_v: 1
+                state: published
+                review_status: reviewed
+                rules:
+                - tax_class: fnb_standard
+                  regime: regular
+                  specified_premises: false
+                  order_channel: dine_in
+                  doc_type: tax_invoice
+                  gst_applies: true
+                  cgst_bp: 250
+                  sgst_bp: 250
+                  igst_bp: 0
+                created_at: '2026-11-24T13:05:11.120Z'
+                signoff:
+                  reviewer_name: A. Reviewer
+                  signed_on: '2026-11-20'
+                  reference_note: CA advice note 2026-11 ref 12
+                published_at: '2026-11-24T13:09:40.000Z'
+                organisations_total: 3
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: '#/components/responses/ExecuteConflict'
+        '422':
+          $ref: ../../billing/v1/openapi.yaml#/components/responses/LeadTooShort
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+      x-example-world: rule-set-signed-approved
+  /v1/tax-rule-sets/{rule_set_id}/signature:
+    post:
+      operationId: signTaxRuleSet
+      summary: Sign a validated draft
+      description: Named panel operation (ADR-0013 V4) on billing signTaxRuleSet, called with the admin service token
+        and the signed-in vendor user's access token and the browser's Idempotency-Key where it writes. The serving
+        service records the vendor audit entry in its own transaction and answers with the browser-safe result; the
+        admin service writes no audit record. Validates again; stores the CA sign-off record and a content hash; the
+        version, including its effective date, is immutable from here. 422 validation if it fails.
+      tags:
+      - admin
+      x-permission: admin.taxrules.manage
+      parameters:
+      - name: rule_set_id
+        in: path
+        required: true
+        description: Rule set id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7042
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        description: Per-session CSRF token from signIn or getSession. Required on every state-changing request together
+          with a matching Origin.
+        schema:
+          type: string
+        example: csrf_example_token
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../../billing/v1/openapi.yaml#/components/schemas/SignTaxRuleSet
+            example:
+              signoff:
+                reviewer_name: A. Reviewer
+                signed_on: '2026-11-20'
+                reference_note: CA advice note 2026-11 ref 12
+      responses:
+        '200':
+          description: The signed version.
+          content:
+            application/json:
+              schema:
+                $ref: ../../billing/v1/openapi.yaml#/components/schemas/TaxRuleSetMaster
+              example:
+                id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7042
+                version: 2
+                revision: 1
+                name: GST restaurant services 2026 B
+                effective_date: '2026-12-15'
+                calc_v: 1
+                state: signed
+                review_status: reviewed
+                rules:
+                - tax_class: fnb_standard
+                  regime: regular
+                  specified_premises: false
+                  order_channel: dine_in
+                  doc_type: tax_invoice
+                  gst_applies: true
+                  cgst_bp: 250
+                  sgst_bp: 250
+                  igst_bp: 0
+                created_at: '2026-11-24T13:05:11.120Z'
+                signoff:
+                  reviewer_name: A. Reviewer
+                  signed_on: '2026-11-20'
+                  reference_note: CA advice note 2026-11 ref 12
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '422':
+          $ref: ../../../common/components.yaml#/components/responses/ValidationFailed
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+      x-example-world: rule-set-draft
+  /v1/tax-rule-sets/{rule_set_id}/validation:
+    post:
+      operationId: validateTaxRuleSet
+      summary: Validate a draft against the BR-A1-82 checks and the conformance vectors
+      description: Named panel operation (ADR-0013 V4) on billing validateTaxRuleSet, called with the admin service
+        token and the signed-in vendor user's access token and the browser's Idempotency-Key where it writes. The
+        serving service records the vendor audit entry in its own transaction and answers with the browser-safe result;
+        the admin service writes no audit record. Every combination in use has a mapping, rates are whole basis points,
+        components are two equal halves, and every vector in api-specs/tax/conformance passes against the draft rates
+        (ADR-0014 R6.1).
+      tags:
+      - admin
+      x-permission: admin.taxrules.manage
+      parameters:
+      - name: rule_set_id
+        in: path
+        required: true
+        description: Rule set id.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f7042
+      - name: X-CSRF-Token
+        in: header
+        required: true
+        description: Per-session CSRF token from signIn or getSession. Required on every state-changing request together
+          with a matching Origin.
+        schema:
+          type: string
+        example: csrf_example_token
+      - $ref: ../../../common/components.yaml#/components/parameters/IdempotencyKey
+      responses:
+        '200':
+          description: The outcome; valid or not, the call succeeds.
+          content:
+            application/json:
+              schema:
+                $ref: ../../billing/v1/openapi.yaml#/components/schemas/TaxRuleSetValidation
+              example:
+                valid: true
+                errors: []
+                vectors_total: 48
+                vectors_passed: 48
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: '#/components/responses/ForbiddenOrCsrf'
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+        '409':
+          $ref: ../../../common/components.yaml#/components/responses/Conflict
+        '503':
+          $ref: '#/components/responses/UpstreamUnavailable'
+      x-example-world: rule-set-draft
 components:
   securitySchemes:
     sessionCookie:
@@ -2402,6 +4816,42 @@ components:
         created_at:
           $ref: ../../../common/components.yaml#/components/schemas/Timestamp
       additionalProperties: false
+    ExecuteLifecycle:
+      type: object
+      description: Execution of an approved organisation lifecycle action (suspend, reinstate or close). The browser
+        names the approval; the admin service holds the matching single-use grant.
+      required:
+      - approval_id
+      - ticket
+      - reason
+      properties:
+        approval_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+          description: Id of the approved vendor approval (fileVendorApproval, approveVendorApproval) of the matching
+            kind for this organisation.
+        ticket:
+          $ref: ../../../common/components.yaml#/components/schemas/TicketReference
+        reason:
+          $ref: ../../../common/components.yaml#/components/schemas/Reason
+        owner_export_offered:
+          type: boolean
+          description: 'Close only: recorded confirmation that the owner was offered an export (BR-A1-72).'
+          example: true
+    ExecutePublication:
+      type: object
+      description: Publication of a signed tax rule set after its tax_rule_set_publish approval was approved.
+      required:
+      - approval_id
+      properties:
+        approval_id:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+          description: Id of the approved tax_rule_set_publish approval whose subject is this rule set, its content
+            hash and its effective date.
+        note:
+          type: string
+          description: Optional note for the vendor log, at most 200 characters, no personal data.
+          maxLength: 200
+          example: Notified rate change
   responses:
     ApprovalConflict:
       description: The approval is not in a state that allows this, the approver is the requester or too
@@ -2612,3 +5062,36 @@ components:
                 title: Request refused
                 status: 403
                 code: csrf_failed
+    ExecuteConflict:
+      description: The approval is not executable by this caller (not approved, not theirs, used or expired), the organisation
+        has a trading day in progress (suspend and close), or the state does not allow the action (rule set not signed).
+        Nothing changed; the approval stays approved unless used.
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../../../common/components.yaml#/components/schemas/Problem
+          examples:
+            approval:
+              value:
+                type: urn:hostry:problem:approval_not_executable
+                title: The approval cannot be executed
+                status: 409
+                code: approval_not_executable
+            trading:
+              value:
+                type: urn:hostry:problem:open_trading_day
+                title: A trading day is in progress
+                status: 409
+                code: open_trading_day
+            unsigned:
+              value:
+                type: urn:hostry:problem:not_signed
+                title: The rule set is not signed
+                status: 409
+                code: not_signed
+            state:
+              value:
+                type: urn:hostry:problem:conflict
+                title: The state does not allow this
+                status: 409
+                code: conflict
