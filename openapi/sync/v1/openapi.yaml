@@ -654,6 +654,87 @@ paths:
                 code: emit.unavailable
       security:
       - serviceAuth: []
+  /internal/v1/pii/erase:
+    post:
+      operationId: erasePii
+      tags:
+      - internal
+      x-permission: sync.pii.erase
+      x-service-callers:
+      - billing
+      - orders
+      x-provisional: Who starts a data-subject erasure request (owner, support or a vendor admin flow) is not decided; billing and orders, the owners of the pii side tables (ADR-0014 A2.1 item 7), are the only callers until it is.
+      summary: Erase the personal data of earlier ops on every node (writes the cloud-signed `sync.pii.erase` op).
+      description: |-
+        The caller has already authorised the request online (its own permission, step-up and audit); the gateway does not re-check the user. The tenant is the tenant claim of the service token (a token without one is 401); no body field names it. For every target `{origin, stream, seq}` the gateway checks that the op exists, belongs to the tenant and that its stream does, then, in one transaction per target, writes the cloud-origin op of intent `sync.pii.erase` (one `pii_erase` record, id `stream|origin|seq`, sealed like any cloud-origin op, stamped by the gateway alone), removes the stored `pii` values and salts of the target op, and writes `sync.pii.erased` (ids only) for the owning services (ADR-0014 A2.1 item 7; sync/protocol-v1.md, Personal data).
+
+        Erasing a target twice answers the first erasure op with `replayed: true` and writes nothing. A target the gateway does not hold is 422 `erase.target_unknown` (nothing is written for any target of the request; the batch is atomic); a target with no personal data is erased all the same, so a node that later receives the op discards a late arrival. The commitments in the sealed body stay. GST retention (72 months) keeps the document: erasure is field-level. The erased values leave the internal queue within 7 days (ADR-0014 A2.1 item 7). `Idempotency-Key` is accepted and ignored: the target is the idempotency key.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ErasePiiRequest'
+            example:
+              targets:
+              - origin: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                stream: outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                seq: 12
+      responses:
+        '200':
+          description: One entry per target, in request order. `replayed` is true when the target was already erased.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErasePiiResponse'
+              example:
+                erasures:
+                - origin: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
+                  stream: outlet:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  seq: 12
+                  erase_origin: cloud-1
+                  erase_seq: 5
+                  replayed: false
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          description: The caller is not a service listed in x-service-callers.
+          content:
+            application/problem+json:
+              schema:
+                $ref: ../../../common/components.yaml#/components/schemas/Problem
+              example:
+                type: urn:hostry:problem:forbidden
+                title: Permission denied
+                status: 403
+                code: forbidden
+        '422':
+          description: One of `erase.target_unknown`, `erase.batch_size` or `op.too_large`. Nothing is written.
+          content:
+            application/problem+json:
+              schema:
+                $ref: ../../../common/components.yaml#/components/schemas/Problem
+              example:
+                type: urn:hostry:problem:erase.target_unknown
+                title: Erase target not held
+                status: 422
+                code: erase.target_unknown
+        '503':
+          description: The gateway is not ready (restore in progress) or its store is unavailable. Retry; targets are idempotent.
+          headers:
+            Retry-After:
+              $ref: ../../../common/components.yaml#/components/headers/RetryAfter
+          content:
+            application/problem+json:
+              schema:
+                $ref: ../../../common/components.yaml#/components/schemas/Problem
+              example:
+                type: urn:hostry:problem:emit.unavailable
+                title: Cloud emit unavailable
+                status: 503
+                code: emit.unavailable
+      security:
+      - serviceAuth: []
 components:
   securitySchemes:
     deviceBearer:
@@ -838,7 +919,9 @@ components:
           description: Echo of the tenant from the credential.
         actor:
           type: string
-          description: Member id, `support:<vendor user>` or `service:<name>`.
+          description: Member id for a `pin` or `strong` session; `device:<device id>` for a `device` session (KDS, no member; the id must
+            equal `origin`, see sync/protocol-v1.md, Attribution of device-session ops); `support:<vendor user>` or `service:<name>`
+            on cloud-origin ops. Any other text is refused as `actor_unknown`.
         sid:
           type: string
           description: Session id.
@@ -1676,6 +1759,78 @@ components:
       required:
       - tenant_id
       - ops
+    ErasePiiRequest:
+      type: object
+      description: Ops whose personal data is to be erased. The tenant is the token's tenant claim.
+      properties:
+        targets:
+          type: array
+          description: One to 200 target ops.
+          items:
+            $ref: '#/components/schemas/PiiTarget'
+          minItems: 1
+          maxItems: 200
+      required:
+      - targets
+    PiiTarget:
+      type: object
+      description: One op, identified as in the `pii_erase` record.
+      properties:
+        origin:
+          type: string
+          description: Origin (device id) of the target op.
+        stream:
+          type: string
+          description: Stream of the target op.
+        seq:
+          type: integer
+          description: Sequence of the target op in that origin and stream.
+          format: int64
+          minimum: 1
+      required:
+      - origin
+      - stream
+      - seq
+    ErasePiiResponse:
+      type: object
+      description: Where each erasure op landed.
+      properties:
+        erasures:
+          type: array
+          description: One entry per target, in request order.
+          items:
+            type: object
+            description: The erasure of one target.
+            properties:
+              origin:
+                type: string
+                description: Origin of the target op.
+              stream:
+                type: string
+                description: Stream of the target op.
+              seq:
+                type: integer
+                description: Sequence of the target op.
+                format: int64
+              erase_origin:
+                type: string
+                description: '`cloud-<epoch>`, origin of the `sync.pii.erase` op.'
+              erase_seq:
+                type: integer
+                description: Sequence of the `sync.pii.erase` op.
+                format: int64
+              replayed:
+                type: boolean
+                description: True when the target was already erased and the first erasure op is answered.
+            required:
+            - origin
+            - stream
+            - seq
+            - erase_origin
+            - erase_seq
+            - replayed
+      required:
+      - erasures
     EmitResponse:
       type: object
       description: Where each op landed.

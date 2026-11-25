@@ -182,8 +182,63 @@ adopting device, `rec` = the recovery id, signed with the new key. It travels as
 `quarantine-upload`, once the answered `vector` covers every own head. The gateway reports `recordDeviceDrained` only when the device is
 revoked, the signature verifies against its credential, it holds every `seq` up to each stated head with a matching `h`, holds no op
 of that origin in an unstated stream or above a stated head, and its register holds no number above a stated `last_number`; any mismatch
-is stored as fork evidence and reports nothing. The hash of the statement (SHA-256 of the canonical JSON including `sig`) is quoted by
-the wipe order.
+is stored as fork evidence and reports nothing.
+
+**`statement_hash`** (the field of the wipe order, `WipeOrder.statement_hash`) = lower-case hex SHA-256 of the UTF-8 bytes of the JCS
+(RFC 8785, the integer-only subset of Framing and hashing) of the **whole statement object including `sig`**; `rec` is a member only
+when present (an ordinary drain has none, and an absent member is omitted, never `null`). The signed message is the JCS of the same
+object **without** `sig`, so the hash binds the signature too and two statements that differ in any byte of `sig` never share a hash.
+`streams` and `series` keep the order the device wrote (arrays are not sorted by JCS; the device sorts `streams` by `stream` and `series`
+by `series_id` before signing, so one log gives one statement). A verifier hashes the JCS it recomputes from the parsed object, never the
+received text, so insignificant whitespace or key order on the wire cannot change the hash. The `drain_statement` vectors in
+`sync/conformance/v1.json` give, per case, the statement, the exact signed message, the JCS with `sig`, the hash and whether the
+signature verifies (one case is a statement whose field changed after signing: signature invalid, a different hash).
+
+## Attribution of device-session ops (ADR-0005 section 7; soak finding F6)
+A device session (`session.open` with session type `device`: a KDS, no member, no PIN, no proof) has an actor of its own, so its ops
+are attributed and never held as `actor_unknown`.
+- **`actor`** on every op of a `device` session is the literal text `device:<device id>`, and `<device id>` equals the op's `origin`.
+  `sid` is the id of that session. A free text such as `device-kds`, a `device:` naming another device, or a plain member id on a
+  device session is `actor_unknown` (held, never published). The implicit `actor` column of every row holds the same text, so reports
+  show "device Kitchen KDS" where a member would be.
+- **The gateway checks** that the `session.open` of `sid` was recorded by the same origin with session type `device`, that the device
+  is in the pack with a kind its intent lists (`device_kinds`), and judges the intent's permission against the **device role template
+  of that kind** (the KDS role holds `kds.bump` and `menu.availability.set`; `x-provisional` until the ADR-0005 role templates say
+  so). No member permission is consulted, no approval is possible and no action proof exists in a device session.
+- **Intents that allow a device session** are exactly those that list `device` in `sessions` in `sync/intents`: `session.open`,
+  `kds.status` (bump, forward-only rank), `kds.recall`, `menu.availability.set` and `series.close`. Every other intent needs a member
+  (`pin` or `strong`). An intent with `proof.kind: action` never lists `device` (`make lint-intents` refuses it); neither may one with an `override`
+  or a `sensitive` permission, which need a member.
+
+## Manual-book entries and the foreign-series rule (ADR-0003 A1.5, ADR-0014 A1.6 item 4; soak finding F7)
+A legal number whose series code the issuing device does not hold is a `foreign_series` hold (ADR-0003 A1.5). A **paper-book number
+typed by `bill.manual_entry`** (numbering `typed`) is not foreign when its series code belongs to a **registered, active `manual_book`
+series** of the organisation's tax registration that lists the op's outlet:
+- The gateway's register knows the book from tenancy: it asks `listOutletManualBookSeries` (`GET /internal/v1/outlets/{outlet_id}/manual-book-series`,
+  cached 60 seconds, dropped on `tenancy.manual_book.registered`) and carries every book as an **entry-only series** in its register,
+  keyed `(series code, FY)`, kind `manual_book`. Identity puts the same books in the offline pack (`PackSeries.doc_type: manual_book`,
+  state `active`), so a device refuses an unregistered code before it records anything.
+- **Any** billing device of a listed outlet may type a page; no origin owns the series. The op is accepted and published, and the
+  register stores the typed number under the book. The bill id is the UUIDv5 of (series, FY, number), so the same page typed on two
+  devices (or twice) is one row and no `duplicate_document`; a different bill id on the same typed number is `duplicate_document`
+  (flagged, both kept).
+- **No gap detection** runs on a manual book (a page is typed when it is found; numbers arrive in any order) and a manual book
+  never takes part in `series.close` reconciliation or a drain statement. A page of a **closed** book is accepted and flagged
+  `after_closure`.
+- A code that is in no registered book of the outlet is still `foreign_series`, held for the manager as before. A book registered
+  after the page was typed does not release the hold by itself; the manager releases it (`releaseQuarantine`).
+- A device-allocated series (`numbering: allocated`) is unchanged: only its own device may use it.
+
+## Day close cutoff (ADR-0014 A1.1 item 4; soak finding F8)
+A closed day carries **two** unrelated things that were both once called a cutoff, and the contract now names them apart.
+- **`cutoff_at`** (RFC 3339 UTC timestamp, field of `day_close` and of `DayClose`) is the instant the device closed the day by its
+  clock as confirmed to the cloud (`closed_at` of the Z). It is the **late-bill rule's** only input: a bill (or credit note) of that
+  business date whose finalisation time (`at` of its op, UTC) is **after** `cutoff_at` of the canonical close is a **late
+  document** (`late: true`, a revision of the Z, cause `late_device` when it came from a device that was offline). Comparison is on
+  instants, never on dates or on IST calendar days.
+- **`cutoff`** (canonical JSON text of a version vector `{origin: seq}`) is unchanged: what the closing device held, used only to say
+  which ops the printed Z covers. It is **never** parsed as a time. A reader that needs "late" reads `cutoff_at`.
+If two devices close the same date, the canonical close is the lowest stamp and its `cutoff_at` decides lateness.
 
 ## Hold codes, verdicts
 `pending`, `held_manager`, `held_support` only (see Verdicts above). Flags and reasons exist behind member-token admin
@@ -223,7 +278,10 @@ guessed back from one). It travels in `Item.pii` outside the hash so that erasur
   and cannot be reopened without the salt. The gateway writes the op and `sync.pii.erased` (ids only) in one transaction; erasing
   twice answers the first erasure op. **Acknowledgement:** the next direct cloud `hello` of a node carries `pii_erased` (array of
   refs of the target ops); the gateway records it per node. A node that reaches only a hub keeps the list until its next direct
-  cloud hello. GST retention (72 months) means erasure is field-level; the document itself stays.
+  cloud hello. GST retention (72 months) means erasure is field-level; the document itself stays. **How it is requested:** the owning
+  services call `erasePii` (`POST /internal/v1/pii/erase`, service token with the tenant claim, permission `sync.pii.erase`, callers
+  `billing` and `orders`); the gateway writes the op and `sync.pii.erased` in one transaction, as above. Every `pii: true` field of a
+  bill or check is covered, including `customer_gstin`.
 
 ## Control records
 Records are mutations whose `e` is not a synced entity. They are listed by the intents that carry them (`records:` in

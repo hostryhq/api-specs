@@ -1757,8 +1757,10 @@ paths:
     post:
       operationId: registerManualBookSeries
       summary: Register a paper bill book as an entry-only series
-      description: strong_only (owner). The series is issued, so the foreign-series rule of ADR-0003 A1.5 holds unchanged;
-        billing devices of the named outlets receive it entry-only in the offline pack. The code must be unique per
+      description: strong_only (owner). The series is issued, so the foreign-series rule of ADR-0003 A1.5 holds unchanged for any
+        other code; billing devices of the named outlets receive the book entry-only in the offline pack (`doc_type: manual_book`), and
+        the sync gateway's register knows it through `listOutletManualBookSeries` and `tenancy.manual_book.registered`, so a typed
+        paper-book number of this code is a known entry, not a `foreign_series` hold (sync/protocol-v1.md, Manual-book entries). The code must be unique per
         GSTIN against device series codes; the control stays off until a book is registered. x-provisional pending
         the CA answer on a parallel series (P2B-6).
       tags:
@@ -1859,8 +1861,17 @@ paths:
     post:
       operationId: issueDocumentSeries
       summary: Issue series codes for a device
-      description: The service token names the tenant it acts for; it must equal the outlet's tenant.
-        Identity is the only caller, at device activation or when billing is granted.
+      description: 'The service token names the tenant it acts for; it must equal the outlet''s tenant.
+        Identity is the only caller, at device activation or when billing is granted. **A billing device (pos, waiter) gets a pair
+        in one transaction: a numbered invoice series (`tax_invoice`, or `bill_of_supply` or `plain_bill` by the registration kind)
+        AND a `credit_note` series under the same registration and in the same state (soak finding F5).** A request with an invoice
+        type and no `credit_note` is 422 `series.credit_note_required` and issues nothing; a `credit_note` alone is accepted (a
+        device that already holds its invoice series). Both rows carry one `issued_at`; `tenancy.series.issued` is published once
+        per series. Codes are issued once per device and registration, so a repeat returns the same pair. **`manual_book` is never
+        issued here:** a paper book belongs to the registration and its outlets, not to a device (`registerManualBookSeries`); every
+        billing device of a listed outlet receives the active books entry-only in its pack, and the sync gateway reads them from
+        `listOutletManualBookSeries` (sync/protocol-v1.md, Manual-book entries).'
+
       tags:
       - internal
       x-permission: series.issue
@@ -2015,6 +2026,54 @@ paths:
                   device_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e
                   status: active
                   issued_at: '2026-11-24T13:15:11.120Z'
+        '401':
+          $ref: ../../../common/components.yaml#/components/responses/Unauthorized
+        '403':
+          $ref: ../../../common/components.yaml#/components/responses/Forbidden
+        '404':
+          $ref: ../../../common/components.yaml#/components/responses/NotFound
+  /internal/v1/outlets/{outlet_id}/manual-book-series:
+    get:
+      operationId: listOutletManualBookSeries
+      summary: Registered paper bill books of an outlet
+      description: 'Directory question of the sync gateway and of identity (offline pack). The books of the outlet''s tax registration
+        that list the outlet, active and closed, with their codes. The sync gateway carries each as an entry-only `manual_book` series
+        in its register, so a typed paper-book number of that code is accepted and not held as `foreign_series` (sync/protocol-v1.md,
+        Manual-book entries). Cached 60 seconds and dropped on `tenancy.manual_book.registered`. The service token names the tenant;
+        404 when the outlet is not the tenant''s.'
+      tags:
+      - internal
+      x-permission: series.directory.read
+      x-example-world: book-registered
+      x-service-callers:
+      - sync
+      - identity
+      security:
+      - serviceAuth: []
+      parameters:
+      - name: outlet_id
+        in: path
+        required: true
+        description: Outlet ID.
+        schema:
+          $ref: ../../../common/components.yaml#/components/schemas/Id
+        example: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+      responses:
+        '200':
+          description: The books of the outlet.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManualBookSeriesPage'
+              example:
+                items:
+                - id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8051
+                  tax_registration_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+                  code: BKB
+                  outlet_ids:
+                  - 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+                  status: active
+                  created_at: '2026-11-24T13:05:11.120Z'
         '401':
           $ref: ../../../common/components.yaml#/components/responses/Unauthorized
         '403':
@@ -4739,7 +4798,9 @@ components:
     IssueSeries:
       type: object
       description: Issue series codes for a device under the outlet's registration (identity is the only
-        caller). The registration is read from the stored outlet, never from the request.
+        caller). The registration is read from the stored outlet, never from the request. For a billing device `doc_types` holds one
+        invoice type and `credit_note` (the pair, see `issueDocumentSeries`); `manual_book` is not a value, books are registered
+        by the owner.
       required:
       - outlet_id
       - device_id

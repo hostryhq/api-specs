@@ -619,6 +619,7 @@ intents:
   pii_fields:
   - customer_name
   - customer_phone
+  - customer_gstin
   idempotency: Mutations are per field group, last writer by (hlc, origin); replaying the same op re-applies the same (hlc,
     origin) and is a no-op. A lww_review field carries prev, so a concurrent edit is kept and sent to a manager, never merged
     silently.

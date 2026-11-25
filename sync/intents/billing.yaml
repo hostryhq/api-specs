@@ -44,6 +44,9 @@ intents:
     - rank
     seating:
     - rank
+  pii_fields:
+  - customer_name
+  - customer_gstin
   idempotency: The bill id is a client UUIDv7 and the number is allocated from the device series in the same local transaction
     as the op; replay never allocates again. The same number under a different bill id is refused as duplicate_document and
     the number is kept by the first op.
@@ -78,6 +81,9 @@ intents:
     - insert
     payment:
     - insert
+  pii_fields:
+  - customer_name
+  - customer_gstin
   idempotency: The bill id is a UUIDv5 of (series, financial year, number), so the same page typed twice on two devices converges
     on one bill.
 - intent: payment.record
@@ -205,6 +211,9 @@ intents:
     - insert
     bill_tax_line:
     - insert
+  pii_fields:
+  - customer_name
+  - customer_gstin
   idempotency: All new ids are client UUIDv7 and share one rebill_group_id; every number is allocated in the one local transaction;
     replay never allocates again.
   x-provisional: Above the allowance the spec says "a manager's approval"; the approval is taken as one for bill.credit_note.create.
@@ -352,7 +361,8 @@ intents:
   intent_v: 1
   class: trading
   owner: billing
-  description: Lock the business date and record the Z-report figures. A closed day is never reopened; late documents become
+  description: Lock the business date and record the Z-report figures, including `cutoff_at`, the instant of closing that decides
+    which later documents are late (protocol-v1.md, Day close cutoff). A closed day is never reopened; late documents become
     numbered revisions written by the cloud.
   permission: day.close
   proof:

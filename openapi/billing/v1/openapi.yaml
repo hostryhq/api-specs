@@ -353,6 +353,7 @@ paths:
                     closing_member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
                     closed_at: '2026-11-24T13:05:11.120Z'
                     cutoff: '{"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e":812}'
+                    cutoff_at: '2026-11-24T13:05:11.120Z'
                     totals:
                       gross:
                         amount_paise: 48000
@@ -446,6 +447,7 @@ paths:
                   closing_member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
                   closed_at: '2026-11-24T13:05:11.120Z'
                   cutoff: '{"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e":812}'
+                  cutoff_at: '2026-11-24T13:05:11.120Z'
                   totals:
                     gross:
                       amount_paise: 48000
@@ -3465,6 +3467,10 @@ components:
           type: string
           description: Version vector of the outlet stream the device held, as canonical JSON text.
           example: '{"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e":812}'
+        cutoff_at:
+          $ref: ../../../common/components.yaml#/components/schemas/Timestamp
+          description: 'The instant the day was closed (RFC 3339 UTC). The only input of the late-bill rule: a document of this business
+            date finalised after it is late (`late: true`, a Z revision). Compared as instants, never as dates; `cutoff` is not a time.'
         totals:
           $ref: '#/components/schemas/DayTotals'
         series_ranges:
@@ -3478,6 +3484,7 @@ components:
       - closing_member_id
       - closed_at
       - cutoff
+      - cutoff_at
       - totals
       - series_ranges
     BusinessDay:

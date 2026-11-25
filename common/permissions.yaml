@@ -164,6 +164,7 @@ permissions:
   - {key: sync.exceptions.read, realm: tenant, service: sync, description_key: perm.sync.exceptions.read, flags: []}
   - {key: sync.register.read, realm: tenant, service: sync, description_key: perm.sync.register.read, flags: []}
   - {key: sync.emit, realm: service, service: sync, description_key: perm.sync.emit, flags: []}  # catalog and billing write cloud-origin ops (ADR-0014 A2.2)
+  - {key: sync.pii.erase, realm: service, service: sync, description_key: perm.sync.pii.erase, flags: []}  # billing and orders ask the gateway to write the cloud-signed erase op (ADR-0014 A2.1 item 7)
 
 # Vendor roles are sets of permissions (checks are on permissions, never role names). A0 table of
 # docs/product/admin-a0-spec.md section 2, plus admin.registration.verify (ADR-0003 A1.1: platform admin and onboarding)

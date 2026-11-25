@@ -76,6 +76,15 @@ type vectors struct {
 		JCS        string          `json:"jcs"`
 		Commitment string          `json:"commitment"`
 	} `json:"pii_commit"`
+	DrainStatement []struct {
+		Case          string
+		Pub           string
+		Statement     map[string]any
+		SignedMessage string `json:"signed_message"`
+		StatementJCS  string `json:"statement_jcs"`
+		StatementHash string `json:"statement_hash"`
+		SigValid      bool   `json:"sig_valid"`
+	} `json:"drain_statement"`
 	ExamplePack map[string]string `json:"example_pack"`
 }
 
@@ -179,6 +188,32 @@ func TestVectorsAreSelfConsistent(t *testing.T) {
 		}
 		if want := sum(string(salt) + c.JCS); want != c.Commitment {
 			t.Errorf("pii_commit of %s: %s, vector says %s", c.Value, want, c.Commitment)
+		}
+	}
+	if len(v.DrainStatement) < 3 {
+		t.Error("drain_statement vectors are required (ADR-0005 A3.3)")
+	}
+	for _, c := range v.DrainStatement {
+		sig, _ := c.Statement["sig"].(string)
+		unsigned := map[string]any{}
+		for k, val := range c.Statement {
+			if k != "sig" {
+				unsigned[k] = val
+			}
+		}
+		j, err := canon.JCS(unsigned)
+		if err != nil || "hostry-drain-v1\n"+string(j) != c.SignedMessage {
+			t.Errorf("drain %q: signed message is not the tag plus the JCS of the object without sig (%v)", c.Case, err)
+		}
+		if got := verify(c.Pub, c.SignedMessage, sig); got != c.SigValid {
+			t.Errorf("drain %q: signature valid=%v, vector says %v", c.Case, got, c.SigValid)
+		}
+		full, err := canon.JCS(c.Statement)
+		if err != nil || string(full) != c.StatementJCS {
+			t.Errorf("drain %q: JCS of the statement with sig differs from the vector (%v)", c.Case, err)
+		}
+		if got := sum(string(full)); got != c.StatementHash {
+			t.Errorf("drain %q: statement_hash %s, vector says %s", c.Case, got, c.StatementHash)
 		}
 	}
 	if len(v.SizeLimit) < 4 || len(v.EmitBatch) < 4 {

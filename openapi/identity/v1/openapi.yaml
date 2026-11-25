@@ -5036,7 +5036,9 @@ components:
             example: order.create
     PackSeries:
       type: object
-      description: A document-series code given to the device (ADR-0003 section 1a).
+      description: 'A document-series code given to the device (ADR-0003 section 1a). A billing device holds an invoice series and a
+        `credit_note` series (tenancy `issueDocumentSeries`), and one entry-only `manual_book` row for every active paper bill book of
+        its outlet (state `active`; typed, never allocated; sync/protocol-v1.md, Manual-book entries).'
       required:
       - code
       - doc_type
@@ -5055,6 +5057,7 @@ components:
           - bill_of_supply
           - plain_bill
           - credit_note
+          - manual_book
           example: tax_invoice
         state:
           type: string

@@ -1,0 +1,66 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: urn:hostry:events:tenancy.manual_book.registered:v1
+title: tenancy.manual_book.registered v1
+description: "The owner registered (or closed) a paper bill book as an entry-only series of kind manual_book (ADR-0014 A1.6 item 4). Ids and codes only. The sync gateway drops its cached `listOutletManualBookSeries` answer for the listed outlets, so a typed paper-book number of this code is a known entry and no longer a foreign_series hold (sync/protocol-v1.md, Manual-book entries)."
+x-publisher: tenancy
+x-subscribers:
+- sync
+allOf:
+- $ref: urn:hostry:events:envelope:v1
+- type: object
+  properties:
+    type:
+      const: tenancy.manual_book.registered
+    v:
+      const: 1
+    source:
+      const: tenancy
+    data:
+      type: object
+      required:
+      - series_id
+      - code
+      - tax_registration_id
+      - outlet_ids
+      - status
+      properties:
+        series_id:
+          type: string
+          description: The registered book (its id in the manual-book list).
+        code:
+          type: string
+          description: The book's own prefix, 1 to 6 capitals and digits.
+          pattern: ^[A-Z0-9]{1,6}$
+        tax_registration_id:
+          type: string
+          description: The registration the book belongs to.
+        outlet_ids:
+          type: array
+          description: Outlets whose billing devices may type pages from this book.
+          items:
+            type: string
+            description: An outlet id.
+        status:
+          type: string
+          description: active at registration; closed when the book is closed.
+          enum:
+          - active
+          - closed
+examples:
+- id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f9132
+  type: tenancy.manual_book.registered
+  v: 1
+  source: tenancy
+  tenant_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+  outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+  key: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8051
+  key_seq: 1
+  occurred_at: '2026-11-24T13:25:11.120Z'
+  actor: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
+  data:
+    series_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f8051
+    code: BKB
+    tax_registration_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b
+    outlet_ids:
+    - 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+    status: active

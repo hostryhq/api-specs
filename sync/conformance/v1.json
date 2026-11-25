@@ -219,5 +219,131 @@
       "salt": "AAECAwQFBgcICQoLDA0ODw",
       "value": ""
     }
+  ],
+  "drain_statement": [
+    {
+      "case": "ordinary drain (by = origin, no rec)",
+      "pub": "BJr8AjW3fMIekM_O6uQjreTzzS6ulermA-_-dgFZYCMN5WHF7GdDOc3r8RcuUuu7CulfLwdb5njUdl1jBzdjr3Q",
+      "sig_valid": true,
+      "signed_message": "hostry-drain-v1\n{\"at\":\"2026-11-24T13:05:11Z\",\"by\":\"dev-a\",\"kid\":\"dev-a-1\",\"origin\":\"dev-a\",\"series\":[{\"code\":\"A7K\",\"fy\":\"2627\",\"last_number\":123,\"series_id\":\"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6c\"},{\"code\":\"A7M\",\"fy\":\"2627\",\"last_number\":0,\"series_id\":\"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a95\"}],\"streams\":[{\"h\":\"2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881\",\"seq\":42,\"stream\":\"outlet:o1\"},{\"h\":\"a1fce4363854ff888cff4b8e7875d600c2682390412a8cf79b37d0b11148b0fa\",\"seq\":3,\"stream\":\"brand:b1\"}]}",
+      "statement": {
+        "at": "2026-11-24T13:05:11Z",
+        "by": "dev-a",
+        "kid": "dev-a-1",
+        "origin": "dev-a",
+        "series": [
+          {
+            "code": "A7K",
+            "fy": "2627",
+            "last_number": 123,
+            "series_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6c"
+          },
+          {
+            "code": "A7M",
+            "fy": "2627",
+            "last_number": 0,
+            "series_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a95"
+          }
+        ],
+        "sig": "aIYOIXaYv_eMlGk6dtvRvIKBcQGlQQWjczUR3menYCf7rQ0FlCPwrYPbbI3fESRZ3AoTC0LHWsIUjOEwwxhOFw",
+        "streams": [
+          {
+            "h": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+            "seq": 42,
+            "stream": "outlet:o1"
+          },
+          {
+            "h": "a1fce4363854ff888cff4b8e7875d600c2682390412a8cf79b37d0b11148b0fa",
+            "seq": 3,
+            "stream": "brand:b1"
+          }
+        ]
+      },
+      "statement_hash": "b2b6ed79990506a1c33c79fc64eda9f834d7ca309b91eb3790b25d030a9c3833",
+      "statement_jcs": "{\"at\":\"2026-11-24T13:05:11Z\",\"by\":\"dev-a\",\"kid\":\"dev-a-1\",\"origin\":\"dev-a\",\"series\":[{\"code\":\"A7K\",\"fy\":\"2627\",\"last_number\":123,\"series_id\":\"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6c\"},{\"code\":\"A7M\",\"fy\":\"2627\",\"last_number\":0,\"series_id\":\"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a95\"}],\"sig\":\"aIYOIXaYv_eMlGk6dtvRvIKBcQGlQQWjczUR3menYCf7rQ0FlCPwrYPbbI3fESRZ3AoTC0LHWsIUjOEwwxhOFw\",\"streams\":[{\"h\":\"2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881\",\"seq\":42,\"stream\":\"outlet:o1\"},{\"h\":\"a1fce4363854ff888cff4b8e7875d600c2682390412a8cf79b37d0b11148b0fa\",\"seq\":3,\"stream\":\"brand:b1\"}]}"
+    },
+    {
+      "case": "key-loss drain (by = adopting device, rec set)",
+      "pub": "BJr8AjW3fMIekM_O6uQjreTzzS6ulermA-_-dgFZYCMN5WHF7GdDOc3r8RcuUuu7CulfLwdb5njUdl1jBzdjr3Q",
+      "sig_valid": true,
+      "signed_message": "hostry-drain-v1\n{\"at\":\"2026-11-24T13:05:11Z\",\"by\":\"dev-a-r1\",\"kid\":\"dev-a-r1-1\",\"origin\":\"dev-a\",\"rec\":\"rec-1\",\"series\":[{\"code\":\"A7K\",\"fy\":\"2627\",\"last_number\":123,\"series_id\":\"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6c\"},{\"code\":\"A7M\",\"fy\":\"2627\",\"last_number\":0,\"series_id\":\"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a95\"}],\"streams\":[{\"h\":\"2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881\",\"seq\":42,\"stream\":\"outlet:o1\"},{\"h\":\"a1fce4363854ff888cff4b8e7875d600c2682390412a8cf79b37d0b11148b0fa\",\"seq\":3,\"stream\":\"brand:b1\"}]}",
+      "statement": {
+        "at": "2026-11-24T13:05:11Z",
+        "by": "dev-a-r1",
+        "kid": "dev-a-r1-1",
+        "origin": "dev-a",
+        "rec": "rec-1",
+        "series": [
+          {
+            "code": "A7K",
+            "fy": "2627",
+            "last_number": 123,
+            "series_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6c"
+          },
+          {
+            "code": "A7M",
+            "fy": "2627",
+            "last_number": 0,
+            "series_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a95"
+          }
+        ],
+        "sig": "UtnWbs3ewgP4xqN69LalIZPMVNvtVMihs0kXW-jdqjAt5nwb4H2fDdZsY0nZiTM9BgeIwcgdPBk3XzbLLKjwlA",
+        "streams": [
+          {
+            "h": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+            "seq": 42,
+            "stream": "outlet:o1"
+          },
+          {
+            "h": "a1fce4363854ff888cff4b8e7875d600c2682390412a8cf79b37d0b11148b0fa",
+            "seq": 3,
+            "stream": "brand:b1"
+          }
+        ]
+      },
+      "statement_hash": "946785d78aa7ae629ac5cadfa211be986c2a798e55fc1de381fa05949ed79639",
+      "statement_jcs": "{\"at\":\"2026-11-24T13:05:11Z\",\"by\":\"dev-a-r1\",\"kid\":\"dev-a-r1-1\",\"origin\":\"dev-a\",\"rec\":\"rec-1\",\"series\":[{\"code\":\"A7K\",\"fy\":\"2627\",\"last_number\":123,\"series_id\":\"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6c\"},{\"code\":\"A7M\",\"fy\":\"2627\",\"last_number\":0,\"series_id\":\"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a95\"}],\"sig\":\"UtnWbs3ewgP4xqN69LalIZPMVNvtVMihs0kXW-jdqjAt5nwb4H2fDdZsY0nZiTM9BgeIwcgdPBk3XzbLLKjwlA\",\"streams\":[{\"h\":\"2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881\",\"seq\":42,\"stream\":\"outlet:o1\"},{\"h\":\"a1fce4363854ff888cff4b8e7875d600c2682390412a8cf79b37d0b11148b0fa\",\"seq\":3,\"stream\":\"brand:b1\"}]}"
+    },
+    {
+      "case": "signature does not cover a changed field",
+      "pub": "BJr8AjW3fMIekM_O6uQjreTzzS6ulermA-_-dgFZYCMN5WHF7GdDOc3r8RcuUuu7CulfLwdb5njUdl1jBzdjr3Q",
+      "sig_valid": false,
+      "signed_message": "hostry-drain-v1\n{\"at\":\"2026-11-24T14:00:00Z\",\"by\":\"dev-a\",\"kid\":\"dev-a-1\",\"origin\":\"dev-a\",\"series\":[{\"code\":\"A7K\",\"fy\":\"2627\",\"last_number\":123,\"series_id\":\"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6c\"},{\"code\":\"A7M\",\"fy\":\"2627\",\"last_number\":0,\"series_id\":\"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a95\"}],\"streams\":[{\"h\":\"2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881\",\"seq\":42,\"stream\":\"outlet:o1\"},{\"h\":\"a1fce4363854ff888cff4b8e7875d600c2682390412a8cf79b37d0b11148b0fa\",\"seq\":3,\"stream\":\"brand:b1\"}]}",
+      "statement": {
+        "at": "2026-11-24T14:00:00Z",
+        "by": "dev-a",
+        "kid": "dev-a-1",
+        "origin": "dev-a",
+        "series": [
+          {
+            "code": "A7K",
+            "fy": "2627",
+            "last_number": 123,
+            "series_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6c"
+          },
+          {
+            "code": "A7M",
+            "fy": "2627",
+            "last_number": 0,
+            "series_id": "0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a95"
+          }
+        ],
+        "sig": "s8xB72YWt00tUPYlcUrf8xetVoql-N1hGOQmG5Lm4QygmdCQGnh82yWb9hy0s_W0Mb_HD1uqdVzK-XRjItriEA",
+        "streams": [
+          {
+            "h": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+            "seq": 42,
+            "stream": "outlet:o1"
+          },
+          {
+            "h": "a1fce4363854ff888cff4b8e7875d600c2682390412a8cf79b37d0b11148b0fa",
+            "seq": 3,
+            "stream": "brand:b1"
+          }
+        ]
+      },
+      "statement_hash": "4d7927df8c22edca9a8eb3a23028d7169c610df17cb9e27b66419fbbb28af720",
+      "statement_jcs": "{\"at\":\"2026-11-24T14:00:00Z\",\"by\":\"dev-a\",\"kid\":\"dev-a-1\",\"origin\":\"dev-a\",\"series\":[{\"code\":\"A7K\",\"fy\":\"2627\",\"last_number\":123,\"series_id\":\"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6c\"},{\"code\":\"A7M\",\"fy\":\"2627\",\"last_number\":0,\"series_id\":\"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a95\"}],\"sig\":\"s8xB72YWt00tUPYlcUrf8xetVoql-N1hGOQmG5Lm4QygmdCQGnh82yWb9hy0s_W0Mb_HD1uqdVzK-XRjItriEA\",\"streams\":[{\"h\":\"2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881\",\"seq\":42,\"stream\":\"outlet:o1\"},{\"h\":\"a1fce4363854ff888cff4b8e7875d600c2682390412a8cf79b37d0b11148b0fa\",\"seq\":3,\"stream\":\"brand:b1\"}]}"
+    }
   ]
 }
