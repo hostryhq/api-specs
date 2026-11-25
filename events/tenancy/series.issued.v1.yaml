@@ -5,6 +5,7 @@ description: "Identity issued a document series to a device under the outlet reg
 x-publisher: tenancy
 x-subscribers:
 - billing
+- sync
 allOf:
 - $ref: urn:hostry:events:envelope:v1
 - type: object

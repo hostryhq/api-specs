@@ -6,6 +6,7 @@ x-publisher: tenancy
 x-subscribers:
 - billing
 - identity
+- sync
 allOf:
 - $ref: urn:hostry:events:envelope:v1
 - type: object

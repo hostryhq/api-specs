@@ -5,6 +5,7 @@ description: "A revoked device drained its unsent operations (quarantine upload,
 x-publisher: identity
 x-subscribers:
 - billing
+- tenancy
 allOf:
 - $ref: urn:hostry:events:envelope:v1
 - type: object

@@ -6,6 +6,7 @@ description: An organisation was created (status trial). Identity stops issuing 
 x-publisher: tenancy
 x-subscribers:
 - identity
+- billing
 allOf:
 - $ref: urn:hostry:events:envelope:v1
 - type: object
