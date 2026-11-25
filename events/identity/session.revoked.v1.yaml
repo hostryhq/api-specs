@@ -1,0 +1,54 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: urn:hostry:events:identity.session.revoked:v1
+title: identity.session.revoked v1
+description: A session was revoked (sign-out, refresh-token reuse, member deactivated, binding rejected).
+  Every service drops cached decisions through go-auth; the sync gateway drops the connection.
+x-publisher: identity
+x-subscribers:
+- sync
+allOf:
+- $ref: urn:hostry:events:envelope:v1
+- type: object
+  properties:
+    type:
+      const: identity.session.revoked
+    v:
+      const: 1
+    source:
+      const: identity
+    data:
+      type: object
+      required:
+      - session_id
+      - reason
+      properties:
+        session_id:
+          type: string
+          description: The revoked session (sid).
+        member_id:
+          type: string
+          description: The member the session belonged to.
+        reason:
+          type: string
+          description: Why.
+          enum:
+          - signed_out
+          - refresh_reuse
+          - member_deactivated
+          - binding_rejected
+          - vendor_user_deactivated
+          - support_session_ended
+examples:
+- id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a81
+  type: identity.session.revoked
+  v: 1
+  source: identity
+  tenant_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+  key: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5d
+  key_seq: 1
+  occurred_at: '2026-11-24T13:05:11.120Z'
+  actor: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
+  data:
+    session_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5d
+    member_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
+    reason: member_deactivated

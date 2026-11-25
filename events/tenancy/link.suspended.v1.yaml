@@ -1,0 +1,41 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: urn:hostry:events:tenancy.link.suspended:v1
+title: tenancy.link.suspended v1
+description: Either party suspended the link; no call or event crosses.
+x-publisher: tenancy
+x-subscribers: []
+allOf:
+- $ref: urn:hostry:events:envelope:v1
+- type: object
+  properties:
+    type:
+      const: tenancy.link.suspended
+    v:
+      const: 1
+    source:
+      const: tenancy
+    data:
+      type: object
+      required:
+      - link_id
+      properties:
+        link_id:
+          type: string
+          description: The link.
+  required:
+  - counterparty_tenant_id
+  - link_id
+examples:
+- id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a86
+  type: tenancy.link.suspended
+  v: 1
+  source: tenancy
+  tenant_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+  counterparty_tenant_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a63
+  link_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a62
+  key: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a62
+  key_seq: 6
+  occurred_at: '2026-11-24T13:05:11.120Z'
+  actor: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a64
+  data:
+    link_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a62

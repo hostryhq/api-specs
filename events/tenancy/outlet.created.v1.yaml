@@ -1,0 +1,68 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: urn:hostry:events:tenancy.outlet.created:v1
+title: tenancy.outlet.created v1
+description: An outlet or property was created.
+x-publisher: tenancy
+x-subscribers:
+- identity
+allOf:
+- $ref: urn:hostry:events:envelope:v1
+- type: object
+  properties:
+    type:
+      const: tenancy.outlet.created
+    v:
+      const: 1
+    source:
+      const: tenancy
+    data:
+      type: object
+      required:
+      - outlet_id
+      - brand_id
+      - kind
+      - status
+      - tax_registration_id
+      properties:
+        outlet_id:
+          type: string
+          description: The outlet or property.
+        brand_id:
+          type: string
+          description: Its brand.
+        kind:
+          type: string
+          description: Outlet kind.
+          enum:
+          - restaurant
+          - bakery_outlet
+          - production_unit
+          - stall
+          - property
+          - service_point
+        status:
+          type: string
+          description: Outlet state.
+          enum:
+          - active
+          - inactive
+        tax_registration_id:
+          type: string
+          description: The registration the outlet bills under.
+examples:
+- id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a81
+  type: tenancy.outlet.created
+  v: 1
+  source: tenancy
+  tenant_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a60
+  outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+  key: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+  key_seq: 1
+  occurred_at: '2026-11-24T13:05:11.120Z'
+  actor: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a66
+  data:
+    outlet_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a61
+    brand_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6a
+    kind: restaurant
+    status: active
+    tax_registration_id: 0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a6b

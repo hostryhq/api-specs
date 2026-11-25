@@ -52,3 +52,41 @@ func TestHarnessDetectsViolations(t *testing.T) {
 		}
 	}
 }
+
+// SeedWorld is called once per operation with its world (default "base"), and the
+// per-operation Idempotency-Key is distinct.
+func TestSeedWorldAndDistinctKeys(t *testing.T) {
+	good := double.New()
+	keys := map[string]int{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if k := r.Header.Get("Idempotency-Key"); k != "" {
+			keys[k]++
+		}
+		good.ServeHTTP(w, r)
+	}))
+	defer srv.Close()
+	var worlds []string
+	reports, err := contracttest.Verify(context.Background(), contracttest.Options{
+		SpecPath: spec, BaseURL: srv.URL, ExpectExamples: true,
+		SeedWorld: func(_ context.Context, w string) error { worlds = append(worlds, w); return nil },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range reports {
+		if len(r.Failures) > 0 {
+			t.Errorf("%s: %v", r.OperationID, r.Failures)
+		}
+	}
+	if len(worlds) != 3 {
+		t.Fatalf("seeded %d times, want once per operation (3): %v", len(worlds), worlds)
+	}
+	for _, w := range worlds {
+		if w != contracttest.DefaultWorld {
+			t.Errorf("world %q, want default", w)
+		}
+	}
+	if len(keys) != 1 || keys["createPing:0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b"] != 2 {
+		t.Errorf("idempotency keys seen: %v", keys)
+	}
+}
